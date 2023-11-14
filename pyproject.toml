@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "popsim"
+version = "0.1.0"
+description = ""
+authors = ["Allen Wang <allenw@mit.edu>"]
+readme = "README.md"
+packages = [{include = "popsim"}]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+diffrax = "^0.4.1"
+equinox = "^0.11.2"
+jax-dataclasses = "^1.5.1"
+jax = "^0.4.20"
+jaxlib = {extras = ["cuda12-pip"], version = "^0.4.20+cuda12.cudnn89", source = "jaxbins"}
+cfspopcon = { path = "cfspopcon/", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+ruff = "^0.1.5"
+pre-commit = "^3.5.0"
+jupyter = "^1.0.0"
+
+
+[[tool.poetry.source]]
+name = "jaxbins"
+url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
+priority = "primary"
+
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

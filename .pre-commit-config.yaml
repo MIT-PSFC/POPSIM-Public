@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.1.5
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [ --fix ]
+      # Run the formatter.
+      - id: ruff-format
+  - repo: local
+    hooks:
+      # https://zhauniarovich.com/post/2020/2020-06-clearing-jupyter-output/
+      - id: jupyter-nb-clear-output
+        name: jupyter-nb-clear-output
+        files: \.ipynb$
+        stages: [commit]
+        language: system
+        entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
