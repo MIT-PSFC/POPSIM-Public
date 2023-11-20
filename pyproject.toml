@@ -66,6 +66,7 @@ ignore = [
   "PLR0913", #ignore limit on number of args
   "PLR2004", #ignore magic values warning, at least for now
   "C408", # use {} instead of dict(), but we use dict heavily, for now leave it
+  "D103", # ignore missing docstring in public function
 ]
 pyupgrade.keep-runtime-typing=true
 pydocstyle.convention = "google"
