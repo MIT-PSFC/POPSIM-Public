@@ -11,9 +11,10 @@ python = ">=3.9,<3.12"
 diffrax = "^0.4.1"
 equinox = "^0.11.2"
 jax-dataclasses = "^1.5.1"
-jax = "^0.4.20"
-jaxlib = {extras = ["cuda12-pip"], version = "^0.4.20+cuda12.cudnn89", source = "jaxbins"}
-cfspopcon = { path = "cfspopcon/", develop = true }
+jax = "==0.4.14"
+jaxlib = {extras = ["cuda12-pip"], version = "==0.4.14+cuda12.cudnn89", source = "jaxbins"}
+cfspopcon = { path = "./cfspopcon", develop = true }
+interpax = "^0.2.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -35,3 +36,38 @@ priority = "primary"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+select = [
+  "A", # avoid shadowing
+  "B", # flake8-bugbear
+  "C4", # comprehensions 
+  "D", #docstrings
+  "E", # pycodestyle Errors
+  "ERA", # no commented out code
+  "F", # pyflakes
+  "FLY", # flynt
+  "I001", # isort
+  "ISC", # implicit string concatenation
+  "PERF", # Perflint
+  "PIE", # flake8-pie
+  "PGH", # pygrep-hooks
+  "PL", # pylint
+  "Q", # flake8-quotes
+  "RUF", # ruff builtins e.g. noqa checking
+  "T10", # flake8-debugger (no breakpoint etc)
+  "TCH",# type-checking imports
+  "UP", # pyupgrade
+  "W", # pycodestyle warnings
+  ]
+
+ignore = [
+  "E501", # Never enforce line length violations, we have black for that.
+  "PLR0913", #ignore limit on number of args
+  "PLR2004", #ignore magic values warning, at least for now
+  "C408", # use {} instead of dict(), but we use dict heavily, for now leave it
+]
+pyupgrade.keep-runtime-typing=true
+pydocstyle.convention = "google"
+target-version = "py39"
+line-length = 140
