@@ -1,7 +1,8 @@
-from jaxtyping import PyTree, ArrayLike, ScalarLike
-from typing import Sequence
+from collections.abc import Sequence
+
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike, PyTree, ScalarLike
 
 """
 Much of Jax is designed around the concept of mapping over "PyTrees".

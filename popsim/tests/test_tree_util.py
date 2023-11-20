@@ -1,5 +1,6 @@
-import popsim.tree_util as tree_util
 import jax.numpy as jnp
+
+from popsim import tree_util
 
 
 def test_tree_transpose():
