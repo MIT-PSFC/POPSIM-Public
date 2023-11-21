@@ -840,20 +840,24 @@ files = [
 
 [[package]]
 name = "interpax"
-version = "0.2.3"
+version = "0.2.3+5.g4160329"
 description = "Interpolation and function approximation with JAX"
 optional = false
 python-versions = ">=3.8"
-files = [
-    {file = "interpax-0.2.3-py3-none-any.whl", hash = "sha256:aad8f2a9b136fa517044a932b48cc7b000800d688a24f47dbb1adad3631b8725"},
-    {file = "interpax-0.2.3.tar.gz", hash = "sha256:01d5a58584cc9a3bfaaa96e5265a7759aabf8c1774a0079d4e310a22fe1ef070"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 equinox = "*"
-jax = {version = ">=0.3.2,<=0.4.14", extras = ["cpu"]}
+jax = {version = ">=0.3.2,<=0.4.20", extras = ["cpu"]}
 numpy = ">=1.20.0,<1.25.0"
 scipy = ">=1.5.0,<1.11.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/f0uriest/interpax.git"
+reference = "HEAD"
+resolved_reference = "4160329011f58363fa7576a8919d57becb10f0d5"
 
 [[package]]
 name = "ipdb"
@@ -979,34 +983,38 @@ arrow = ">=0.15.0"
 
 [[package]]
 name = "jax"
-version = "0.4.14"
+version = "0.4.20"
 description = "Differentiate, compile, and transform Numpy code."
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "jax-0.4.14.tar.gz", hash = "sha256:18fed3881f26e8b13c8cb46eeeea3dba9eb4d48e3714d8e8f2304dd6e237083d"},
+    {file = "jax-0.4.20-py3-none-any.whl", hash = "sha256:3d5952197adca548d99310f1c326bf00548f1cc8652b89edb369166482c2aec2"},
+    {file = "jax-0.4.20.tar.gz", hash = "sha256:ea96a763a8b1a9374639d1159ab4de163461d01cd022f67c34c09581b71ed2ac"},
 ]
 
 [package.dependencies]
-importlib_metadata = {version = ">=4.6", markers = "python_version < \"3.10\""}
-jaxlib = {version = "0.4.14", optional = true, markers = "extra == \"cpu\""}
-ml_dtypes = ">=0.2.0"
-numpy = ">=1.22"
-opt_einsum = "*"
-scipy = ">=1.7"
+importlib-metadata = {version = ">=4.6", markers = "python_version < \"3.10\""}
+jaxlib = {version = "0.4.20", optional = true, markers = "extra == \"cpu\""}
+ml-dtypes = ">=0.2.0"
+numpy = [
+    {version = ">=1.23.2", markers = "python_version >= \"3.11\""},
+    {version = ">=1.22", markers = "python_version < \"3.11\""},
+]
+opt-einsum = "*"
+scipy = ">=1.9"
 
 [package.extras]
 australis = ["protobuf (>=3.13,<4)"]
-ci = ["jaxlib (==0.4.13)"]
-cpu = ["jaxlib (==0.4.14)"]
-cuda = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-cudnn86 = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-local = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-pip = ["jaxlib (==0.4.14+cuda11.cudnn86)", "nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
-cuda12-local = ["jaxlib (==0.4.14+cuda12.cudnn89)"]
-cuda12-pip = ["jaxlib (==0.4.14+cuda12.cudnn89)", "nvidia-cublas-cu12", "nvidia-cuda-cupti-cu12", "nvidia-cuda-nvcc-cu12", "nvidia-cuda-runtime-cu12", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12", "nvidia-cusolver-cu12", "nvidia-cusparse-cu12"]
-minimum-jaxlib = ["jaxlib (==0.4.11)"]
-tpu = ["jaxlib (==0.4.14)", "libtpu-nightly (==0.1.dev20230727)"]
+ci = ["jaxlib (==0.4.19)"]
+cpu = ["jaxlib (==0.4.20)"]
+cuda = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-cudnn86 = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-local = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-pip = ["jaxlib (==0.4.20+cuda11.cudnn86)", "nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)", "nvidia-nccl-cu11 (>=2.18.3)"]
+cuda12-local = ["jaxlib (==0.4.20+cuda12.cudnn89)"]
+cuda12-pip = ["jaxlib (==0.4.20+cuda12.cudnn89)", "nvidia-cublas-cu12 (>=12.2.5.6)", "nvidia-cuda-cupti-cu12 (>=12.2.142)", "nvidia-cuda-nvcc-cu12 (>=12.2.140)", "nvidia-cuda-runtime-cu12 (>=12.2.140)", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12 (>=11.0.8.103)", "nvidia-cusolver-cu12 (>=11.5.2)", "nvidia-cusparse-cu12 (>=12.1.2.141)", "nvidia-nccl-cu12 (>=2.18.3)", "nvidia-nvjitlink-cu12 (>=12.2)"]
+minimum-jaxlib = ["jaxlib (==0.4.14)"]
+tpu = ["jaxlib (==0.4.20)", "libtpu-nightly (==0.1.dev20231102)", "requests"]
 
 [[package]]
 name = "jax-dataclasses"
@@ -1029,14 +1037,19 @@ testing = ["flax", "pytest", "pytest-cov"]
 
 [[package]]
 name = "jaxlib"
-version = "0.4.14+cuda12.cudnn89"
+version = "0.4.20+cuda12.cudnn89"
 description = "XLA library for JAX"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:c663b0ec48e7bc15afba82dbc62f0eb1212d67f91a1aaad6779b7f7165d07130"},
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:4a5a9195d3345669db04bd699d13cada4142bfbab8677b36463445c66d00c752"},
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:d032b812505a99b823724798df05009bc4f471377d4ff8417c358408df684eb6"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:36e8c29e5b82291a3b6cbb648125c896f28b67381eed748dcfe4587764cb6682"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:4cbab7cf74f67e34dc3b71126a16e8286df79ab3a98ed8fd0bdd9fe1de2724aa"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:7318d225bf9f5cdc676ef771e73abfaf89af5377b92c868540c4873fa4d53198"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:0945f0c89ab41cea368f74b0f8d82e0429c5903b89a5cdf07d951cf74cb284e6"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:f7dd3e3b64b357592cfe309a1fcc597c85328b6fbce276beee90ebc9bcd9b201"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:6c047c14bb62aae7d4fab2f66b5abd73ad428c7d5e5f11933469c35241e50c10"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:b72536c5bdb53057e43a54dc5ef6d7445766f3090cb6b9eb3c62f7223ec33669"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:54cd87bb23271be873aec4d0101e4a269aa9057cb2a7e795d4b571998d590865"},
 ]
 
 [package.dependencies]
@@ -1050,7 +1063,7 @@ nvidia-cudnn-cu12 = {version = ">=8.9", optional = true, markers = "extra == \"c
 nvidia-cufft-cu12 = {version = "*", optional = true, markers = "extra == \"cuda12_pip\""}
 nvidia-cusolver-cu12 = {version = "*", optional = true, markers = "extra == \"cuda12_pip\""}
 nvidia-cusparse-cu12 = {version = "*", optional = true, markers = "extra == \"cuda12_pip\""}
-scipy = ">=1.7"
+scipy = ">=1.9"
 
 [package.extras]
 cuda11-pip = ["nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
@@ -1557,6 +1570,23 @@ files = [
 ]
 
 [[package]]
+name = "lineax"
+version = "0.0.3"
+description = "Linear solvers in JAX and Equinox."
+optional = false
+python-versions = "~=3.9"
+files = [
+    {file = "lineax-0.0.3-py3-none-any.whl", hash = "sha256:94c0975abe6cb9a98d6e3218c8d631f2e94814e2faa139ccadf3bf3cf25bb9c5"},
+    {file = "lineax-0.0.3.tar.gz", hash = "sha256:58e3ff9cd82d92a606f46088d80d5c45258d33a7f8eaef717251829230523a0f"},
+]
+
+[package.dependencies]
+equinox = ">=0.11.0"
+jax = ">=0.4.13"
+jaxtyping = ">=0.2.20"
+typing-extensions = ">=4.5.0"
+
+[[package]]
 name = "markupsafe"
 version = "2.1.3"
 description = "Safely add untrusted strings to HTML/XML markup."
@@ -1727,9 +1757,9 @@ files = [
 
 [package.dependencies]
 numpy = [
+    {version = ">=1.23.3", markers = "python_version > \"3.10\""},
     {version = ">=1.21.2", markers = "python_version > \"3.9\" and python_version <= \"3.10\""},
     {version = ">1.20", markers = "python_version <= \"3.9\""},
-    {version = ">=1.23.3", markers = "python_version > \"3.10\""},
 ]
 
 [package.extras]
@@ -2059,6 +2089,24 @@ docs = ["numpydoc", "sphinx (==1.2.3)", "sphinx-rtd-theme", "sphinxcontrib-napol
 tests = ["pytest", "pytest-cov", "pytest-pep8"]
 
 [[package]]
+name = "optimistix"
+version = "0.0.5"
+description = "Nonlinear optimisation in JAX and Equinox."
+optional = false
+python-versions = "~=3.9"
+files = [
+    {file = "optimistix-0.0.5-py3-none-any.whl", hash = "sha256:8d8378898ba9039f0e47fc8b789029b249b3bc3d1ed4b23929661d8d940ff08c"},
+    {file = "optimistix-0.0.5.tar.gz", hash = "sha256:720eb30d849b6df4be7e14cadfdc4109371afba316b2b75c35c8c4b07bb54124"},
+]
+
+[package.dependencies]
+equinox = ">=0.11.1"
+jax = ">=0.4.18"
+jaxtyping = ">=0.2.23"
+lineax = ">=0.0.3"
+typing-extensions = ">=4.5.0"
+
+[[package]]
 name = "overrides"
 version = "7.4.0"
 description = "A decorator to automatically detect mismatch when overriding a method."
@@ -2118,8 +2166,8 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.20.3", markers = "python_version < \"3.10\""},
     {version = ">=1.23.2", markers = "python_version >= \"3.11\""},
+    {version = ">=1.20.3", markers = "python_version < \"3.10\""},
     {version = ">=1.21.0", markers = "python_version >= \"3.10\" and python_version < \"3.11\""},
 ]
 python-dateutil = ">=2.8.1"
@@ -3372,4 +3420,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "c4bfe00634fa771824e154c477c0c82ae4840c48ce27febd959becf30a530742"
+content-hash = "4df4ef715a5f948ded3a69e0defbb980c816babf47595f65a647642f73b56967"
