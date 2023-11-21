@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import xarray as xr
 
 from cfspopcon import atomic_data
-from popsim.interfaces.enums import Impurity
+from popsim.enums import Impurity
 
 
 def atleast1d_inputs(func):

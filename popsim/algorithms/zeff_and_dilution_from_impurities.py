@@ -4,10 +4,10 @@ from typing import Callable
 import equinox as eqx
 import jax.numpy as jnp
 
-from cfspopcon.formulas import impurity_effects
+from cfspopcon.jax_compatible import impurity_effects
 from popsim import tree_util
+from popsim.enums import Impurity
 from popsim.interfaces.atomic_data import read_atomic_data
-from popsim.interfaces.enums import Impurity
 
 
 class ImpurityCalculator(eqx.Module):

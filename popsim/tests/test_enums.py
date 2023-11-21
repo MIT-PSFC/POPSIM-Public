@@ -1,5 +1,5 @@
 import cfspopcon.named_options as cfsno
-import popsim.interfaces.enums as popsim_enums
+import popsim.enums as popsim_enums
 
 
 def test_enums():
