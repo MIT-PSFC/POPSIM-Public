@@ -1,9 +1,8 @@
 from collections.abc import Sequence
-from typing import Callable
+from typing import Callable, Dict
 
 import equinox as eqx
 import optimistix as optx
-import jax
 import jax.numpy as jnp
 
 from cfspopcon.jax_compatible import impurity_effects
@@ -26,7 +25,6 @@ class ImpurityCalculator(eqx.Module):
         average_electron_temp_keV: float,
         impurity_concentration: float,
     ) -> dict[str, float]:
-        
         charge_state = impurity_effects.calc_impurity_charge_state_impl(
             1e19 * average_electron_density_19, 1000 * average_electron_temp_keV, self.mean_charge_curve
         )
@@ -95,13 +93,14 @@ class CalcZeffAndDilutionFromImpurities(eqx.Module):
         return outs
 
 
-class ImplicitSolveForDensTemp(eqx.Module):
+class CalcTempDensBreakdown(eqx.Module):
     zeff_and_dilution_calc: CalcZeffAndDilutionFromImpurities
     solver: optx.AbstractFixedPointSolver
+
     def __init__(
         self,
         zeff_and_dilution_calc: CalcZeffAndDilutionFromImpurities,
-        solver: optx.AbstractFixedPointSolver = optx.Newton(rtol=1e-5, atol=1e-5),
+        solver: optx.AbstractFixedPointSolver = optx.BFGS(rtol=1e-4, atol=1e-4),
     ):
         self.zeff_and_dilution_calc = zeff_and_dilution_calc
         self.solver = solver
@@ -112,58 +111,64 @@ class ImplicitSolveForDensTemp(eqx.Module):
         average_ion_density: float,
         ion_to_electron_temp_ratio: float,
         impurity_concentrations: dict[Impurity, float],
-    ):
-        """ Solve for the breakdown of electron + ion densities and temperatures.
-        Doing so requires an implicit solve of the following equation:
-
-            pressure = p_e + p_i
-                = n_e * T_e + n_i * T_i
-                = n_e * T_e + dilution(T_e, n_e) * n_i * ion_to_electron_temp_ratio * T_e
+    ) -> Dict[str, float]:
+        """Solve for the breakdown of electron + ion densities and temperatures.
+        This module makes two major assumptions in its calculations:
+            1) Dilution is insensitive to 10s of percent change in average electron density + pressure.
+            2) <p> = <n_e> <T_e> + <n_i> ion_to_electron_temp_ratio * <T_e>
 
         Args:
             average_pressure (float): volume-average pressure [keV * 1e19 m^-3]
             average_ion_density (float): volume-average ion density [1e19 m^-3]
             ion_to_electron_temp_ratio (float): ratio of ion to electron temperature [-]
-            impurity_concentrations (dict[Impurity, float]): 
+            impurity_concentrations (dict[Impurity, float]):
 
         Returns:
             _type_: _description_
         """
 
-        def f(x, args):
-            avg_electron_density_guess = x[0]
-            avg_electron_temp_guess = x[1]
-            jax.debug.breakpoint()
-            outs = self.zeff_and_dilution_calc(
-                average_electron_density_19=avg_electron_density_guess,
-                average_electron_temp_keV=avg_electron_temp_guess,
-                impurity_concentrations=impurity_concentrations,
-            )
-
-            electron_partial_pressure = avg_electron_density_guess * avg_electron_temp_guess
-            average_ion_density_guess = outs["average_ion_density"]
-            average_ion_temp = ion_to_electron_temp_ratio * avg_electron_temp_guess
-            ion_partial_pressure = average_ion_density_guess * average_ion_temp
-            calculate_average_pressure = electron_partial_pressure + ion_partial_pressure
-
-            pressure_res = average_pressure - calculate_average_pressure
-            ion_density_res = average_ion_density - average_ion_density_guess
-            return jnp.array([pressure_res, ion_density_res])
-
-        # Initial guess for the solver.
-        # Guess that average electron density is the same as the average ion density.
-        # To generate an electron temp guess, assume that the electron and ion partial
-        # pressures are equal, and that the ion temp is the same as the electron temp.
+        # ASSUMPTION: Dilution is relatively insensitive to electron density and pressure.
+        # Spot check suggests this is true.
+        """
+        ASSUMPTION 1: Dilution is insensitive to 10s of percent change in average electron density + pressure.
+        Spot check suggests this is true. Thus, lets use the ion density to guess the electron density for
+        the purposes of calculating the dilution.
+        """
         average_electron_density_guess = average_ion_density
-        average_electron_temp_guess = 0.5 * average_pressure / average_electron_density_guess
-        x0 = jnp.array([average_electron_density_guess, average_electron_temp_guess])
+        average_electron_temp_guess = (0.5 * average_pressure) / average_electron_density_guess
+        impurity_outs = self.zeff_and_dilution_calc(
+            average_electron_density_19=average_electron_density_guess,
+            average_electron_temp_keV=average_electron_temp_guess,
+            impurity_concentrations=impurity_concentrations,
+        )
 
-        sol = optx.fixed_point(f, self.solver, x0)
-        x = sol.value
+        dilution = impurity_outs["dilution"]
+        average_electron_density = average_ion_density / dilution
+
+        """
+        ASSUMPTION 2:
+            <p> = <n_e> <T_e> + <n_i> ion_to_electron_temp_ratio * <T_e>
+        """
+        average_electron_temp = average_pressure / (average_electron_density + average_ion_density * ion_to_electron_temp_ratio)
+
+        average_ion_temp = ion_to_electron_temp_ratio * average_electron_temp
+
+        """
+        Now that we have proper electron temps + densities, we can recalculate the impurity contributions.
+        """
+        impurity_outs = self.zeff_and_dilution_calc(
+            average_electron_density_19=average_electron_density,
+            average_electron_temp_keV=average_electron_temp,
+            impurity_concentrations=impurity_concentrations,
+        )
+
         outs = {
-            "average_electron_density": x["average_electron_density"],
-            "average_electron_temp": x["average_electron_temp"],
+            "average_electron_density": average_electron_density,
+            "average_electron_temp": average_electron_temp,
             "average_ion_density": average_ion_density,
-            "average_ion_temp": ion_to_electron_temp_ratio * x["average_electron_temp"],
+            "average_ion_temp": average_ion_temp,
+            "z_effective": impurity_outs["z_effective"],
+            "dilution": impurity_outs["dilution"],
+            "summed_impurity_density": impurity_outs["summed_impurity_density"],
         }
         return outs

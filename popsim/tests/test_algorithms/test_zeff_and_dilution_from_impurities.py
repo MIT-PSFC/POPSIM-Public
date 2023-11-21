@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities, ImplicitSolveForDensTemp
+from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities, CalcTempDensBreakdown
 from popsim.enums import Impurity
 from popsim.tests import load_sparc_prd_data
 
@@ -45,9 +45,17 @@ def test_zeff_and_dilution_from_impurities(load_sparc_prd_data):
     # This pressure is in keV * 1e19 m^-3.
     average_pressure = (beta * Bt**2.0) / 4.02e-3
     average_ion_density = 27.0 # 1e19 m^-3
-    implicit_solver = ImplicitSolveForDensTemp(zeff_and_dilution_calc=calc)
-    out = implicit_solver(average_pressure=average_pressure,
+    td_calc = CalcTempDensBreakdown(zeff_and_dilution_calc=calc)
+    out = td_calc(average_pressure=average_pressure,
                           average_ion_density=average_ion_density,
                           ion_to_electron_temp_ratio=1.0,
                           impurity_concentrations=impurity_concentrations)
+    
+    # Check that outputs are reasonably close to Creely 2020.
+    assert out["average_electron_density"] > 30 and out["average_electron_density"] < 35
+    assert out["average_electron_temp"] > 6.5 and out["average_electron_temp"] < 8.0
+    assert out["average_ion_density"] > 25 and out["average_ion_density"] < 30
+    assert out["average_ion_temp"] > 6.5 and out["average_ion_temp"] < 8.0
+    assert out["z_effective"] > 1.0 and out["z_effective"] < 2.0
+    assert out["dilution"] > 0.7 and out["dilution"] < 0.9
     import pdb; pdb.set_trace()
