@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
 
-from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities
+from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities, ImplicitSolveForDensTemp
 from popsim.enums import Impurity
+from popsim.tests import load_sparc_prd_data
 
 
 def test_zeff_and_dilution_from_impurities(load_sparc_prd_data):
@@ -34,3 +35,19 @@ def test_zeff_and_dilution_from_impurities(load_sparc_prd_data):
     for v in out.values():
         assert v.shape == average_electron_density_grid.shape
         assert v.shape == average_electron_temp_grid.shape
+
+    """
+    Some numbers approximately correct for the SPARC PRD.
+    """
+    beta = 0.012
+    Bt = 12.2
+    # Use equation 4.4 from Creely 2020.
+    # This pressure is in keV * 1e19 m^-3.
+    average_pressure = (beta * Bt**2.0) / 4.02e-3
+    average_ion_density = 27.0 # 1e19 m^-3
+    implicit_solver = ImplicitSolveForDensTemp(zeff_and_dilution_calc=calc)
+    out = implicit_solver(average_pressure=average_pressure,
+                          average_ion_density=average_ion_density,
+                          ion_to_electron_temp_ratio=1.0,
+                          impurity_concentrations=impurity_concentrations)
+    import pdb; pdb.set_trace()
