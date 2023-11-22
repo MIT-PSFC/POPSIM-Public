@@ -5,10 +5,10 @@ import xarray as xr
 import cfspopcon
 from cfspopcon.formulas import impurity_effects
 from popsim.interfaces import atomic_data
-
+from popsim.tests import load_sparc_prd_data
 
 def test_interpolator_modes(load_sparc_prd_data):
-    input_parameters, algorithm, points = load_sparc_prd_data
+    input_parameters, algorithm, points, _, _ = load_sparc_prd_data
 
     cfspopcon.algorithms.calc_zeff_and_dilution_from_impurities.validate_inputs(input_parameters)
     dataset = xr.Dataset(input_parameters)

@@ -16,6 +16,7 @@ jaxlib = {extras = ["cuda12-pip"], version = "^0.4.14+cuda12.cudnn89", source = 
 cfspopcon = { path = "./cfspopcon", develop = true }
 interpax = {git = "https://github.com/f0uriest/interpax.git"}
 optimistix = "^0.0.5"
+chex = "^0.1.84"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

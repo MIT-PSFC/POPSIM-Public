@@ -1,11 +1,10 @@
 from collections.abc import Sequence
-from typing import Callable, Dict
+from typing import Callable
 
 import equinox as eqx
-import optimistix as optx
 import jax.numpy as jnp
 
-from cfspopcon.jax_compatible import impurity_effects
+from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from popsim import tree_util
 from popsim.enums import Impurity
 from popsim.interfaces.atomic_data import read_atomic_data
@@ -14,10 +13,12 @@ from popsim.interfaces.atomic_data import read_atomic_data
 class ImpurityCalculator(eqx.Module):
     impurity_type: Impurity
     mean_charge_curve: Callable[[float], float]
+    Lz_curve: Callable[[float], float]
 
-    def __init__(self, impurity_type: Impurity, mean_charge_curve: Callable[[float], float]):
+    def __init__(self, impurity_type: Impurity, mean_charge_curve: Callable[[float], float], Lz_curve: Callable[[float], float]):
         self.impurity_type = impurity_type
         self.mean_charge_curve = mean_charge_curve
+        self.Lz_curve = Lz_curve
 
     def __call__(
         self,
@@ -37,6 +38,24 @@ class ImpurityCalculator(eqx.Module):
         }
         return out
 
+    def calc_impurity_radiated_power_radas(
+        self,
+        rho,
+        electron_temp_profile,
+        electron_density_profile,
+        impurity_concentration,
+        plasma_volume,
+    ):
+        P_rad_impurity = radiated_power.calc_impurity_radiated_power_radas(
+            rho=rho,
+            electron_temp_profile=electron_temp_profile,
+            electron_density_profile=electron_density_profile,
+            impurity_concentration=impurity_concentration,
+            plasma_volume=plasma_volume,
+            Lz_curve=self.Lz_curve,
+        )
+        return P_rad_impurity
+
 
 class CalcZeffAndDilutionFromImpurities(eqx.Module):
     impurity_calculators: dict[Impurity, ImpurityCalculator]
@@ -50,6 +69,7 @@ class CalcZeffAndDilutionFromImpurities(eqx.Module):
             impurity: ImpurityCalculator(
                 impurity,
                 atomic_data[impurity].coronal_mean_Z_interpolator,
+                atomic_data[impurity].coronal_Lz_interpolator,
             )
             for impurity in impurities
         }
@@ -59,7 +79,6 @@ class CalcZeffAndDilutionFromImpurities(eqx.Module):
         average_electron_density_19: float,
         average_electron_temp_keV: float,
         impurity_concentrations: dict[Impurity, float],
-        debug: bool = False,
     ):
         impurity_contributions = [
             self.impurity_calculators[impurity](
@@ -88,22 +107,40 @@ class CalcZeffAndDilutionFromImpurities(eqx.Module):
             "average_ion_density": average_ion_density,
         }
 
-        if debug:
-            outs["impurity_contributions"] = impurity_contributions
-        return outs
+        debug = impurity_contributions
+
+        return outs, debug
+
+    def calc_impurity_radiated_power_radas(
+        self,
+        rho,
+        electron_temp_profile,
+        electron_density_profile,
+        impurity_concentrations,
+        plasma_volume,
+    ):
+        components = {}
+        for impurity in impurity_concentrations.keys():
+            components[impurity] = self.impurity_calculators[impurity].calc_impurity_radiated_power_radas(
+                rho=rho,
+                electron_temp_profile=electron_temp_profile,
+                electron_density_profile=electron_density_profile,
+                impurity_concentration=impurity_concentrations[impurity],
+                plasma_volume=plasma_volume,
+            )
+        values = jnp.array(list(components.values()))
+        debug = components
+        return  jnp.sum(values), debug
 
 
-class CalcTempDensBreakdown(eqx.Module):
+class TempDensImpurities(eqx.Module):
     zeff_and_dilution_calc: CalcZeffAndDilutionFromImpurities
-    solver: optx.AbstractFixedPointSolver
 
     def __init__(
         self,
         zeff_and_dilution_calc: CalcZeffAndDilutionFromImpurities,
-        solver: optx.AbstractFixedPointSolver = optx.BFGS(rtol=1e-4, atol=1e-4),
     ):
         self.zeff_and_dilution_calc = zeff_and_dilution_calc
-        self.solver = solver
 
     def __call__(
         self,
@@ -111,7 +148,7 @@ class CalcTempDensBreakdown(eqx.Module):
         average_ion_density: float,
         ion_to_electron_temp_ratio: float,
         impurity_concentrations: dict[Impurity, float],
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Solve for the breakdown of electron + ion densities and temperatures.
         This module makes two major assumptions in its calculations:
             1) Dilution is insensitive to 10s of percent change in average electron density + pressure.
@@ -136,7 +173,7 @@ class CalcTempDensBreakdown(eqx.Module):
         """
         average_electron_density_guess = average_ion_density
         average_electron_temp_guess = (0.5 * average_pressure) / average_electron_density_guess
-        impurity_outs = self.zeff_and_dilution_calc(
+        impurity_outs, _ = self.zeff_and_dilution_calc(
             average_electron_density_19=average_electron_density_guess,
             average_electron_temp_keV=average_electron_temp_guess,
             impurity_concentrations=impurity_concentrations,
@@ -156,7 +193,7 @@ class CalcTempDensBreakdown(eqx.Module):
         """
         Now that we have proper electron temps + densities, we can recalculate the impurity contributions.
         """
-        impurity_outs = self.zeff_and_dilution_calc(
+        impurity_outs, _ = self.zeff_and_dilution_calc(
             average_electron_density_19=average_electron_density,
             average_electron_temp_keV=average_electron_temp,
             impurity_concentrations=impurity_concentrations,

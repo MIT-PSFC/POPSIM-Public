@@ -1,5 +1,5 @@
-from typing import Dict, Tuple
-import cfspopcon.jax_compatible.current_drive as current_drive
+
+from cfspopcon.jax_compatible import current_drive
 
 
 def calc_ohmic_power(
@@ -11,7 +11,7 @@ def calc_ohmic_power(
     minor_radius: float,
     areal_elongation: float,
     plasma_current: float,
-) -> Tuple[float, Dict[str, float]]:
+) -> tuple[float, dict[str, float]]:
     """_summary_
 
     Args:

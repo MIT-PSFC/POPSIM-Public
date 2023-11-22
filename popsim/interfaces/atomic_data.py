@@ -35,6 +35,9 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
             y=log_density,
             f=f,
             method="linear",
+            # TODO(allenw): RADAS data currently does not support
+            # our full range, so we have to extrap.
+            extrap=True
         )
     elif curve.ndim == 3:
         log_ne_tau = jnp.array(curve.dim_log_ne_tau)
@@ -53,6 +56,9 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
             z=log_ne_tau,
             f=f,
             method="linear",
+            # TODO(allenw): RADAS data currently does not support
+            # our full range, so we have to extrap.
+            extrap=True
         )
     else:
         raise NotImplementedError(f"Cannot build an interpolator for a curve with ndim={curve.ndim}")
