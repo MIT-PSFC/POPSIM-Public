@@ -3,6 +3,7 @@ from typing import Callable
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, geometry, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
@@ -14,7 +15,7 @@ from popsim.algorithms.zeff_and_dilution_from_impurities import (
     TempDensImpurities,
 )
 from popsim.enums import Impurity
-
+import diffrax
 
 class State(eqx.Module):
     stored_energy: float  # [MJ]
@@ -42,7 +43,7 @@ class Params(eqx.Module):
     average_ion_density: float  # [1e19 m^-3]
 
 
-class HelloWorldModel(eqx.Module):
+class SimpleModel(eqx.Module):
     fusion_reaction: ReactionType
     impurity_calc: CalcZeffAndDilutionFromImpurities
     temp_dens_imp: TempDensImpurities
@@ -243,8 +244,12 @@ class HelloWorldModel(eqx.Module):
 
         dW_dt = -P_tau_MW + P_alpha_MW + P_ohmic_MW + Paux_MW - P_rad_MW
 
+        derivs = State(
+            stored_energy=dW_dt,
+        )
+
         if not debug_info:
-            return dW_dt
+            return derivs
         else:
             debug = {
                 "P_rad_bremsstrahlung_MW": P_rad_bremsstrahlung_MW,
@@ -267,4 +272,29 @@ class HelloWorldModel(eqx.Module):
                 "profiles": profiles,
                 "q_star": q_star,
             }
-        return dW_dt, debug
+        return derivs, debug
+
+class Simulator(eqx.Module):
+    model: SimpleModel
+    term: diffrax.ODETerm
+    def __init__(self, model: SimpleModel):
+        self.model = model
+        def model_f(t, y, args):
+            out = model(y, *args)
+            return out
+        self.term = diffrax.ODETerm(model_f)
+
+    def __call__(self, ts, state0, params):
+        sol = diffrax.diffeqsolve(
+            terms=self.term,
+            solver = diffrax.Tsit5(),
+            t0 = ts[0],
+            t1 = ts[-1],
+            dt0 = jnp.min(jnp.diff(ts)),
+            y0=state0,
+            args=(params,),
+            saveat=diffrax.SaveAt(ts=ts)
+        )
+        debug_fn = lambda y : self.model(y, params, debug_info=True)
+        derivs, debugs = jax.vmap(debug_fn)(sol.ys)
+        return sol, derivs, debugs

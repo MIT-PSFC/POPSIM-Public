@@ -1,5 +1,5 @@
 from cfspopcon.unit_handling import Quantity
-from popsim.simulators.simple_power_balance.hello_world import HelloWorldModel, Params, State
+from popsim.simulators.simple_power_balance.simple_model import SimpleModel, Params, State
 from popsim.tests import load_sparc_prd_data_f
 
 
@@ -9,7 +9,7 @@ def build_default():
         if isinstance(v, Quantity):
             input_parameters[k] = v.magnitude
 
-    model = HelloWorldModel(
+    model = SimpleModel(
         impurities=impurity_types,
         energy_confinement_scaling=input_parameters["energy_confinement_scaling"],
     )
@@ -32,7 +32,7 @@ def build_default():
         ion_to_electron_temp_ratio = input_parameters["ion_to_electron_temp_ratio"],
         impurity_concentrations=impurity_concentrations,
         confinement_time_scalar=input_parameters["confinement_time_scalar"],
-        P_aux_MW=14, # Default value from Creely 2020.
+        P_aux_MW=8,
         average_ion_density=27 # From Creely 2020.
     )
 
