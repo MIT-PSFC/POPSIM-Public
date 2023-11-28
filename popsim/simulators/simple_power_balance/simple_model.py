@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Callable
 
+import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -15,7 +16,7 @@ from popsim.algorithms.zeff_and_dilution_from_impurities import (
     TempDensImpurities,
 )
 from popsim.enums import Impurity
-import diffrax
+
 
 class State(eqx.Module):
     stored_energy: float  # [MJ]
@@ -75,7 +76,7 @@ class SimpleModel(eqx.Module):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params, debug_info: bool = False) -> State:
+    def __call__(self, state: State, params: Params, debug_info: bool = False) -> State:  # noqa: PLR0915
         """Geometric calculations."""
         plasma_volume = geometry.calc_plasma_volume(
             major_radius=params.major_radius,
@@ -119,7 +120,7 @@ class SimpleModel(eqx.Module):
         average_ion_temp = outs["average_ion_temp"]
         z_effective = outs["z_effective"]
         dilution = outs["dilution"]
-        summed_impurity_density = outs["summed_impurity_density"]
+        summed_impurity_density = outs["summed_impurity_density"]  # noqa: F841
 
         beta_p = beta.calc_beta_poloidal(
             average_electron_density=average_electron_density,
@@ -274,27 +275,30 @@ class SimpleModel(eqx.Module):
             }
         return derivs, debug
 
+
 class Simulator(eqx.Module):
     model: SimpleModel
     term: diffrax.ODETerm
+
     def __init__(self, model: SimpleModel):
         self.model = model
+
         def model_f(t, y, args):
             out = model(y, *args)
             return out
+
         self.term = diffrax.ODETerm(model_f)
 
     def __call__(self, ts, state0, params):
         sol = diffrax.diffeqsolve(
             terms=self.term,
-            solver = diffrax.Tsit5(),
-            t0 = ts[0],
-            t1 = ts[-1],
-            dt0 = jnp.min(jnp.diff(ts)),
+            solver=diffrax.Tsit5(),
+            t0=ts[0],
+            t1=ts[-1],
+            dt0=jnp.min(jnp.diff(ts)),
             y0=state0,
             args=(params,),
-            saveat=diffrax.SaveAt(ts=ts)
+            saveat=diffrax.SaveAt(ts=ts),
         )
-        debug_fn = lambda y : self.model(y, params, debug_info=True)
-        derivs, debugs = jax.vmap(debug_fn)(sol.ys)
+        derivs, debugs = jax.vmap(lambda y: self.model(y, params, debug_info=True))(sol.ys)
         return sol, derivs, debugs

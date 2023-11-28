@@ -130,7 +130,7 @@ class CalcZeffAndDilutionFromImpurities(eqx.Module):
             )
         values = jnp.array(list(components.values()))
         debug = components
-        return  jnp.sum(values), debug
+        return jnp.sum(values), debug
 
 
 class TempDensImpurities(eqx.Module):
