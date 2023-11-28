@@ -67,7 +67,7 @@ jobs:
         id: radas
         with:
           path: radas
-          key: radas-${{ hashFiles('.github/workflows/make_radas_data.sh')}}
+          key: radas-${{ hashFiles('./cfspopcon/.github/workflows/make_radas_data.sh')}}
 
       - name: Check cache hit
         if: steps.radas.outputs.cache-hit != 'true'
