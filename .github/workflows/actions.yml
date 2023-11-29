@@ -86,3 +86,5 @@ jobs:
         # TODO enable -Werror once tests are fixed
         run: poetry run pytest popsim/tests
 
+      - name: CFSPOPCON jax_compatible Tests
+        run: poetry run pytest cfspopcon/cfspopcon/jax_compatible/tests/

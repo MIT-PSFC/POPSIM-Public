@@ -16,6 +16,8 @@ cfspopcon = { path = "./cfspopcon", develop = true }
 interpax = "^0.2.4"
 optimistix = "^0.0.5"
 chex = "^0.1.84"
+pytest-cov = "^4.1.0"
+nbmake = "^1.4.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
