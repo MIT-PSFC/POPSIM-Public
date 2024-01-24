@@ -1,15 +1,94 @@
+from typing import Optional
+
 import equinox as eqx
+import interpax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
+from numpy import float64
+from numpy.typing import NDArray
 
 from cfspopcon.jax_compatible import density_peaking, plasma_profiles
+from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
+from popsim.enums import ProfileForm
+from popsim.interfaces import get_prf_profiles
+
+
+class PRFProfiles(eqx.Module):
+    width_interpolator: interpax.Interpolator2D
+    aLT_interpolator: interpax.Interpolator2D
+
+    def __init__(self):
+        """Get interpolators"""
+        self.width_interpolator, self.aLT_interpolator = get_prf_profiles.read_prf_profiles()
+
+    def __call__(
+        self,
+        average_electron_density: float,
+        average_electron_temp: float,
+        average_ion_temp: float,
+        electron_density_peaking: float,
+        ion_density_peaking: float,
+        temperature_peaking: float,
+        dilution: float,
+        rho: NDArray[float64],
+        normalized_inverse_temp_scale_length: float,
+    ):
+        rho, electron_temp_profile, electron_density_profile = self.evaluate_density_and_temperature_profile_fits(
+            T_avol=average_electron_temp,
+            n_avol=average_electron_density,
+            temperature_peaking=temperature_peaking,
+            nu_n=electron_density_peaking,
+            aLT=normalized_inverse_temp_scale_length,
+            rho=rho,
+        )
+        rho, ion_temp_profile, ion_density_profile = self.evaluate_density_and_temperature_profile_fits(
+            T_avol=average_ion_temp,
+            n_avol=average_electron_density * dilution,
+            temperature_peaking=temperature_peaking,
+            nu_n=ion_density_peaking,
+            aLT=normalized_inverse_temp_scale_length,
+            rho=rho,
+        )
+
+        return electron_temp_profile, electron_density_profile, ion_temp_profile, ion_density_profile
+
+    def evaluate_density_and_temperature_profile_fits(
+        self,
+        T_avol: float,
+        n_avol: float,
+        temperature_peaking: float,
+        nu_n: float,
+        aLT: float = 2.0,
+        width_ped: float = 0.05,
+        rho: Optional[NDArray[float64]] = None,
+    ) -> tuple[NDArray[float64], NDArray[float64], NDArray[float64]]:  # TODO: fill out docstring
+        """Evaluate temperature-density profile fits."""
+
+        # ---- Find parameters consistent with peaking
+        x_a = self.width_interpolator(aLT, temperature_peaking)[0]
+        aLn = self.aLT_interpolator(x_a, nu_n)[0]
+
+        # ---- Evaluate profiles
+        x, T, _ = density_and_temperature_profile_fits.evaluate_profile(T_avol, width_ped=width_ped, aLT_core=aLT, width_axis=x_a, rho=rho)
+        x, n, _ = density_and_temperature_profile_fits.evaluate_profile(n_avol, width_ped=width_ped, aLT_core=aLn, width_axis=x_a, rho=rho)
+
+        return x, T, n
 
 
 class ProfileCalculator(eqx.Module):
+    profile_form: ProfileForm
     rho: ArrayLike
+    PRFcalc: PRFProfiles
 
-    def __init__(self, n_points: int):
+    def __init__(
+        self,
+        profile_form: ProfileForm,
+        n_points: int = 50,
+        PRFcalc=PRFProfiles,
+    ):
+        self.profile_form = profile_form
         self.rho = jnp.linspace(0.0, 1.0, n_points)
+        self.PRFcalc = PRFcalc()
 
     def __call__(
         self,
@@ -23,6 +102,7 @@ class ProfileCalculator(eqx.Module):
         z_effective: float,
         dilution: float,
         beta_toroidal: float,
+        normalized_inverse_temp_scale_length: float,
     ):
         effective_collisionality = density_peaking.calc_effective_collisionality(
             average_electron_density_19, average_electron_temp_keV, major_radius, z_effective
@@ -36,30 +116,48 @@ class ProfileCalculator(eqx.Module):
             effective_collisionality, beta_toroidal, nu_noffset=electron_density_peaking_offset
         )
 
-        (
-            _,
-            electron_density_profile,
-            ion_density_profile,
-            electron_temp_profile,
-            ion_temp_profile,
-        ) = plasma_profiles.calc_analytic_profiles(
-            average_electron_density_19,
-            average_electron_temp_keV,
-            average_ion_temp_keV,
-            electron_density_peaking,
-            ion_density_peaking,
-            temperature_peaking,
-            dilution,
-            self.rho,
-        )
+        if self.profile_form.value == ProfileForm.analytic.value:
+            (
+                _,
+                electron_density_profile,
+                ion_density_profile,
+                electron_temp_profile,
+                ion_temp_profile,
+            ) = plasma_profiles.calc_analytic_profiles(
+                average_electron_density_19,
+                average_electron_temp_keV,
+                average_ion_temp_keV,
+                electron_density_peaking,
+                ion_density_peaking,
+                temperature_peaking,
+                dilution,
+                self.rho,
+            )
 
-        # Bit of a hack to avoid zero at the edge which seems to cause problems.
-        electron_density_profile = jnp.maximum(electron_density_profile, 0.01)
-        ion_density_profile = jnp.maximum(ion_density_profile, 0.01)
-        electron_temp_profile = jnp.maximum(electron_temp_profile, 0.01)
-        ion_temp_profile = jnp.maximum(ion_temp_profile, 0.01)
+            # Bit of a hack to avoid zero at the edge which seems to cause problems.
+            electron_density_profile = jnp.maximum(electron_density_profile, 0.01)
+            ion_density_profile = jnp.maximum(ion_density_profile, 0.01)
+            electron_temp_profile = jnp.maximum(electron_temp_profile, 0.01)
+            ion_temp_profile = jnp.maximum(ion_temp_profile, 0.01)
+
+        elif self.profile_form.value == ProfileForm.prf.value:
+            (electron_temp_profile, electron_density_profile, ion_temp_profile, ion_density_profile) = self.PRFcalc(
+                average_electron_density_19,
+                average_electron_temp_keV,
+                average_ion_temp_keV,
+                electron_density_peaking,
+                ion_density_peaking,
+                temperature_peaking,
+                dilution,
+                self.rho,
+                normalized_inverse_temp_scale_length,
+            )
+
+        else:
+            raise NotImplementedError(f"Profile form {self.profile_form} is not recognized...")
 
         outs = {
+            "rho": self.rho,
             "electron_density_profile": electron_density_profile,
             "ion_density_profile": ion_density_profile,
             "electron_temp_profile": electron_temp_profile,
@@ -68,4 +166,5 @@ class ProfileCalculator(eqx.Module):
             "ion_density_peaking": ion_density_peaking,
             "electron_density_peaking": electron_density_peaking,
         }
+
         return outs

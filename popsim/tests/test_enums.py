@@ -8,8 +8,12 @@ def test_enums():
 
     cfs_to_popsim = popsim_enums.Impurity(impurity_cfspopcon.value)
 
+    profile_form_cfspopcon = cfsno.ProfileForm.analytic
+    profile_form_popsim = popsim_enums.ProfileForm.analytic
+
     assert impurity_cfspopcon.value == impurity_popsim.value
     assert impurity_popsim == cfs_to_popsim
+    assert profile_form_popsim.value == profile_form_cfspopcon.value
 
 
 def test_jax_jit_enums():

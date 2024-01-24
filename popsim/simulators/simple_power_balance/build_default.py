@@ -10,6 +10,7 @@ def build_default():
             input_parameters[k] = v.magnitude
 
     model = SimpleModel(
+        profile_form=input_parameters["profile_form"],
         impurities=impurity_types,
         energy_confinement_scaling=input_parameters["energy_confinement_scaling"],
     )

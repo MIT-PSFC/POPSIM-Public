@@ -15,7 +15,7 @@ from popsim.algorithms.zeff_and_dilution_from_impurities import (
     CalcZeffAndDilutionFromImpurities,
     TempDensImpurities,
 )
-from popsim.enums import Impurity
+from popsim.enums import Impurity, ProfileForm
 
 
 class State(eqx.Module):
@@ -45,6 +45,7 @@ class Params(eqx.Module):
 
 
 class SimpleModel(eqx.Module):
+    profile_form: ProfileForm
     fusion_reaction: ReactionType
     impurity_calc: CalcZeffAndDilutionFromImpurities
     temp_dens_imp: TempDensImpurities
@@ -54,17 +55,19 @@ class SimpleModel(eqx.Module):
 
     def __init__(
         self,
+        profile_form: ProfileForm,
         impurities: Sequence[Impurity],
         energy_confinement_scaling: ConfinementScaling,
         fusion_reaction: ReactionType = ReactionType.DT,
     ):
+        self.profile_form = profile_form
         self.fusion_reaction = fusion_reaction
         self.impurity_calc = CalcZeffAndDilutionFromImpurities(impurities)
         self.temp_dens_imp = TempDensImpurities(
             zeff_and_dilution_calc=self.impurity_calc,
         )
 
-        self.profiles = ProfileCalculator(n_points=100)
+        self.profiles = ProfileCalculator(profile_form=profile_form, n_points=100)
 
         self.calc_tau_e_and_P_in_from_scaling = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=energy_confinement_scaling)
 
@@ -149,6 +152,7 @@ class SimpleModel(eqx.Module):
             z_effective=z_effective,
             dilution=dilution,
             beta_toroidal=beta_t,
+            normalized_inverse_temp_scale_length=params.normalized_inverse_temp_scale_length,
         )
         electron_density_profile = profiles["electron_density_profile"]
         ion_density_profile = profiles["ion_density_profile"]

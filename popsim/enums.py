@@ -17,3 +17,4 @@ def enum_to_intenum(enum_class):
 
 
 Impurity = enum_to_intenum(cfsno.Impurity)
+ProfileForm = enum_to_intenum(cfsno.ProfileForm)
