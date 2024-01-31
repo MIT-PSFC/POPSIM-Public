@@ -1,8 +1,73 @@
 import jax
 import jax.numpy as jnp
-from popsim.tests import load_sparc_prd_data
-from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities, TempDensImpurities
+import pytest
 
+from popsim.algorithms.zeff_and_dilution_from_impurities import (
+    CalcZeffAndDilutionFromImpurities, ImpurityCalculator, TempDensImpurities)
+from popsim.enums import Impurity
+from popsim.interfaces.atomic_data import read_atomic_data
+
+
+@pytest.mark.parametrize("impurity", Impurity)
+def test_sensitivity_to_electron_density_temp(impurity):
+    """
+    Current setup requires a guess for the electron density + temp to determine
+    the charge state to determine the electron density + temp creating a bit of 
+    a chicken and egg problem. This test checks that the output of charge state
+    calculation is not too sensitive to the guess for the electron density.
+    """
+    RTOL = 1e-6 
+    RTOL_TUNGSTEN_DENS = 2e-4 # Tungsten is more sensitive to the electron density guess.
+    RTOL_TUNGSTEN_TEMP = 0.8 # TODO(allenw): Tungsten can be quite sensitive to the electron temperature guess.
+    DENSITY_PERTUBATION_FACTORS = jnp.linspace(0.5, 1.5, 10)
+    TEMPERATURE_PERTURBATION_FACTORS = jnp.linspace(0.25, 1.25, 10)
+    electron_density_19_tests = jnp.linspace(1.0, 40.0, 10)
+    electron_temp_kev_tests = jnp.linspace(1.0, 20.0, 10)
+    impurity_concentration_tests = jnp.logspace(-4, -1, 10)
+
+    atomic_data = read_atomic_data()
+    impurity_calc = ImpurityCalculator(
+                impurity,
+                atomic_data[impurity].coronal_mean_Z_interpolator,
+                atomic_data[impurity].coronal_Lz_interpolator,
+            )
+            
+    @jax.jit
+    def calc_maximum_normalized_diff(x):
+        """
+        Find the maximum difference between the elements of "x".
+        Normalize against the mean of "x".
+        """
+        return (jnp.max(x) - jnp.min(x))/jnp.mean(x)
+
+    """ 
+    Test the sensitivity of the charge state to the electron density guess.
+    """
+    def test_perturb_density(nominal_density_19, electron_temp_kev, impurity_concentration):
+        out = impurity_calc(average_electron_density_19=DENSITY_PERTUBATION_FACTORS * nominal_density_19, average_electron_temp_keV=electron_temp_kev, impurity_concentration=impurity_concentration)
+        max_norm_diff = jax.tree_util.tree_map(calc_maximum_normalized_diff, out)
+        return max_norm_diff
+    
+    # Essentially a triple for loop over nominal_density_19_tests, electron_temp_kev_tests, and impurity_concentration_tests.
+    combinatorial_test_case = jax.vmap(jax.vmap(jax.vmap(test_perturb_density, in_axes=(0, None, None)), in_axes=(None, 0, None)), in_axes=(None, None, 0))
+    test_results = combinatorial_test_case(electron_density_19_tests, electron_temp_kev_tests, impurity_concentration_tests)
+    for k, v in test_results.items():
+        assert jnp.all(v < RTOL_TUNGSTEN_DENS if impurity == Impurity.Tungsten else RTOL)
+
+    """
+    Test the sensitivity of the charge state to the electron temperature guess.
+    """
+    def test_perturb_temperature(nominal_density_19, electron_temp_kev, impurity_concentration):
+        out = impurity_calc(average_electron_density_19=nominal_density_19, average_electron_temp_keV=TEMPERATURE_PERTURBATION_FACTORS * electron_temp_kev, impurity_concentration=impurity_concentration)
+        max_norm_diff = jax.tree_util.tree_map(calc_maximum_normalized_diff, out)
+        return max_norm_diff
+    
+    # Again, a triple for loop over nominal_density_19_tests, electron_temp_kev_tests, and impurity_concentration_tests.
+    combinatorial_test_case = jax.vmap(jax.vmap(jax.vmap(test_perturb_temperature, in_axes=(0, None, None)), in_axes=(None, 0, None)), in_axes=(None, None, 0))
+    test_results = combinatorial_test_case(electron_density_19_tests, electron_temp_kev_tests, impurity_concentration_tests)
+    for k, v in test_results.items():
+        assert jnp.all(v < RTOL_TUNGSTEN_TEMP if impurity == Impurity.Tungsten else RTOL)
+    
 
 def test_zeff_and_dilution_from_impurities(load_sparc_prd_data):
     input_parameters, algorithm, points, impurity_types, impurity_concentrations = load_sparc_prd_data
