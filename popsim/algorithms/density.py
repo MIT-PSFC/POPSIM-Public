@@ -6,9 +6,10 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree
 
-from cfspopcon.jax_compatible import impurity_effects
+from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
 from popsim.interfaces.atomic_data import read_atomic_data
+from popsim.jax_utils import leaves_as_array
 
 
 class GenericDensityModel(eqx.Module):
@@ -47,7 +48,7 @@ class MultiSpeciesDensityModel(eqx.Module):
 
         @property
         def total_volume_average_ion_density(self) -> float:
-            return jnp.sum(jax.tree_leaves(self.volume_average_ion_densities))
+            return jnp.sum(leaves_as_array(self.volume_average_ion_densities))
 
     class Params(eqx.Module):
         sources_and_sinks: dict[Species, PyTree[float]]  # PyTree of net particle fluxes from various sources and sinks 1e19/s
@@ -84,12 +85,14 @@ class DensityModelImpurityCalc(eqx.Module):
     fuel_species: Sequence[FuelSpecies]
     impurity_species: Sequence[Impurity]
     mean_charge_curves: dict[Impurity, Callable[[float], float]]
+    Lz_curves: dict[Impurity, Callable[[float], float]]
 
     def __init__(self, species: Species):
         self.fuel_species = [s for s in species if isinstance(s, FuelSpecies)]
         self.impurity_species = [s for s in species if isinstance(s, Impurity)]
         atomic_data = read_atomic_data()
         self.mean_charge_curves = {impurity: atomic_data[impurity].coronal_mean_Z_interpolator for impurity in self.impurity_species}
+        self.Lz_curves = {impurity: atomic_data[impurity].coronal_Lz_interpolator for impurity in self.impurity_species}
 
     def __call__(self, density_state: MultiSpeciesDensityModel.State, average_pressure_kev_1e19: float) -> dict[str, float]:
         """Calculate the effective charge, dilution, and volume-averaged electron density given
@@ -110,23 +113,23 @@ class DensityModelImpurityCalc(eqx.Module):
             species: float(AtomicNumberMap[species]) * species_density
             for species, species_density in density_state.volume_average_ion_densities.items()
         }
-        average_electron_density_19_guess = jnp.sum(jax.tree_leaves(electron_density_19_full_ion_dict))
+        average_electron_density_19_guess = jnp.sum(leaves_as_array(electron_density_19_full_ion_dict))
         average_electron_temp_kev_guess = (0.5 * average_pressure_kev_1e19) / average_electron_density_19_guess
         imp_charge_states = {
             impurity: impurity_effects.calc_impurity_charge_state_impl(
-                1e19 * average_electron_density_19_guess, 1000 * average_electron_temp_kev_guess, self.mean_charge_curve
+                1e19 * average_electron_density_19_guess, 1000 * average_electron_temp_kev_guess, self.mean_charge_curves[impurity]
             )
             for impurity in self.impurity_species
         }
 
         # Now that we have the charge states, we can calculate the electron density contributions from each impurity species.
         electron_19_from_imp = jnp.sum(
-            [charge_state * density_state.volume_average_ion_densities[imp] for imp, charge_state in imp_charge_states.items()]
+            jnp.array([charge_state * density_state.volume_average_ion_densities[imp] for imp, charge_state in imp_charge_states.items()])
         )
 
         # Do the same for the fuel. Assume full ionization.
         electron_19_from_fuel = jnp.sum(
-            [AtomicNumberMap[species] * density_state.volume_average_ion_densities[species] for species in self.fuel_species]
+            jnp.array([AtomicNumberMap[species] * density_state.volume_average_ion_densities[species] for species in self.fuel_species])
         )
 
         # Add the contributions together to get the total electron density.
@@ -141,9 +144,34 @@ class DensityModelImpurityCalc(eqx.Module):
             for species in density_state.volume_average_ion_densities.keys()
         }
 
+        impurity_concentrations = {
+            impurity: density_state.volume_average_ion_densities[impurity] / electron_density_19 for impurity in self.impurity_species
+        }
+
         outs = {
-            "z_effective": jnp.sum(jax.tree_leaves(zeff_terms)),
+            "z_effective": jnp.sum(leaves_as_array(zeff_terms)),
             "dilution": dilution,
             "volume_average_electron_density_19": electron_density_19,
+            "impurity_concentrations": impurity_concentrations,
         }
         return outs
+
+    def calc_impurity_radiated_power_radas(
+        self,
+        electron_temp_profile,
+        electron_density_profile,
+        impurity_concentrations,
+        volume_integrator,
+    ):
+        components = {}
+        for impurity, concentration in impurity_concentrations.items():
+            components[impurity] = radiated_power.calc_impurity_radiated_power_radas(
+                electron_temp_profile=electron_temp_profile,
+                electron_density_profile=electron_density_profile,
+                impurity_concentration=concentration,
+                volume_integrator=volume_integrator,
+                Lz_curve=self.Lz_curves[impurity],
+            )
+        values = jnp.array(list(components.values()))
+        debug = components
+        return jnp.sum(values), debug

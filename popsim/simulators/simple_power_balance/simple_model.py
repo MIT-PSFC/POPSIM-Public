@@ -11,10 +11,7 @@ from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.named_options import ConfinementScaling
 from popsim.algorithms.profiles import ProfileCalculator
-from popsim.algorithms.zeff_and_dilution_from_impurities import (
-    CalcZeffAndDilutionFromImpurities,
-    TempDensImpurities,
-)
+from popsim.algorithms.zeff_and_dilution_from_impurities import CalcZeffAndDilutionFromImpurities, TempDensImpurities
 from popsim.enums import Impurity, ProfileForm
 
 

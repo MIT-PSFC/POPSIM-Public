@@ -20,10 +20,12 @@ def enum_to_intenum(enum_class):
 class FuelSpecies(IntEnum):
     """
     Fuel species where the integer value corresponds to the atomic mass number.
+    TODO(allenw): negative values to avoid conflict with impurity species.
+    Not sure what the best way to handle this is.
     """
 
-    Deuterium = 2
-    Tritium = 3
+    Deuterium = -2
+    Tritium = -3
 
 
 Impurity = enum_to_intenum(cfsno.Impurity)

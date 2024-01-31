@@ -3,13 +3,17 @@ from typing import Callable
 
 import equinox as eqx
 import jax
+from jaxtyping import PyTree
 
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, geometry, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
+from cfspopcon.jax_compatible.fusion_rates import ReactionType
+from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from cfspopcon.named_options import ConfinementScaling
 from popsim.algorithms.density import DensityModelImpurityCalc, MultiSpeciesDensityModel
+from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.algorithms.profiles import ProfileCalculator
-from popsim.enums import FuelSpecies, Impurity, ProfileForm, ReactionType, Species
+from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species
 
 
 class State(eqx.Module):
@@ -18,14 +22,7 @@ class State(eqx.Module):
 
 
 class Params(eqx.Module):
-    density_params: MultiSpeciesDensityModel.Params
-    major_radius: float  # [m]
     magnetic_field_on_axis: float  # [T]
-    inverse_aspect_ratio: float  # [-]
-    areal_elongation: float  # [-]
-    elongation_ratio_sep_to_areal: float  # [-]
-    triangularity_psi95: float  # [-]
-    triangularity_ratio_sep_to_psi95: float  # [-]
     plasma_current: float  # [A]
     fraction_of_external_power_coupled: float  # [-]
     normalized_inverse_temp_scale_length: float  # [-]
@@ -35,9 +32,13 @@ class Params(eqx.Module):
     ion_to_electron_temp_ratio: float  # [-]
     confinement_time_scalar: float  # [-]
     P_aux_MW: float  # [MW]
+    geometry: GeometryCFSPopcon
+    fueling: dict[Species, float]  # 1e19/s
+    particle_confinement_scalar: dict[Species, float]  # [-]
 
 
 class CometMirror(eqx.Module):
+    species: Sequence[Species]
     density_model: MultiSpeciesDensityModel
     impurity_calc: DensityModelImpurityCalc
     profile_form: ProfileForm
@@ -53,6 +54,7 @@ class CometMirror(eqx.Module):
         energy_confinement_scaling: ConfinementScaling,
         fusion_reaction: ReactionType = ReactionType.DT,
     ):
+        self.species = species
         self.density_model = MultiSpeciesDensityModel(species)
         self.impurity_calc = DensityModelImpurityCalc(species)
         self.profile_form = profile_form
@@ -69,29 +71,18 @@ class CometMirror(eqx.Module):
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
     def __call__(self, state: State, params: Params) -> State:
-        """Geometric calculations."""
-        plasma_volume = geometry.calc_plasma_volume(
-            major_radius=params.major_radius,
-            inverse_aspect_ratio=params.inverse_aspect_ratio,
-            areal_elongation=params.areal_elongation,
-        )
-        separatrix_triangularity = params.triangularity_psi95 * params.triangularity_ratio_sep_to_psi95
-        minor_radius = params.major_radius * params.inverse_aspect_ratio
-        separatrix_elongation = params.areal_elongation * params.elongation_ratio_sep_to_areal
-
         """Calculate q_star."""
-        f_shaping = current_drive.calc_f_shaping(params.inverse_aspect_ratio, params.areal_elongation, params.triangularity_psi95)
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,
-            params.major_radius,
-            params.inverse_aspect_ratio,
+            params.geometry.major_radius,
+            params.geometry.inverse_aspect_ratio,
             # Convert to MA.
             1e-6 * params.plasma_current,
-            f_shaping,
+            params.geometry.f_shaping,
         )
 
         """Calculate kinetics."""
-        average_stored_energy_Joule = 1e6 * state.stored_energy / plasma_volume
+        average_stored_energy_Joule = 1e6 * state.stored_energy / params.geometry.plasma_volume
         EV_TO_JOULE = 1.6022e-19
         average_stored_energy_eV = average_stored_energy_Joule / EV_TO_JOULE
         average_stored_energy_keV = average_stored_energy_eV / 1e3
@@ -102,10 +93,11 @@ class CometMirror(eqx.Module):
 
         # Calculate impurity related quantities.
         impurity_out = self.impurity_calc(density_state=state.density_state, average_pressure_kev_1e19=average_pressure_keV_1e19)
-        z_effective, dilution, average_electron_density_19 = (
+        z_effective, dilution, average_electron_density_19, impurity_concentrations = (
             impurity_out["z_effective"],
             impurity_out["dilution"],
-            impurity_out["volume_average_electron_density"],
+            impurity_out["volume_average_electron_density_19"],
+            impurity_out["impurity_concentrations"],
         )
 
         average_electron_temp_keV = average_pressure_keV_1e19 / (
@@ -119,7 +111,7 @@ class CometMirror(eqx.Module):
             average_ion_temp=average_ion_temp_keV,
             # Convert to MA.
             plasma_current=1e-6 * params.plasma_current,
-            minor_radius=minor_radius,
+            minor_radius=params.geometry.minor_radius,
         )
 
         beta_t = beta.calc_beta_toroidal(
@@ -136,7 +128,7 @@ class CometMirror(eqx.Module):
             ion_density_peaking_offset=params.ion_density_peaking_offset,
             electron_density_peaking_offset=params.electron_density_peaking_offset,
             temperature_peaking=params.temperature_peaking,
-            major_radius=params.major_radius,
+            major_radius=params.geometry.major_radius,
             z_effective=z_effective,
             dilution=dilution,
             beta_toroidal=beta_t,
@@ -146,37 +138,42 @@ class CometMirror(eqx.Module):
         """
         Calculate radiation.
         """
+
+        def volume_integrator(quantity_per_m3) -> float:
+            # TODO(allenw): currently using cylindrical. Eventually incorporate dV/drho.
+            return integrate_profile_over_volume_cylindrical(
+                quantity_per_m3, rho=profiles["rho"], plasma_volume=params.geometry.plasma_volume
+            )
+
         P_rad_bremsstrahlung_MW = radiated_power.calc_bremsstrahlung_radiation(
-            rho=self.profiles.rho,
             electron_density_profile=profiles["electron_density_profile"],
             electron_temp_profile=profiles["electron_temp_profile"],
             z_effective=z_effective,
-            plasma_volume=plasma_volume,
+            volume_integrator=volume_integrator,
         )
         P_rad_synchrotron_MW = radiated_power.calc_synchrotron_radiation(
-            rho=self.profiles.rho,
             electron_density_profile=profiles["electron_density_profile"],
             electron_temp_profile=profiles["electron_temp_profile"],
-            major_radius=params.major_radius,
-            minor_radius=minor_radius,
+            major_radius=params.geometry.major_radius,
+            minor_radius=params.geometry.minor_radius,
             magnetic_field_on_axis=params.magnetic_field_on_axis,
-            separatrix_elongation=separatrix_elongation,
-            plasma_volume=plasma_volume,
+            separatrix_elongation=params.geometry.separatrix_elongation,
+            volume_integrator=volume_integrator,
         )
 
         Prad_imp_MW, _ = self.impurity_calc.calc_impurity_radiated_power_radas(
-            rho=self.profiles.rho,
             # The radas calculation uses eV and m^-3.
             electron_temp_profile=1e3 * profiles["electron_temp_profile"],
             electron_density_profile=1e19 * profiles["electron_density_profile"],
-            impurity_concentrations=params.impurity_concentrations,
-            plasma_volume=plasma_volume,
+            impurity_concentrations=impurity_concentrations,
+            volume_integrator=volume_integrator,
         )
 
         """
         Calculate fusion power.
         """
         # TODO(allenw): make generic for all fuel types.
+        # Although... if advanced fuel reactions become relevant, that will be a great problem to have :).
         heavier_fuel_species_fraction = state.density_state.volume_average_ion_densities[FuelSpecies.Tritium] / (
             state.density_state.volume_average_ion_densities[FuelSpecies.Deuterium]
             + state.density_state.volume_average_ion_densities[FuelSpecies.Tritium]
@@ -186,25 +183,24 @@ class CometMirror(eqx.Module):
             ion_temp_profile=profiles["ion_temp_profile"],
             heavier_fuel_species_fraction=heavier_fuel_species_fraction,
             nfuel19=profiles["ion_density_profile"],
-            rho=self.profiles.rho,
-            plasma_volume=plasma_volume,
+            volume_integrator=volume_integrator,
         )
 
         """Calculate conduction losses."""
-        fuel_average_mass_number = self.calc_fuel_average_mass_number(params.heavier_fuel_species_fraction)
+        fuel_average_mass_number = self.calc_fuel_average_mass_number(heavier_fuel_species_fraction)
         tau_E, P_tau_MW = self.calc_tau_e_and_P_in_from_scaling(
             confinement_time_scalar=params.confinement_time_scalar,
             # Convert to MA.
             plasma_current=1e-6 * params.plasma_current,
             magnetic_field_on_axis=params.magnetic_field_on_axis,
             average_electron_density=average_electron_density_19,
-            major_radius=params.major_radius,
-            areal_elongation=params.areal_elongation,
-            separatrix_elongation=separatrix_elongation,
-            inverse_aspect_ratio=params.inverse_aspect_ratio,
+            major_radius=params.geometry.major_radius,
+            areal_elongation=params.geometry.areal_elongation,
+            separatrix_elongation=params.geometry.separatrix_elongation,
+            inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
             fuel_average_mass_number=fuel_average_mass_number,
-            triangularity_psi95=params.triangularity_psi95,
-            separatrix_triangularity=separatrix_triangularity,
+            triangularity_psi95=params.geometry.triangularity_psi95,
+            separatrix_triangularity=params.geometry.separatrix_triangularity,
             # Convert to MJ.
             plasma_stored_energy=state.stored_energy,
             q_star=q_star,
@@ -217,18 +213,22 @@ class CometMirror(eqx.Module):
             temperature_peaking=params.temperature_peaking,
             z_effective=z_effective,
             q_star=q_star,
-            inverse_aspect_ratio=params.inverse_aspect_ratio,
+            inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
             beta_poloidal=beta_p,
         )
 
         inductive_plasma_current = params.plasma_current * (1.0 - bootstrap_fraction)
         spitzer_resistivity = current_drive.calc_Spitzer_loop_resistivity(average_electron_temp_keV)
-        trapped_particle_fraction = current_drive.calc_resistivity_trapped_enhancement(params.inverse_aspect_ratio)
+        trapped_particle_fraction = current_drive.calc_resistivity_trapped_enhancement(params.geometry.inverse_aspect_ratio)
         neoclassical_loop_resistivity = current_drive.calc_neoclassical_loop_resistivity(
             spitzer_resistivity, z_effective, trapped_particle_fraction
         )
         loop_voltage = current_drive.calc_loop_voltage(
-            params.major_radius, minor_radius, inductive_plasma_current, params.areal_elongation, neoclassical_loop_resistivity
+            params.geometry.major_radius,
+            params.geometry.minor_radius,
+            inductive_plasma_current,
+            params.geometry.areal_elongation,
+            neoclassical_loop_resistivity,
         )
         P_ohmic_MW = current_drive.calc_ohmic_power(1e-6 * inductive_plasma_current, loop_voltage)
 
@@ -238,14 +238,21 @@ class CometMirror(eqx.Module):
 
         dW_dt = -P_tau_MW + P_alpha_MW + P_ohmic_MW + Paux_MW - P_rad_MW
 
-        params.density_params.sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second
-        params.density_params.sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
-        params.density_params.sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
+        sources_and_sinks = {k: {} for k in self.species}
+        for k, v in params.fueling.items():
+            sources_and_sinks[k]["fueling"] = v
+        sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -1e19 * reactions_per_second
+        sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -1e19 * reactions_per_second
+        sources_and_sinks[Impurity.Helium]["fusion"] = 1e19 * reactions_per_second
 
-        density_dot = self.density_model(
-            state.density_state,
-            params.density_params,
+        density_params = MultiSpeciesDensityModel.Params(
+            sources_and_sinks=sources_and_sinks,
+            species_confinement_time=jax.tree_map(lambda k: k * tau_E, params.particle_confinement_scalar),
+            volume_dot=0.0,  # TODO(allenw): add with time-varying geometry.
+            volume=params.geometry.plasma_volume,
         )
+
+        density_dot = self.density_model(state.density_state, density_params)
 
         state_dot = State(
             stored_energy=dW_dt,

@@ -1,0 +1,18 @@
+import equinox as eqx
+import jax.numpy as jnp
+from numpy import float64
+from numpy.typing import NDArray
+
+from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume
+
+
+class VolumeIntegrator(eqx.Module):
+    rho: NDArray[float64]
+    dV_drho: NDArray[float64]
+
+    def __init__(self, rho, dV_drho):
+        self.rho = rho
+        self.dV_drho = dV_drho
+
+    def __call__(self, array_per_m3):
+        return integrate_profile_over_volume(array_per_m3, self.rho, self.dV_drho)
