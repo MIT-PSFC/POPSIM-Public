@@ -5,6 +5,7 @@ import equinox as eqx
 import jax.numpy as jnp
 
 from cfspopcon.jax_compatible import impurity_effects, radiated_power
+from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from popsim import tree_util
 from popsim.enums import Impurity
 from popsim.interfaces.atomic_data import read_atomic_data
@@ -47,11 +48,12 @@ class ImpurityCalculator(eqx.Module):
         plasma_volume,
     ):
         P_rad_impurity = radiated_power.calc_impurity_radiated_power_radas(
-            rho=rho,
             electron_temp_profile=electron_temp_profile,
             electron_density_profile=electron_density_profile,
             impurity_concentration=impurity_concentration,
-            plasma_volume=plasma_volume,
+            volume_integrator=lambda quantity_per_m3: integrate_profile_over_volume_cylindrical(
+                quantity_per_m3, rho=rho, plasma_volume=plasma_volume
+            ),
             Lz_curve=self.Lz_curve,
         )
         return P_rad_impurity

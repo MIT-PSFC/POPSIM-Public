@@ -6,6 +6,7 @@ from popsim.algorithms.zeff_and_dilution_from_impurities import (
     CalcZeffAndDilutionFromImpurities, ImpurityCalculator, TempDensImpurities)
 from popsim.enums import Impurity
 from popsim.interfaces.atomic_data import read_atomic_data
+from popsim.tests import load_sparc_prd_data_f
 
 
 @pytest.mark.parametrize("impurity", Impurity)
@@ -69,8 +70,8 @@ def test_sensitivity_to_electron_density_temp(impurity):
         assert jnp.all(v < RTOL_TUNGSTEN_TEMP if impurity == Impurity.Tungsten else RTOL)
     
 
-def test_zeff_and_dilution_from_impurities(load_sparc_prd_data):
-    input_parameters, algorithm, points, impurity_types, impurity_concentrations = load_sparc_prd_data
+def test_zeff_and_dilution_from_impurities():
+    input_parameters, algorithm, points, impurity_types, impurity_concentrations = load_sparc_prd_data_f()
 
 
     calc = CalcZeffAndDilutionFromImpurities(impurity_types)
