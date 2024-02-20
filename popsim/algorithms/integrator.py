@@ -1,5 +1,4 @@
 import equinox as eqx
-import jax.numpy as jnp
 from numpy import float64
 from numpy.typing import NDArray
 
