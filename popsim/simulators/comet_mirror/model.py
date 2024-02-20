@@ -3,6 +3,7 @@ from typing import Callable
 
 import equinox as eqx
 import jax
+from jaxtyping import ArrayLike
 
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
@@ -69,7 +70,9 @@ class CometMirror(eqx.Module):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params) -> State:
+    def __call__(self, state: State, params: Params, debug_info: bool = False) -> State:
+        initial_locals = set(locals().keys())
+
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,
@@ -185,6 +188,9 @@ class CometMirror(eqx.Module):
             volume_integrator=volume_integrator,
         )
 
+        # Convert reactions_per_second to 1e19/s.
+        reactions_per_second = reactions_per_second / 1e19
+
         """Calculate conduction losses."""
         fuel_average_mass_number = self.calc_fuel_average_mass_number(heavier_fuel_species_fraction)
         tau_E, P_tau_MW = self.calc_tau_e_and_P_in_from_scaling(
@@ -240,9 +246,9 @@ class CometMirror(eqx.Module):
         sources_and_sinks = {k: {} for k in self.species}
         for k, v in params.fueling.items():
             sources_and_sinks[k]["fueling"] = v
-        sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -1e19 * reactions_per_second
-        sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -1e19 * reactions_per_second
-        sources_and_sinks[Impurity.Helium]["fusion"] = 1e19 * reactions_per_second
+        sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second
+        sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
+        sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
 
         density_params = MultiSpeciesDensityModel.Params(
             sources_and_sinks=sources_and_sinks,
@@ -257,4 +263,13 @@ class CometMirror(eqx.Module):
             stored_energy=dW_dt,
             density_state=density_dot,
         )
-        return state_dot
+
+        if debug_info:
+            # Filter out initial locals and any built-in or private (_ prefixed) variables
+            current_locals = {
+                k: v for k, v in locals().items() if k not in initial_locals and not k.startswith("_") and not k == "initial_locals"
+            }
+            debugs = eqx.filter(current_locals, eqx.is_array_like)
+            return debugs
+        else:
+            return state_dot

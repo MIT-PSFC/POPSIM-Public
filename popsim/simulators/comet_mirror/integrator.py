@@ -19,7 +19,8 @@ class Integrator(eqx.Module):
 
         self.term = diffrax.ODETerm(model_f)
 
-    def __call__(self, ts, state0, params):
+    @eqx.filter_jit
+    def __call__(self, ts, state0, params, debug_info=False):
         sol = diffrax.diffeqsolve(
             terms=self.term,
             solver=diffrax.Tsit5(),
@@ -30,5 +31,8 @@ class Integrator(eqx.Module):
             args=(params,),
             saveat=diffrax.SaveAt(ts=ts),
         )
-        derivs = jax.vmap(lambda y: self.model(y, params))(sol.ys)
-        return sol, derivs
+        if debug_info:
+            debugs = jax.vmap(lambda y: self.model(y, params, debug_info=True))(sol.ys)
+            return sol, debugs
+        else:
+            return sol
