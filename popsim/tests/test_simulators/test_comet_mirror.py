@@ -8,5 +8,5 @@ def test_comet_mirror():
     model, state, params = build_default()
     state_dot = model(state, params)
     sim = Integrator(model)
-    ts = jnp.linspace(0, 1, 10)
-    sol, derivs, debugs = sim(ts, state, params)
+    ts = jnp.linspace(0, 1, 100)
+    sol, derivs = sim(ts, state, params)

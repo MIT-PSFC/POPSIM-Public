@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike, PyTree, ScalarLike
+from jaxtyping import Array, ArrayLike, PyTree, ScalarLike
 
 """
 Much of Jax is designed around the concept of mapping over "PyTrees".
@@ -30,3 +30,15 @@ def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLi
             corresponds to the ith element of the input sequence.
     """
     return jax.tree_map(lambda *xs: jnp.array(xs), *seq_of_trees)
+
+
+def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
+    """Get the leaves of a PyTree as a single array.
+
+    Args:
+        tree (PyTree[ArrayLike]): A PyTree of ArrayLike.
+
+    Returns:
+        Array: The leaves of the PyTree as a single array.
+    """
+    return jnp.atleast_1d(jnp.array(jax.tree_util.tree_leaves(tree)))

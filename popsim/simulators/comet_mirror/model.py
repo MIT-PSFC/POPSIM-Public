@@ -3,9 +3,8 @@ from typing import Callable
 
 import equinox as eqx
 import jax
-from jaxtyping import PyTree
 
-from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, geometry, radiated_power
+from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical

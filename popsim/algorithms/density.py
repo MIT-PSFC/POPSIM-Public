@@ -9,7 +9,7 @@ from jaxtyping import PyTree
 from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
 from popsim.interfaces.atomic_data import read_atomic_data
-from popsim.jax_utils import leaves_as_array
+from popsim.tree_util import leaves_as_array
 
 
 class GenericDensityModel(eqx.Module):

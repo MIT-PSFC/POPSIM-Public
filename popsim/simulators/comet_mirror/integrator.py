@@ -30,5 +30,5 @@ class Integrator(eqx.Module):
             args=(params,),
             saveat=diffrax.SaveAt(ts=ts),
         )
-        derivs, debugs = jax.vmap(lambda y: self.model(y, params, debug_info=True))(sol.ys)
-        return sol, derivs, debugs
+        derivs = jax.vmap(lambda y: self.model(y, params))(sol.ys)
+        return sol, derivs
