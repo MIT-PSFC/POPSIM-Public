@@ -1,7 +1,9 @@
 from collections.abc import Sequence
+from typing import Union
 
 import jax
 import jax.numpy as jnp
+from diffrax import AbstractPath
 from jaxtyping import Array, ArrayLike, PyTree, ScalarLike
 
 """
@@ -42,3 +44,21 @@ def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
         Array: The leaves of the PyTree as a single array.
     """
     return jnp.atleast_1d(jnp.array(jax.tree_util.tree_leaves(tree)))
+
+
+def resolve_paths(tree: PyTree[Union[ArrayLike, AbstractPath]], t0: float, *args) -> PyTree[ArrayLike]:
+    """Resolve any AbstractPath objects in a PyTree to their values at time t0.
+
+    Args:
+        tree (PyTree[Union[ArrayLike, AbstractPath]]): A PyTree of ArrayLike and AbstractPath objects.
+        t0 (float): The time at which to evaluate the paths.
+
+    Returns:
+        PyTree[ArrayLike]: A PyTree of ArrayLike with all AbstractPath objects resolved to their values at time t0.
+    """
+    tree_resolved = jax.tree_map(
+        lambda leaf: leaf.evaluate(t0, *args) if isinstance(leaf, AbstractPath) else leaf,
+        tree,
+        is_leaf=lambda x: isinstance(x, AbstractPath),
+    )
+    return tree_resolved

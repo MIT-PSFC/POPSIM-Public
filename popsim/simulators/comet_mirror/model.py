@@ -3,6 +3,7 @@ from typing import Callable
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
@@ -70,8 +71,6 @@ class CometMirror(eqx.Module):
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
     def __call__(self, state: State, params: Params, debug_info: bool = False) -> State:  # noqa: PLR0915
-        initial_locals = set(locals().keys())
-
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,
@@ -264,12 +263,10 @@ class CometMirror(eqx.Module):
         )
 
         if debug_info:
-            # Filter out initial locals and any built-in or private (_ prefixed) variables
-            current_locals = {
-                k: v for k, v in locals().items() if k not in initial_locals and not k.startswith("_") and not k == "initial_locals"
-            }
             # Filter out any non-array-like variables
-            debugs = eqx.filter(current_locals, eqx.is_array_like)
+            debugs = eqx.filter(locals(), eqx.is_array_like)
+            # Promote any scalar-like variables to arrays
+            debugs = jax.tree_map(jnp.asarray, debugs)
             return debugs
         else:
             return state_dot
