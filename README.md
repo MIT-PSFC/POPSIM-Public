@@ -1,4 +1,4 @@
-# POPSIM: Plasma OPeration SIMulation
+# POPSIM: Plasma OPerational SIMulation
 POPSIM is a control-oriented time-dependent tokamak plasma simulator build in the machine-learning framework [JAX](https://github.com/google/jax). Thus, it is JIT-compilable, massively parallelizable on GPU, and auto-differentiable.
 
 It's role is to enable:
