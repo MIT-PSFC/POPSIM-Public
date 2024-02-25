@@ -3,8 +3,8 @@ POPSIM is a control-oriented time-dependent tokamak plasma simulator build in th
 
 It's role is to enable:
 1) Sensitivity analysis via massively parallelized Monte Carlo simulation on GPU and automatic differentiation
-2) Optimization of scenarios, trajectories, and controllers via techniques from optimal control + reinforcement learning
-3) Learning unknown dynamics from data
+2) Uncertainty-aware optimization of scenarios, trajectories, and controllers via techniques from optimal control + reinforcement learning
+3) Learning unknown and computationally expensive dynamics from data
 
 Is POPSIM a machine learning (ML) model or a physics-based simulator? It's both! For a primer on this paradigm, consider checking out this [tutorial on differentiable physics](https://physicsbaseddeeplearning.org/diffphys.html) and this [textbook on scientific machine learning](https://book.sciml.ai/).
 
