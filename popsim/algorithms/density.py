@@ -13,6 +13,12 @@ from popsim.tree_util import leaves_as_array
 
 
 class GenericDensityModel(eqx.Module):
+    """
+    A model for volume-averaged ion density evolution in a plasma.
+    Implements an equation of the form:
+        d/dt(n_i * V) = -n_i * V / tau + sum(sources) - sum(sinks)
+    """
+
     species: Species
 
     class State(eqx.Module):
@@ -41,6 +47,10 @@ class GenericDensityModel(eqx.Module):
 
 
 class MultiSpeciesDensityModel(eqx.Module):
+    """
+    Wrapper class to handle multiple instances of the GenericDensityModel for different species.
+    """
+
     species_models: dict[Species, GenericDensityModel]
 
     class State(eqx.Module):
@@ -60,7 +70,15 @@ class MultiSpeciesDensityModel(eqx.Module):
         self.species_models = {s: GenericDensityModel(s) for s in species}
 
     def __call__(self, state: State, params: Params) -> State:
-        def calc_single_species(species):
+        def calc_single_species(species: Species) -> GenericDensityModel.State:
+            """Evaluate the model for a single species.
+
+            Args:
+                species (Species): species to evaluate the model for.
+
+            Returns:
+                GenericDensityModel.State: state derivative for the species.
+            """
             model = self.species_models[species]
             state_dot = model(
                 GenericDensityModel.State(volume_average_density=state.volume_average_ion_densities[species]),
@@ -82,6 +100,14 @@ def zeff_term(charge_state: float, species_density: float, electron_density: flo
 
 
 class DensityModelImpurityCalc(eqx.Module):
+    """
+    Calculator to map a MultiSpeciesDensityModel.State and average pressure to effective charge, dilution, and volume-averaged electron density.
+    The key assumptions are:
+        1) Impurity charge states are insensitive to order 10% variations in the electron density (see unit test "test_sensitivity_to_electron_density").
+        2) Fuel is fully ionized.
+        3) RADAS curves are evaluated using volume-averages.
+    """
+
     fuel_species: Sequence[FuelSpecies]
     impurity_species: Sequence[Impurity]
     mean_charge_curves: dict[Impurity, Callable[[float], float]]
@@ -96,7 +122,7 @@ class DensityModelImpurityCalc(eqx.Module):
 
     def __call__(self, density_state: MultiSpeciesDensityModel.State, average_pressure_kev_1e19: float) -> dict[str, float]:
         """Calculate the effective charge, dilution, and volume-averaged electron density given
-        particle densities and the average electron temperature.
+        particle densities and the average electron pressure.
 
         Args:
             density_state (MultiSpeciesDensityModel.State): state of the MultiSpeciesDensityModel.
