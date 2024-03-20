@@ -1,8 +1,10 @@
+import numpy as np
+
 from cfspopcon.unit_handling import Quantity
 from popsim.algorithms.density import MultiSpeciesDensityModel
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.enums import FuelSpecies
-from popsim.simulators.comet_mirror.model import CometMirror, Params, State
+from popsim.simulators.comet_mirror.model import CometMirror, Config, Params, State
 from popsim.tests import load_sparc_prd_data_f
 
 
@@ -12,11 +14,14 @@ def build_default():
         if isinstance(v, Quantity):
             input_parameters[k] = v.magnitude
 
-    model = CometMirror(
+    config = Config(
         species=[FuelSpecies.Deuterium, FuelSpecies.Tritium, *impurity_types],
         profile_form=input_parameters["profile_form"],
+        rho=np.linspace(0, 1, 30),
         energy_confinement_scaling=input_parameters["energy_confinement_scaling"],
     )
+
+    model = CometMirror(config=config)
 
     geom = GeometryCFSPopcon(
         major_radius=input_parameters["major_radius"],
@@ -39,11 +44,11 @@ def build_default():
         confinement_time_scalar=input_parameters["confinement_time_scalar"],
         P_aux_MW=8,
         geometry=geom,
-        fueling={
-            FuelSpecies.Deuterium: 1.0,
-            FuelSpecies.Tritium: 1.0,
+        fueling19={
+            FuelSpecies.Deuterium: 300.0,
+            FuelSpecies.Tritium: 300.0,
         },
-        particle_confinement_scalar={k: 7.0 for k in model.species},
+        particle_confinement_scalar={k: 7.0 for k in model.config.species},
     )
 
     average_ion_density = 27  # From Creely 2020.

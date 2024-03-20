@@ -1,8 +1,10 @@
+import numpy as np
+
 from cfspopcon.unit_handling import Quantity
 from popsim.algorithms.density import MultiSpeciesDensityModel
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.enums import FuelSpecies
-from popsim.simulators.comet_mirror.model import CometMirror, Params, State
+from popsim.simulators.comet_mirror.model import CometMirror, Config, Params, State
 from popsim.tests import load_sparc_q1l_data_f
 
 
@@ -12,12 +14,14 @@ def build_lmode():
         if isinstance(v, Quantity):
             input_parameters[k] = v.magnitude
 
-    model = CometMirror(
+    config = Config(
         species=[FuelSpecies.Deuterium, FuelSpecies.Tritium, *impurity_types],
         profile_form=input_parameters["profile_form"],
+        rho=np.linspace(0, 1, 30),
         energy_confinement_scaling=input_parameters["energy_confinement_scaling"],
     )
 
+    model = CometMirror(config=config)
     geom = GeometryCFSPopcon(
         major_radius=input_parameters["major_radius"],
         inverse_aspect_ratio=input_parameters["inverse_aspect_ratio"],
@@ -26,7 +30,6 @@ def build_lmode():
         triangularity_psi95=input_parameters["triangularity_psi95"],
         triangularity_ratio_sep_to_psi95=input_parameters["triangularity_ratio_sep_to_psi95"],
     )
-
     params = Params(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],
         plasma_current=input_parameters["plasma_current"],
@@ -39,11 +42,11 @@ def build_lmode():
         confinement_time_scalar=input_parameters["confinement_time_scalar"],
         P_aux_MW=9.4,  # From CFSPOPON (could tweak)
         geometry=geom,
-        fueling={
-            FuelSpecies.Deuterium: 1.0,
-            FuelSpecies.Tritium: 1.0,
+        fueling19={
+            FuelSpecies.Deuterium: 300.0,
+            FuelSpecies.Tritium: 300.0,
         },
-        particle_confinement_scalar={k: 7.0 for k in model.species},
+        particle_confinement_scalar={k: 2.0 if k in FuelSpecies else 8.0 for k in model.config.species},
     )
 
     average_ion_density = 13  # From CFSPOPON (could tweak)

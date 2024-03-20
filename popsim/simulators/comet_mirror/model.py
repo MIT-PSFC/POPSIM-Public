@@ -4,6 +4,7 @@ from typing import Callable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxtyping import Array
 
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
@@ -33,40 +34,43 @@ class Params(eqx.Module):
     confinement_time_scalar: float  # [-]
     P_aux_MW: float  # [MW]
     geometry: GeometryCFSPopcon
-    fueling: dict[Species, float]  # 1e19/s
+    fueling19: dict[Species, float]  # 1e19/s
     particle_confinement_scalar: dict[Species, float]  # [-]
 
 
-class CometMirror(eqx.Module):
+class Config(eqx.Module):
     species: Sequence[Species]
+    profile_form: ProfileForm
+    rho: Array
+    energy_confinement_scaling: ConfinementScaling
+    fusion_reaction: ReactionType = ReactionType.DT
+
+
+class CometMirror(eqx.Module):
+    config: Config
     density_model: MultiSpeciesDensityModel
     impurity_calc: DensityModelImpurityCalc
-    profile_form: ProfileForm
     profiles: ProfileCalculator
-    fusion_reaction: ReactionType
     calc_tau_e_and_P_in_from_scaling: Callable
     calc_fuel_average_mass_number: Callable
 
     def __init__(
         self,
-        species: Sequence[Species],
-        profile_form: ProfileForm,
-        energy_confinement_scaling: ConfinementScaling,
-        fusion_reaction: ReactionType = ReactionType.DT,
+        config: Config,
     ):
-        self.species = species
-        self.density_model = MultiSpeciesDensityModel(species)
-        self.impurity_calc = DensityModelImpurityCalc(species)
-        self.profile_form = profile_form
-        self.profiles = ProfileCalculator(profile_form=profile_form, n_points=100)
-        self.fusion_reaction = fusion_reaction
-        self.calc_tau_e_and_P_in_from_scaling = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=energy_confinement_scaling)
+        self.config = config
+        self.density_model = MultiSpeciesDensityModel(self.config.species)
+        self.impurity_calc = DensityModelImpurityCalc(self.config.species)
+        self.profiles = ProfileCalculator(profile_form=self.config.profile_form, rho=self.config.rho)
+        self.calc_tau_e_and_P_in_from_scaling = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(
+            scaling=self.config.energy_confinement_scaling
+        )
 
         def calc_fuel_average_mass_number(
             heavier_fuel_species_fraction: float,
         ) -> float:
             jitted_fn = jax.jit(average_fuel_ion_mass.calc_fuel_average_mass_number, static_argnames=["fusion_reaction"])
-            return jitted_fn(fusion_reaction=fusion_reaction, heavier_fuel_species_fraction=heavier_fuel_species_fraction)
+            return jitted_fn(fusion_reaction=self.config.fusion_reaction, heavier_fuel_species_fraction=heavier_fuel_species_fraction)
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
@@ -179,7 +183,7 @@ class CometMirror(eqx.Module):
             + state.density_state.volume_average_ion_densities[FuelSpecies.Tritium]
         )
         P_fusion_MW, P_neutron_MW, P_alpha_MW, reactions_per_second = fusion_rates.calc_fusion_power(
-            fusion_reaction=self.fusion_reaction,
+            fusion_reaction=self.config.fusion_reaction,
             ion_temp_profile=profiles["ion_temp_profile"],
             heavier_fuel_species_fraction=heavier_fuel_species_fraction,
             nfuel19=profiles["ion_density_profile"],
@@ -241,9 +245,9 @@ class CometMirror(eqx.Module):
 
         dW_dt = -P_tau_MW + P_alpha_MW + P_ohmic_MW + Paux_MW - P_rad_MW
 
-        sources_and_sinks = {k: {} for k in self.species}
-        for k, v in params.fueling.items():
-            sources_and_sinks[k]["fueling"] = v
+        sources_and_sinks = {k: {} for k in self.config.species}
+        for k, v in params.fueling19.items():
+            sources_and_sinks[k]["fueling19"] = v
         sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second
         sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
         sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second

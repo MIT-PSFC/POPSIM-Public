@@ -3,7 +3,7 @@ from typing import Optional
 import equinox as eqx
 import interpax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
+from jaxtyping import Array
 from numpy import float64
 from numpy.typing import NDArray
 
@@ -77,17 +77,17 @@ class PRFProfiles(eqx.Module):
 
 class ProfileCalculator(eqx.Module):
     profile_form: ProfileForm
-    rho: ArrayLike
+    rho: Array
     PRFcalc: PRFProfiles
 
     def __init__(
         self,
         profile_form: ProfileForm,
-        n_points: int = 50,
+        rho: Array,
         PRFcalc=PRFProfiles,
     ):
         self.profile_form = profile_form
-        self.rho = jnp.linspace(0.0, 1.0, n_points)
+        self.rho = rho
         self.PRFcalc = PRFcalc()
 
     def __call__(
