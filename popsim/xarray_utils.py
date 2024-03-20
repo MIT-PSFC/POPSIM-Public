@@ -1,3 +1,5 @@
+import ast
+
 import jax
 import xarray as xr
 from jaxtyping import Array
@@ -14,7 +16,8 @@ def keypath_to_string(keypath) -> str:
     """
     # For some reason, there is often a leading dot in the keypath.
     # Get rid of it.
-    return ".".join(str(x).lstrip(".") for x in keypath)
+    key_strs = [str(ast.literal_eval(str(x))[0]) for x in keypath]
+    return ".".join(key_strs)
 
 
 def solution_to_xarray(sol, multi_episode: bool) -> xr.Dataset:
