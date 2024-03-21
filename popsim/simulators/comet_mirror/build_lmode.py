@@ -57,7 +57,7 @@ def build_lmode():
 
     state = State(
         stored_energy=8,  # From CFSPOPON (could tweak)
-        density_state=MultiSpeciesDensityModel.State(volume_average_ion_densities=density_states),
+        density_state=MultiSpeciesDensityModel.State(vol_avg_ion=density_states),
     )
     return model, state, params
 

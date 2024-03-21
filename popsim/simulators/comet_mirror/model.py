@@ -178,9 +178,8 @@ class CometMirror(eqx.Module):
         """
         # TODO(allenw): make generic for all fuel types.
         # Although... if advanced fuel reactions become relevant, that will be a great problem to have :).
-        heavier_fuel_species_fraction = state.density_state.volume_average_ion_densities[FuelSpecies.Tritium] / (
-            state.density_state.volume_average_ion_densities[FuelSpecies.Deuterium]
-            + state.density_state.volume_average_ion_densities[FuelSpecies.Tritium]
+        heavier_fuel_species_fraction = state.density_state.vol_avg_ion[FuelSpecies.Tritium] / (
+            state.density_state.vol_avg_ion[FuelSpecies.Deuterium] + state.density_state.vol_avg_ion[FuelSpecies.Tritium]
         )
         P_fusion_MW, P_neutron_MW, P_alpha_MW, reactions_per_second = fusion_rates.calc_fusion_power(
             fusion_reaction=self.config.fusion_reaction,

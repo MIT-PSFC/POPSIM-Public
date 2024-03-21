@@ -59,7 +59,7 @@ def build_default():
 
     state = State(
         stored_energy=23.0,  # Admittedly slightly fudged.
-        density_state=MultiSpeciesDensityModel.State(volume_average_ion_densities=density_states),
+        density_state=MultiSpeciesDensityModel.State(vol_avg_ion=density_states),
     )
     return model, state, params
 

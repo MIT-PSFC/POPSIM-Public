@@ -54,11 +54,11 @@ class MultiSpeciesDensityModel(eqx.Module):
     species_models: dict[Species, GenericDensityModel]
 
     class State(eqx.Module):
-        volume_average_ion_densities: dict[Species, float]  # 1e19/m^3
+        vol_avg_ion: dict[Species, float]  # 1e19/m^3
 
         @property
         def total_volume_average_ion_density(self) -> float:
-            return jnp.sum(leaves_as_array(self.volume_average_ion_densities))
+            return jnp.sum(leaves_as_array(self.vol_avg_ion))
 
     class Params(eqx.Module):
         sources_and_sinks: dict[Species, PyTree[float]]  # PyTree of net particle fluxes from various sources and sinks 1e19/s
@@ -81,7 +81,7 @@ class MultiSpeciesDensityModel(eqx.Module):
             """
             model = self.species_models[species]
             state_dot = model(
-                GenericDensityModel.State(volume_average_density=state.volume_average_ion_densities[species]),
+                GenericDensityModel.State(volume_average_density=state.vol_avg_ion[species]),
                 GenericDensityModel.Params(
                     sources_and_sinks=params.sources_and_sinks[species],
                     species_confinement_time=params.species_confinement_time[species],
@@ -92,7 +92,7 @@ class MultiSpeciesDensityModel(eqx.Module):
             return state_dot.volume_average_density
 
         state_dot = {species: calc_single_species(species) for species in self.species_models.keys()}
-        return MultiSpeciesDensityModel.State(volume_average_ion_densities=state_dot)
+        return MultiSpeciesDensityModel.State(vol_avg_ion=state_dot)
 
 
 def zeff_term(charge_state: float, species_density: float, electron_density: float) -> float:
@@ -136,8 +136,7 @@ class DensityModelImpurityCalc(eqx.Module):
         # The unit test "test_sensitivity_to_electron_density" shows that the charge state
         # is highly insensitive to the guess electron density.
         electron_density_19_full_ion_dict = {
-            species: float(AtomicNumberMap[species]) * species_density
-            for species, species_density in density_state.volume_average_ion_densities.items()
+            species: float(AtomicNumberMap[species]) * species_density for species, species_density in density_state.vol_avg_ion.items()
         }
         average_electron_density_19_guess = jnp.sum(leaves_as_array(electron_density_19_full_ion_dict))
         average_electron_temp_kev_guess = (0.5 * average_pressure_kev_1e19) / average_electron_density_19_guess
@@ -150,12 +149,12 @@ class DensityModelImpurityCalc(eqx.Module):
 
         # Now that we have the charge states, we can calculate the electron density contributions from each impurity species.
         electron_19_from_imp = jnp.sum(
-            jnp.array([charge_state * density_state.volume_average_ion_densities[imp] for imp, charge_state in imp_charge_states.items()])
+            jnp.array([charge_state * density_state.vol_avg_ion[imp] for imp, charge_state in imp_charge_states.items()])
         )
 
         # Do the same for the fuel. Assume full ionization.
         electron_19_from_fuel = jnp.sum(
-            jnp.array([AtomicNumberMap[species] * density_state.volume_average_ion_densities[species] for species in self.fuel_species])
+            jnp.array([AtomicNumberMap[species] * density_state.vol_avg_ion[species] for species in self.fuel_species])
         )
 
         # Add the contributions together to get the total electron density.
@@ -166,12 +165,12 @@ class DensityModelImpurityCalc(eqx.Module):
 
         # Compute the z-effective terms for each species.
         zeff_terms = {
-            species: zeff_term(AtomicNumberMap[species], density_state.volume_average_ion_densities[species], electron_density_19)
-            for species in density_state.volume_average_ion_densities.keys()
+            species: zeff_term(AtomicNumberMap[species], density_state.vol_avg_ion[species], electron_density_19)
+            for species in density_state.vol_avg_ion.keys()
         }
 
         impurity_concentrations = {
-            impurity: density_state.volume_average_ion_densities[impurity] / electron_density_19 for impurity in self.impurity_species
+            impurity: density_state.vol_avg_ion[impurity] / electron_density_19 for impurity in self.impurity_species
         }
 
         outs = {
