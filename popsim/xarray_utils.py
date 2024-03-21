@@ -13,8 +13,8 @@ def keypath_to_string(keypath) -> str:
         str: _description_
     """
     # For some reason, there is often a leading dot in the keypath.
-    # Get rid of it.
-    return ".".join(str(x).lstrip(".") for x in keypath)
+    # The gui also does show quantities between <>.
+    return ".".join(str(x).lstrip(".").replace("<", "").replace(">", "") for x in keypath)
 
 
 def solution_to_xarray(sol, multi_simulation: bool) -> xr.Dataset:
