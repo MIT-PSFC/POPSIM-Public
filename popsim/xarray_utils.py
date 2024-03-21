@@ -17,24 +17,33 @@ def keypath_to_string(keypath) -> str:
     return ".".join(str(x).lstrip(".") for x in keypath)
 
 
-def solution_to_xarray(sol, multi_episode: bool) -> xr.Dataset:
-    return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_episode)
+def solution_to_xarray(sol, multi_simulation: bool) -> xr.Dataset:
+    return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
-def time_and_pytree_to_xarray(time, tree, multi_episode: bool) -> xr.Dataset:
-    # Convert a solution to an xarray, supporting 2D arrays for "time" and "episode".
+def time_and_pytree_to_xarray(time, tree, multi_simulation: bool, rhogrid: Array = None) -> xr.Dataset:
+    # Convert a solution to an xarray, supporting 2D arrays for "time" and "simulation".
     leaves_with_path = jax.tree_util.tree_leaves_with_path(tree)
 
     def convert_array(arr: Array) -> Array:
-        if multi_episode:
-            # TODO(allenw): handle case where there are additional dimensions/coords.
-            return (["episode", "time"], arr)
+        if multi_simulation:
+            if arr.ndim == 2:
+                return (["simulation", "time"], arr)
+            if arr.ndim == 3:
+                return (["simulation", "time", "rho"], arr)
+            else:
+                raise ValueError(f"Array has unexpected shape {arr.shape}.")
         else:
-            return (["time"], arr)
+            if arr.ndim == 2:
+                return (["time"], arr)
+            if arr.ndim == 3:
+                return (["time", "rho"], arr)
+            else:
+                raise ValueError(f"Array has unexpected shape {arr.shape}.")
 
     variables = {keypath_to_string(keypath): convert_array(leaf) for keypath, leaf in leaves_with_path}
 
-    # Expect time to be the same for all episodes.
+    # Expect time to be the same for all simulations.
     assert (time == time[0]).all()
 
     # Expect all leaves to have the same leading dimension.
@@ -42,8 +51,10 @@ def time_and_pytree_to_xarray(time, tree, multi_episode: bool) -> xr.Dataset:
     assert all(leaf.shape[0] == first_leaf_data.shape[0] for _, leaf in leaves_with_path)
     coords = {"time": time[0]}
 
-    if multi_episode:
-        coords["episode"] = list(range(first_leaf_data.shape[0]))
+    if multi_simulation:
+        coords["simulation"] = list(range(first_leaf_data.shape[0]))
+    if rhogrid is not None:
+        coords["rho"] = rhogrid
 
     dataset = xr.Dataset(data_vars=variables, coords=coords)
     return dataset

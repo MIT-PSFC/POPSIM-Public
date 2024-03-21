@@ -7,7 +7,7 @@ def visualize_time_series(dataset: xr.Dataset) -> hv.Layout:
     """Visualize the time series of the variables in the dataset.
 
     Args:
-        dataset (xr.Dataset): xarray dataset with dimensions "time" and "episode".
+        dataset (xr.Dataset): xarray dataset with dimensions "time" and "simulation".
 
     Returns:
         hv.Layout: HoloViews layout with the time series of the variables.
@@ -18,10 +18,10 @@ def visualize_time_series(dataset: xr.Dataset) -> hv.Layout:
         # Extract the current variable to plot
         current_var = dataset[var]
 
-        # Creating the line plot for this variable over the time for each episode
+        # Creating the line plot for this variable over the time for each simulation
         plot = current_var.hvplot.line(
             x="time",
-            by="episode",
+            by="simulation",
             color="blue",
             legend=False,
             xlabel="Time",
