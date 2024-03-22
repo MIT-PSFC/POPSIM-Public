@@ -43,10 +43,10 @@ def build_lmode():
         P_aux_MW=9.4,  # From CFSPOPON (could tweak)
         geometry=geom,
         fueling19={
-            FuelSpecies.Deuterium: 300.0,
-            FuelSpecies.Tritium: 300.0,
+            FuelSpecies.Deuterium: 150.0,
+            FuelSpecies.Tritium: 150.0,
         },
-        particle_confinement_scalar={k: 2.0 if k in FuelSpecies else 8.0 for k in model.config.species},
+        particle_confinement_scalar={k: 3.0 if k in FuelSpecies else 8.0 for k in model.config.species},
     )
 
     average_ion_density = 13  # From CFSPOPON (could tweak)

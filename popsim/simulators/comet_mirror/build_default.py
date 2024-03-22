@@ -42,13 +42,13 @@ def build_default():
         temperature_peaking=input_parameters["temperature_peaking"],
         ion_to_electron_temp_ratio=input_parameters["ion_to_electron_temp_ratio"],
         confinement_time_scalar=input_parameters["confinement_time_scalar"],
-        P_aux_MW=8,
+        P_aux_MW=11.4,
         geometry=geom,
         fueling19={
-            FuelSpecies.Deuterium: 300.0,
-            FuelSpecies.Tritium: 300.0,
+            FuelSpecies.Deuterium: 150.0,
+            FuelSpecies.Tritium: 150.0,
         },
-        particle_confinement_scalar={k: 7.0 for k in model.config.species},
+        particle_confinement_scalar={k: 3.0 if k in FuelSpecies else 8.0 for k in model.config.species},
     )
 
     average_ion_density = 27  # From Creely 2020.
