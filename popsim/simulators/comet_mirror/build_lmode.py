@@ -30,6 +30,14 @@ def build_lmode():
         triangularity_psi95=input_parameters["triangularity_psi95"],
         triangularity_ratio_sep_to_psi95=input_parameters["triangularity_ratio_sep_to_psi95"],
     )
+    average_ion_density = 13  # From CFSPOPON (could tweak)
+    density_states = {
+        FuelSpecies.Deuterium: average_ion_density / 2,
+        FuelSpecies.Tritium: average_ion_density / 2,
+    } | {imp: impurity_concentrations[imp] * average_ion_density for imp in impurity_types}
+
+    particle_confinement_scalars = {k: 3.0 if k in FuelSpecies else 8.0 for k in model.config.species}
+
     params = Params(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],
         plasma_current=input_parameters["plasma_current"],
@@ -45,16 +53,10 @@ def build_lmode():
         fueling19={
             FuelSpecies.Deuterium: 150.0,
             FuelSpecies.Tritium: 150.0,
-        },
-        particle_confinement_scalar={k: 3.0 if k in FuelSpecies else 8.0 for k in model.config.species},
+        }
+        | {imp: density_states[imp] / particle_confinement_scalars[imp] for imp in impurity_types},
+        particle_confinement_scalar=particle_confinement_scalars,
     )
-
-    average_ion_density = 13  # From CFSPOPON (could tweak)
-    density_states = {
-        FuelSpecies.Deuterium: average_ion_density / 2,
-        FuelSpecies.Tritium: average_ion_density / 2,
-    } | {imp: 0.0001 * average_ion_density for imp in impurity_types}
-
     state = State(
         stored_energy=8,  # From CFSPOPON (could tweak)
         density_state=MultiSpeciesDensityModel.State(vol_avg_ion=density_states),
