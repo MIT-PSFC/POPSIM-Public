@@ -39,18 +39,28 @@ class CometMirrorGUI(param.Parameterized):
             # Select the data for the selected variables
             data = data[variables_list]
 
+            # Define a list of colors, one for each variable
+            colors = ["blue", "green", "red", "purple", "orange", "brown", "pink", "gray", "olive", "cyan"]
+            color_map = dict(zip(variables_list, colors[: len(variables_list)]))  # Map each variable to a color
+
             plots = []
-            for var in variables_list:
-                if "rho" in data[var].dims:  # Check if 'rho' is a dimension for the variable
+
+            def plot_variable(var, sim):
+                data_plot = data[var].sel({self.SIMULATION_DIM: sim})
+                if "rho" in data_plot.dims:  # Check if 'rho' is a dimension for the variable
                     # Select the slice for the specified time_value and plot with 'rho' on the x-axis
-                    slice_data = data[var].sel({self.TIME_DIM: time_value})
-                    plot = slice_data.hvplot.line(x="rho", label=var, by=CometMirrorGUI.SIMULATION_DIM)
+                    slice_data = data_plot.sel({self.TIME_DIM: time_value})
+                    plot = slice_data.hvplot.line(x="rho", label=var, color=color_map[var])
                 else:
                     # Plot with time on the x-axis for variables without 'rho' dimension
-                    plot = data[var].hvplot.line(x=self.TIME_DIM, label=var, by=CometMirrorGUI.SIMULATION_DIM)
-                plots.append(plot)
+                    plot = data_plot.hvplot.line(x=self.TIME_DIM, label=var, color=color_map[var])
+                return plot
 
-            overlay = hv.Overlay(plots).opts(title=",".join(variables_list), xlabel="Variable", ylabel="Value")
+            for var in variables_list:
+                sim_plots_for_var = [plot_variable(var, sim) for sim in data[self.SIMULATION_DIM].values]
+                plots.extend(sim_plots_for_var)
+
+            overlay = hv.Overlay(plots).opts(title=",".join(variables_list), xlabel="Variable", ylabel="Value", legend_position="right")
 
             # Add a vertical line at the time corresponding to the time_slider value
             vline = hv.VLine(time_value).opts(color="red", line_width=1.5)
@@ -69,7 +79,7 @@ class CometMirrorGUI(param.Parameterized):
                 return
 
     def build_view(self):
-        template = pn.template.BootstrapTemplate(title="Bootstrap Template")
+        template = pn.template.BootstrapTemplate(title="POPSIM GUI")
         sidebar = pn.Column(
             self.simulation_selector,
             self.time,
