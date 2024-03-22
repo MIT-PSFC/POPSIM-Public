@@ -43,7 +43,14 @@ class GenericDensityModel(eqx.Module):
         # By the quotient rule:
         n_dot = (N_dot * params.volume - N * params.volume_dot) / params.volume**2
         state_dot = GenericDensityModel.State(volume_average_density=n_dot)
-        return state_dot
+
+        debugs = {
+            "N": N,
+            "net_particle_flux": net_particle_flux,
+            "N_dot": N_dot,
+            "n_dot": n_dot,
+        }
+        return state_dot, debugs
 
 
 class MultiSpeciesDensityModel(eqx.Module):
@@ -80,7 +87,7 @@ class MultiSpeciesDensityModel(eqx.Module):
                 GenericDensityModel.State: state derivative for the species.
             """
             model = self.species_models[species]
-            state_dot = model(
+            state_dot, debugs = model(
                 GenericDensityModel.State(volume_average_density=state.vol_avg_ion[species]),
                 GenericDensityModel.Params(
                     sources_and_sinks=params.sources_and_sinks[species],
@@ -89,10 +96,12 @@ class MultiSpeciesDensityModel(eqx.Module):
                     volume=params.volume,
                 ),
             )
-            return state_dot.volume_average_density
+            return state_dot.volume_average_density, debugs
 
-        state_dot = {species: calc_single_species(species) for species in self.species_models.keys()}
-        return MultiSpeciesDensityModel.State(vol_avg_ion=state_dot)
+        state_dot_and_debug = {species: calc_single_species(species) for species in self.species_models.keys()}
+        state_dot = {species: state_dot for species, (state_dot, _) in state_dot_and_debug.items()}
+        debugs = {species: debugs for species, (_, debugs) in state_dot_and_debug.items()}
+        return MultiSpeciesDensityModel.State(vol_avg_ion=state_dot), debugs
 
 
 def zeff_term(charge_state: float, species_density: float, electron_density: float) -> float:
@@ -161,7 +170,7 @@ class DensityModelImpurityCalc(eqx.Module):
         electron_density_19 = electron_19_from_imp + electron_19_from_fuel
 
         # Calculate the dilution.
-        dilution = electron_density_19 / density_state.total_volume_average_ion_density
+        dilution = density_state.total_volume_average_ion_density / electron_density_19
 
         # Compute the z-effective terms for each species.
         zeff_terms = {

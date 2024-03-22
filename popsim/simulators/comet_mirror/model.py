@@ -165,7 +165,7 @@ class CometMirror(eqx.Module):
             volume_integrator=volume_integrator,
         )
 
-        Prad_imp_MW, _ = self.impurity_calc.calc_impurity_radiated_power_radas(
+        Prad_imp_MW, imp_debugs = self.impurity_calc.calc_impurity_radiated_power_radas(
             # The radas calculation uses eV and m^-3.
             electron_temp_profile=1e3 * profiles["electron_temp_profile"],
             electron_density_profile=1e19 * profiles["electron_density_profile"],
@@ -258,7 +258,7 @@ class CometMirror(eqx.Module):
             volume=params.geometry.plasma_volume,
         )
 
-        density_dot = self.density_model(state.density_state, density_params)
+        density_dot, density_debugs = self.density_model(state.density_state, density_params)
 
         state_dot = State(
             stored_energy=dW_dt,
