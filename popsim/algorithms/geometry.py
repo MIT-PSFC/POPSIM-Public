@@ -1,4 +1,4 @@
-import equinox as eqx
+import chex
 
 from cfspopcon.jax_compatible import current_drive, geometry
 
@@ -8,7 +8,8 @@ TODO: implement an interface into Grad-Shafranov solutions.
 """
 
 
-class GeometryCFSPopcon(eqx.Module):
+@chex.dataclass
+class GeometryCFSPopcon:
     major_radius: float
     inverse_aspect_ratio: float
     areal_elongation: float

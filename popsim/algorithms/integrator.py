@@ -1,11 +1,12 @@
-import equinox as eqx
+import chex
 from numpy import float64
 from numpy.typing import NDArray
 
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume
 
 
-class VolumeIntegrator(eqx.Module):
+@chex.dataclass
+class VolumeIntegrator:
     rho: NDArray[float64]
     dV_drho: NDArray[float64]
 

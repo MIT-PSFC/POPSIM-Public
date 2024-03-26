@@ -1,6 +1,6 @@
 from typing import Optional
 
-import equinox as eqx
+import chex
 import interpax
 import jax.numpy as jnp
 from jaxtyping import Array
@@ -13,7 +13,8 @@ from popsim.enums import ProfileForm
 from popsim.interfaces import get_prf_profiles
 
 
-class PRFProfiles(eqx.Module):
+@chex.dataclass
+class PRFProfiles:
     width_interpolator: interpax.Interpolator2D
     aLT_interpolator: interpax.Interpolator2D
 
@@ -75,7 +76,8 @@ class PRFProfiles(eqx.Module):
         return x, T, n
 
 
-class ProfileCalculator(eqx.Module):
+@chex.dataclass
+class ProfileCalculator:
     profile_form: ProfileForm
     rho: Array
     PRFcalc: PRFProfiles

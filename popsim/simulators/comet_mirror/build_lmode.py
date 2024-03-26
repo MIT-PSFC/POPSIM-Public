@@ -1,7 +1,7 @@
 import numpy as np
 
+import popsim.algorithms.density as density_model
 from cfspopcon.unit_handling import Quantity
-from popsim.algorithms.density import MultiSpeciesDensityModel
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.enums import FuelSpecies
 from popsim.simulators.comet_mirror.model import CometMirror, Config, Params, State
@@ -59,7 +59,7 @@ def build_lmode():
     )
     state = State(
         stored_energy=8,  # From CFSPOPON (could tweak)
-        density_state=MultiSpeciesDensityModel.State(vol_avg_ion=density_states),
+        density_state=density_model.State(vol_avg_ion=density_states),
     )
     return model, state, params
 

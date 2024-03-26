@@ -1,28 +1,34 @@
+import dataclasses
 from collections.abc import Sequence
 from typing import Callable
 
+import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array
 
+import popsim.algorithms.density as density_model
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from cfspopcon.named_options import ConfinementScaling
-from popsim.algorithms.density import DensityModelImpurityCalc, MultiSpeciesDensityModel
 from popsim.algorithms.geometry import GeometryCFSPopcon
+from popsim.algorithms.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
 from popsim.algorithms.profiles import ProfileCalculator
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species
+from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 
 
-class State(eqx.Module):
+@chex.dataclass
+class State:
     stored_energy: float  # [MJ]
-    density_state: MultiSpeciesDensityModel.State
+    density_state: density_model.State
 
 
-class Params(eqx.Module):
+@chex.dataclass
+class Params:
     magnetic_field_on_axis: float  # [T]
     plasma_current: float  # [A]
     fraction_of_external_power_coupled: float  # [-]
@@ -38,18 +44,19 @@ class Params(eqx.Module):
     particle_confinement_scalar: dict[Species, float]  # [-]
 
 
-class Config(eqx.Module):
+@chex.dataclass
+class Config:
     species: Sequence[Species]
     profile_form: ProfileForm
     rho: Array
     energy_confinement_scaling: ConfinementScaling
     fusion_reaction: ReactionType = ReactionType.DT
+    radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
 
 
-class CometMirror(eqx.Module):
+@chex.dataclass
+class CometMirror:
     config: Config
-    density_model: MultiSpeciesDensityModel
-    impurity_calc: DensityModelImpurityCalc
     profiles: ProfileCalculator
     calc_tau_e_and_P_in_from_scaling: Callable
     calc_fuel_average_mass_number: Callable
@@ -59,8 +66,6 @@ class CometMirror(eqx.Module):
         config: Config,
     ):
         self.config = config
-        self.density_model = MultiSpeciesDensityModel(self.config.species)
-        self.impurity_calc = DensityModelImpurityCalc(self.config.species)
         self.profiles = ProfileCalculator(profile_form=self.config.profile_form, rho=self.config.rho)
         self.calc_tau_e_and_P_in_from_scaling = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(
             scaling=self.config.energy_confinement_scaling
@@ -96,12 +101,14 @@ class CometMirror(eqx.Module):
         average_pressure_keV_1e19 = (2.0 / 3.0) * average_stored_energy_keV_1e19
 
         # Calculate impurity related quantities.
-        impurity_out = self.impurity_calc(density_state=state.density_state, average_pressure_kev_1e19=average_pressure_keV_1e19)
-        z_effective, dilution, average_electron_density_19, impurity_concentrations = (
+        impurity_out = calc_impurity_state(
+            density_state=state.density_state, average_pressure_kev_1e19=average_pressure_keV_1e19, radas_curves=self.config.radas_curves
+        )
+        z_effective, dilution, average_electron_density_19, species_concentrations = (
             impurity_out["z_effective"],
             impurity_out["dilution"],
             impurity_out["volume_average_electron_density_19"],
-            impurity_out["impurity_concentrations"],
+            impurity_out["species_concentrations"],
         )
 
         average_electron_temp_keV = average_pressure_keV_1e19 / (
@@ -165,12 +172,13 @@ class CometMirror(eqx.Module):
             volume_integrator=volume_integrator,
         )
 
-        Prad_imp_MW, imp_debugs = self.impurity_calc.calc_impurity_radiated_power_radas(
+        Prad_imp_MW, imp_debugs = calc_impurity_radiated_power_radas(
             # The radas calculation uses eV and m^-3.
             electron_temp_profile=1e3 * profiles["electron_temp_profile"],
             electron_density_profile=1e19 * profiles["electron_density_profile"],
-            impurity_concentrations=impurity_concentrations,
+            impurity_concentrations={k: v for k, v in species_concentrations.items() if isinstance(k, Impurity)},
             volume_integrator=volume_integrator,
+            radas_curves=self.config.radas_curves,
         )
 
         """
@@ -251,14 +259,14 @@ class CometMirror(eqx.Module):
         sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
         sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
 
-        density_params = MultiSpeciesDensityModel.Params(
+        density_params = density_model.Params(
             sources_and_sinks=sources_and_sinks,
             species_confinement_time=jax.tree_map(lambda k: k * tau_E, params.particle_confinement_scalar),
             volume_dot=0.0,  # TODO(allenw): add with time-varying geometry.
             volume=params.geometry.plasma_volume,
         )
 
-        density_dot, density_debugs = self.density_model(state.density_state, density_params)
+        density_dot = density_model.multi_species_derivs(state.density_state, density_params)
 
         state_dot = State(
             stored_energy=dW_dt,

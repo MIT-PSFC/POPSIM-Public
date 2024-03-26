@@ -1,13 +1,24 @@
 """Reads atomic data using cfspopcon but with Jax compatible interpolators."""
+import typing
 from functools import wraps
 from typing import Union
 
+import chex
 import interpax
 import jax.numpy as jnp
 import xarray as xr
 
 from cfspopcon import atomic_data
 from popsim.enums import Impurity
+
+
+@chex.dataclass
+class RadasCurvesForSpecies:
+    coronal_mean_Z_interpolator: typing.Callable[[float], float]
+    coronal_Lz_interpolator: typing.Callable[[float], float]
+
+
+RadasCurves = dict[Impurity, RadasCurvesForSpecies]
 
 
 def atleast1d_inputs(func):
@@ -65,8 +76,14 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
     return atleast1d_inputs(interp)
 
 
-def read_atomic_data():
+def read_atomic_data() -> RadasCurves:
     data = atomic_data.read_atomic_data(build_interpolator=_build_interpolator)
     # Convert the enums to popsim types.
-    data = {Impurity(k.value): v for k, v in data.items()}
+    data = {
+        Impurity(k.value): RadasCurvesForSpecies(
+            coronal_mean_Z_interpolator=v.coronal_mean_Z_interpolator,
+            coronal_Lz_interpolator=v.coronal_Lz_interpolator,
+        )
+        for k, v in data.items()
+    }
     return data

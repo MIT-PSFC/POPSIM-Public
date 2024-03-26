@@ -4,7 +4,7 @@ Canonical example is in popsim/data/equil_data_101.mat
 """
 import os
 
-import equinox as eqx
+import chex
 import jax
 import numpy as np
 import scipy.io as sio
@@ -14,7 +14,8 @@ from popsim import PACKAGE_ROOT
 from popsim.tree_util import leaves_as_array
 
 
-class LTVEquil(eqx.Module):
+@chex.dataclass
+class LTVEquil:
     Amod: Array
     Ares: Array
     Bmod: Array
