@@ -10,7 +10,6 @@ packages = [{include = "popsim"}]
 python = ">=3.9,<3.12"
 diffrax = "^0.5.0"
 equinox = "^0.11.2"
-jax-dataclasses = "^1.5.1"
 jax = "^0.4.20"
 jaxlib = [
 	{version = "^0.4.14", platform="darwin", source="pypi"},

@@ -1268,25 +1268,6 @@ minimum-jaxlib = ["jaxlib (==0.4.19)"]
 tpu = ["jaxlib (==0.4.24)", "libtpu-nightly (==0.1.dev20240205)", "requests"]
 
 [[package]]
-name = "jax-dataclasses"
-version = "1.6.0"
-description = "Dataclasses + JAX"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "jax_dataclasses-1.6.0-py3-none-any.whl", hash = "sha256:05dd46aeccf0b1d2f6d948ebc51735c91489fcc212256b4ef9924497aab0abbc"},
-    {file = "jax_dataclasses-1.6.0.tar.gz", hash = "sha256:f071c29db81199f8bdcb931cc5efe2099b2e6e3ae997848b7d8cdf0d81d52f9a"},
-]
-
-[package.dependencies]
-jax = "*"
-jaxlib = "*"
-typing-extensions = "*"
-
-[package.extras]
-testing = ["flax", "pytest", "pytest-cov"]
-
-[[package]]
 name = "jaxlib"
 version = "0.4.20"
 description = "XLA library for JAX"
@@ -3892,4 +3873,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "6acf4d5c6cea8bc2443f2a9c1247879bc9a04c1988343b807ec479585da550e4"
+content-hash = "dd5ac96b193c2c7e8439f59808e423907af1218f8c2f83beec190bee3c59a4e7"
