@@ -1,27 +1,35 @@
+import typing
+
 import holoviews as hv
+import hvplot.xarray  # noqa: F401
 import panel as pn
 import param
 
 hv.extension("bokeh")
 
 
-class CometMirrorGUI(param.Parameterized):
+class XarrayGUI(param.Parameterized):
     add_var_selector = param.Action(default=lambda x: x.param.trigger("add_var_selector"), label="Add Plot")
-    TIME_DIM = "time"
-    SIMULATION_DIM = "simulation"
     ALL_SIMS = "all_simulations"
 
-    def __init__(self, ds, **params):
+    def __init__(self, ds, time_dim: str, rho_dim: str, simulation_dim: typing.Optional[str] = None, **params):
         super().__init__(**params)
         self.ds = ds
+        self.time_dim = time_dim
+        self.rho_dim = rho_dim
+        self.simulation_dim = simulation_dim
         self.time = pn.widgets.DiscreteSlider(name="Time (s)", options=list(self.ds.time.values))
-        self.simulation_selector = pn.widgets.MultiSelect(
-            name="Simulation Case",
-            options=[CometMirrorGUI.ALL_SIMS, *list(self.ds[self.SIMULATION_DIM].values)],
-            value=[CometMirrorGUI.ALL_SIMS],
-        )
         self.variable_selectors = pn.Column()
         self.plots = pn.GridBox(ncols=2)
+
+        if self.simulation_dim:
+            self.simulation_selector = pn.widgets.MultiSelect(
+                name="Simulation Case",
+                options=[XarrayGUI.ALL_SIMS, *list(self.ds[self.simulation_dim].values)],
+                value=[XarrayGUI.ALL_SIMS],
+            )
+        else:
+            self.simulation_selector = pn.widgets.StaticText(name="Simulation Case", value="")
 
     @param.depends("add_var_selector", watch=True)
     def add_var_selector_callback(self):
@@ -32,8 +40,11 @@ class CometMirrorGUI(param.Parameterized):
         def make_plot(variables_list, time_value, selected_simulations):
             if not variables_list:  # If variables_list is empty, do nothing
                 return
+
             data = (
-                self.ds if selected_simulations == [CometMirrorGUI.ALL_SIMS] else self.ds.sel({self.SIMULATION_DIM: selected_simulations})
+                self.ds
+                if (selected_simulations == [XarrayGUI.ALL_SIMS] or self.simulation_dim is None)
+                else self.ds.sel({self.simulation_dim: selected_simulations})
             )
 
             # Select the data for the selected variables
@@ -46,18 +57,24 @@ class CometMirrorGUI(param.Parameterized):
             plots = []
 
             def plot_variable(var, sim):
-                data_plot = data[var].sel({self.SIMULATION_DIM: sim})
-                if "rho" in data_plot.dims:  # Check if 'rho' is a dimension for the variable
+                if sim:
+                    data_plot = data[var].sel({self.simulation_dim: sim})
+                else:
+                    data_plot = data[var]
+                if self.rho_dim in data_plot.dims:  # Check if 'rho' is a dimension for the variable
                     # Select the slice for the specified time_value and plot with 'rho' on the x-axis
-                    slice_data = data_plot.sel({self.TIME_DIM: time_value})
-                    plot = slice_data.hvplot.line(x="rho", label=var, color=color_map[var])
+                    slice_data = data_plot.sel({self.time_dim: time_value})
+                    plot = slice_data.hvplot.line(x=self.rho_dim, label=var, color=color_map[var])
                 else:
                     # Plot with time on the x-axis for variables without 'rho' dimension
-                    plot = data_plot.hvplot.line(x=self.TIME_DIM, label=var, color=color_map[var])
+                    plot = data_plot.hvplot.line(x=self.time_dim, label=var, color=color_map[var])
                 return plot
 
             for var in variables_list:
-                sim_plots_for_var = [plot_variable(var, sim) for sim in data[self.SIMULATION_DIM].values]
+                if self.simulation_dim:
+                    sim_plots_for_var = [plot_variable(var, sim) for sim in data[self.simulation_dim].values]
+                else:
+                    sim_plots_for_var = [plot_variable(var, None)]
                 plots.extend(sim_plots_for_var)
 
             overlay = hv.Overlay(plots).opts(title=",".join(variables_list), xlabel="Variable", ylabel="Value", legend_position="right")
