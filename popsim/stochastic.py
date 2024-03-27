@@ -41,7 +41,7 @@ def generate_random_walks(
     diffusion_mags: PyTree[ArrayLike],
 ):
     # Assert y0 and diffusion_mags have the same structure.
-    assert jax.tree_structure(y0) == jax.tree_structure(diffusion_mags)
+    assert jax.tree.structure(y0) == jax.tree.structure(diffusion_mags)
 
     drift_struct = jax.tree_map(lambda leaf: jnp.zeros_like(leaf), y0)
 
