@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "popsim"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.12"
+python = ">=3.10,<3.12"
 diffrax = "^0.5.0"
 equinox = "^0.11.2"
 jax = "^0.4.20"
@@ -15,7 +15,8 @@ jaxlib = [
 	{version = "^0.4.25", platform="darwin", source="pypi"},
 	{version = "^0.4.25+cuda12.cudnn89", platform="linux", source="jax_cuda"},
 ]
-cfspopcon = { path = "./cfspopcon", develop = true }
+cfspopcon = { path = "./submodules/cfspopcon", develop = true }
+torax = { path = "./submodules/torax", develop = true }
 interpax = {git = "https://github.com/f0uriest/interpax.git"}
 optimistix = "^0.0.6"
 chex = "^0.1.84"
@@ -74,7 +75,7 @@ ignore = [
 ]
 
 exclude = [
-  "cfspopcon", # Don't apply ruff the the cfspopcon submodule.
+  "submodules", # Don't apply ruff to submodules.
   "tests", # Don't apply ruff to the tests.
 ]
 

@@ -4,7 +4,7 @@ import chex
 import pytest
 
 import cfspopcon
-from popsim import PACKAGE_ROOT
+from popsim import SUBMODULES_DIR
 from popsim.enums import Impurity
 
 @chex.dataclass
@@ -43,7 +43,7 @@ class Sparc2020Data:
 
 
 def load_sparc_prd_data_f():
-    sparc_prd_path = os.path.join(PACKAGE_ROOT, "../cfspopcon/example_cases/SPARC_PRD")
+    sparc_prd_path = os.path.join(SUBMODULES_DIR, "cfspopcon/example_cases/SPARC_PRD")
     input_parameters, algorithm, points = cfspopcon.read_case(sparc_prd_path)
     algorithm.validate_inputs(input_parameters)
 
@@ -60,7 +60,7 @@ def load_sparc_prd_data_f():
     return input_parameters, algorithm, points, impurity_types, impurity_concentrations
 
 def load_sparc_q1l_data_f():
-    sparc_path = os.path.join(PACKAGE_ROOT, "../cfspopcon/example_cases/SPARC_Q1L")
+    sparc_path = os.path.join(SUBMODULES_DIR, "cfspopcon/example_cases/SPARC_Q1L")
     input_parameters, algorithm, points = cfspopcon.read_case(sparc_path)
     algorithm.validate_inputs(input_parameters)
 
