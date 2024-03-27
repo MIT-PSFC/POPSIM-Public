@@ -18,13 +18,12 @@ ITER hybrid scenario based (roughly) on van Mulders Nucl. Fusion 2021.
 With Newton-Raphson stepper and adaptive timestep (backtracking)
 """
 from torax import config as config_lib
-from torax import geometry, simulation_app
+from torax import geometry
 from torax import sim as sim_lib
 from torax.sources import source_config
 from torax.stepper import nonlinear_theta_method
 from torax.time_step_calculator import fixed_time_step_calculator
 
-import popsim
 from popsim.interfaces.sparc_public import load_prd_transp_profiles
 
 
@@ -200,10 +199,3 @@ def get_sim() -> sim_lib.Sim:
         stepper_builder=nonlinear_theta_method.NewtonRaphsonThetaMethod,
         time_step_calculator=fixed_time_step_calculator.FixedTimeStepCalculator(),
     )
-
-
-if __name__ == "__main__":
-    import os
-
-    os.environ["TORAX_QLKNN_MODEL_PATH"] = popsim.TORAX_QLKNN_MODEL_PATH
-    simulation_app.main(get_sim, log_sim_progress=True, log_sim_output=True)
