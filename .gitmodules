@@ -7,3 +7,6 @@
 [submodule "qlknn-hyper"]
 	path = submodules/qlknn-hyper
 	url = https://gitlab.com/qualikiz-group/qlknn-hyper.git
+[submodule "submodules/SPARCPublic"]
+	path = submodules/SPARCPublic
+	url = git@github.com:cfs-energy/SPARCPublic.git
