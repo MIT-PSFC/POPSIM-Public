@@ -33,6 +33,18 @@ class Params:
 def single_species_derivs(
     volume_average_density: float, volume: float, volume_dot: float, species_confinement_time: float, sources_and_sinks: PyTree[float]
 ) -> float:
+    """Compute the time derivative of the volume-averaged ion density for a single species.
+
+    Args:
+        volume_average_density (float): volume average ion density [1/X^3] for any length X.
+        volume (float): volume of the plasma [X^3] for any length X.
+        volume_dot (float): rate of change of the volume [X^3/s] for any length X.
+        species_confinement_time (float): confinement time of the species [s].
+        sources_and_sinks (PyTree[float]): net particle fluxes from various sources and sinks [1/s].
+
+    Returns:
+        float: time derivative of the volume-averaged ion density [1/X^3/s] for any length X.
+    """
     N = volume * volume_average_density
 
     sources_and_sinks = jnp.array(jax.tree_util.tree_leaves(sources_and_sinks))
@@ -45,15 +57,17 @@ def single_species_derivs(
 
 
 def multi_species_derivs(state: State, params: Params) -> State:
-    def calc_single_species(species: Species) -> State:
-        """Evaluate the model for a single species.
+    """Compute the time derivative of the volume-averaged ion densities for all species.
 
-        Args:
-            species (Species): species to evaluate the model for.
+    Args:
+        state (State): density state of the plasma.
+        params (Params): external parameters.
 
-        Returns:
-            State: state derivative for the species.
-        """
+    Returns:
+        State: time derivative of the density state of the plasma.
+    """
+
+    def calc_single_species(species: Species) -> float:
         state_dot = single_species_derivs(
             state.vol_avg_ion[species],
             sources_and_sinks=params.sources_and_sinks[species],

@@ -96,9 +96,11 @@ def zeff_term(charge_state: float, species_density: float, electron_density: flo
     return (charge_state**2 * species_density) / electron_density
 
 
-def calc_impurity_charge_state(average_electron_density_19, average_electron_temp_keV, radas_curves: RadasCurvesForSpecies) -> float:
+def calc_impurity_charge_state(
+    average_electron_density_19: float, average_electron_temp_keV: float, radas_curves: RadasCurvesForSpecies
+) -> float:
     """
-    Calculate the charge state of an impurity given the average electron density and temperature.
+    Wrapper for impurity_effects.calc_impurity_charge_state_impl.
     """
     return impurity_effects.calc_impurity_charge_state_impl(
         1e19 * average_electron_density_19, 1000.0 * average_electron_temp_keV, radas_curves.coronal_mean_Z_interpolator
