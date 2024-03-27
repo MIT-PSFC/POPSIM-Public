@@ -17,7 +17,6 @@
 ITER hybrid scenario based (roughly) on van Mulders Nucl. Fusion 2021.
 With Newton-Raphson stepper and adaptive timestep (backtracking)
 """
-
 from torax import config as config_lib
 from torax import geometry, simulation_app
 from torax import sim as sim_lib
@@ -25,33 +24,38 @@ from torax.sources import source_config
 from torax.stepper import nonlinear_theta_method
 from torax.time_step_calculator import fixed_time_step_calculator
 
+import popsim
+from popsim.interfaces.sparc_public import load_prd_transp_profiles
+
 
 def get_config() -> config_lib.Config:
+    transp_data = load_prd_transp_profiles()
+    ped_top = 0.9  # Location of the pedestal top in normalized radius.
     # NOTE: This approach to building the config is changing. Over time more
     # parts of this config will be built with pure Python constructors in
     # `get_sim()`.
     return config_lib.Config(
         # simulation control
         t_final=10,  # length of simulation time in seconds
-        fixed_dt=1,
+        fixed_dt=1.0,
         # 1/multiplication factor for sigma (conductivity) to reduce current
         # diffusion timescale to be closer to heat diffusion timescale.
         resistivity_mult=1,
-        Ip={0: 3, 80: 8.7},  # total plasma current in MA
+        Ip=8.7,  # total plasma current in MA
         # physical inputs
         Rmaj=1.85,  # major radius (R) in meters
         Rmin=0.57,  # minor radius (a) in meters
         Ai=2.5,  # amu of main ion (if multiple isotope, make average)
         B0=12.2,  # Toroidal magnetic field on axis [T]
-        Zeff=1.6,  # needed for qlknn and fusion power
+        Zeff=1.5,  # needed for qlknn and fusion power
         # effective impurity charge state assumed for matching dilution=0.862.
         Zimp=10,
         # boundary + initial conditions for T and n
-        Ti_bound_left=6,  # initial condition ion temperature for r=0
-        Ti_bound_right=0.1,  # boundary condition ion temperature for r=Rmin
-        Te_bound_left=6,  # initial condition electron temperature for r=0
-        Te_bound_right=0.1,  # boundary condition electron temperature for r=Rmin
-        ne_bound_right=0.2,  # boundary condition density for r=Rmin
+        Ti_bound_left=float(transp_data["Ti_keV"].sel(rho=0.0).values),  # initial condition ion temperature for r=0
+        Ti_bound_right=float(transp_data["Ti_keV"].sel(rho=1.0).values),  # boundary condition ion temperature for r=Rmin
+        Te_bound_left=float(transp_data["Te_keV"].sel(rho=0.0).values),  # initial condition electron temperature for r=0
+        Te_bound_right=float(transp_data["Te_keV"].sel(rho=1.0).values),  # boundary condition electron temperature for r=Rmin
+        ne_bound_right=float(transp_data["ne20"].sel(rho=1.0).values),  # boundary condition density for r=Rmin
         # set initial condition density according to Greenwald fraction.
         # Otherwise from nbar
         nbar_is_fGW=True,
@@ -61,7 +65,7 @@ def get_config() -> config_lib.Config:
         w=0.1,  # Gaussian width in normalized radial coordinate
         rsource=0.0,  # Source Gauss peak in normalized r
         Ptot=11.0e6,  # total heating
-        el_heat_fraction=0.5,  # electron heating fraction
+        el_heat_fraction=0.22,  # external power electron heating fraction (Rodriguez-Fernandez, 2020)
         # multiplier for ion-electron heat exchange term for sensitivity
         Qei_mult=1,
         # particle source parameters
@@ -109,10 +113,10 @@ def get_config() -> config_lib.Config:
         # internal boundary condition (pedestal)
         # do not set internal boundary condition if this is False
         set_pedestal=True,
-        Tiped={0.0: 1.0, 5.0: 5.0},  # ion pedestal top temperature in keV for Ti and Te
-        Teped={0.0: 1.0, 5.0: 5.0},  # electron pedestal top temperature in keV for Ti and Te
-        neped={0: 0.2, 5.0: 0.5},  # pedestal top electron density in units of nref
-        Ped_top=0.9,  # set ped top location in normalized radius
+        Ped_top=ped_top,  # set ped top location in normalized radius
+        Tiped=float(transp_data["Ti_keV"].sel(rho=ped_top).values),  # ion pedestal top temperature in keV for Ti and Te
+        Teped=float(transp_data["Te_keV"].sel(rho=ped_top).values),  # electron pedestal top temperature in keV for Ti and Te
+        neped=float(transp_data["ne20"].sel(rho=ped_top).values),  # pedestal top electron density in units of nref
         # effective source to dominate PDE in internal boundary condtion location
         # if T != Tped
         largeValue_T=1.0e10,
@@ -199,4 +203,7 @@ def get_sim() -> sim_lib.Sim:
 
 
 if __name__ == "__main__":
-    simulation_app.main(get_sim)
+    import os
+
+    os.environ["TORAX_QLKNN_MODEL_PATH"] = popsim.TORAX_QLKNN_MODEL_PATH
+    simulation_app.main(get_sim, log_sim_progress=True, log_sim_output=True)

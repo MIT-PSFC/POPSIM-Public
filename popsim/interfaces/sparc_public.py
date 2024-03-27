@@ -6,8 +6,8 @@ import xarray as xr
 import popsim
 
 
-def load_prd_transp() -> xr.Dataset:
-    """Load the TRANSP data, 1D profiles, from the SPARC Public Reference Discharge.
+def load_prd_transp_profiles() -> xr.Dataset:
+    """Load the TRANSP 1D profiles, from the SPARC Public Reference Discharge.
 
     Returns:
         xr.Dataset: the TRANSP data contained in an xarray.
@@ -29,4 +29,9 @@ def load_prd_transp() -> xr.Dataset:
     data_vars = {k: (["rho"], np.array(v)) for k, v in data.items() if k != "rho"}
 
     ds = xr.Dataset(data_vars, coords={"rho": data["rho"]})
+
+    # Rename variables for units.
+    ds = ds.rename({"te": "Te_keV", "ti": "Ti_keV", "ne": "ne19"})
+
+    ds["ne20"] = 0.1 * ds["ne19"]
     return ds
