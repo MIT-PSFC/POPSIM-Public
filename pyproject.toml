@@ -12,8 +12,8 @@ diffrax = "^0.5.0"
 equinox = "^0.11.2"
 jax = "^0.4.20"
 jaxlib = [
-	{version = "^0.4.14", platform="darwin", source="pypi"},
-	{version = "^0.4.19+cuda12.cudnn89", platform="linux"}
+	{version = "^0.4.25", platform="darwin", source="pypi"},
+	{version = "^0.4.25+cuda12.cudnn89", platform="linux", source="jax_cuda"},
 ]
 cfspopcon = { path = "./cfspopcon", develop = true }
 interpax = {git = "https://github.com/f0uriest/interpax.git"}
@@ -31,6 +31,11 @@ nbmake = "^1.4.6"
 
 [[tool.poetry.source]]
 name = "PyPI"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "jax_cuda"
+url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
 priority = "primary"
 
 [build-system]

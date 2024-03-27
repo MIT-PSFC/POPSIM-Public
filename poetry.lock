@@ -1149,7 +1149,7 @@ files = [
 
 [[package]]
 name = "interpax"
-version = "0.2.4+7.g1047afe"
+version = "0.3.1+4.g019d2ec"
 description = "Interpolation and function approximation with JAX"
 optional = false
 python-versions = ">=3.8"
@@ -1157,10 +1157,9 @@ files = []
 develop = false
 
 [package.dependencies]
-equinox = "*"
-jax = ">=0.3.2,<=0.5.0"
+equinox = ">=0.11,<0.12"
+jax = ">=0.3.2,<0.5.0"
 numpy = ">=1.20.0,<2.0"
-scipy = ">=1.5.0,<2.0"
 
 [package.source]
 type = "git"
@@ -1361,6 +1360,37 @@ scipy = ">=1.9"
 [package.extras]
 cuda11-pip = ["nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
 cuda12-pip = ["nvidia-cublas-cu12", "nvidia-cuda-cupti-cu12", "nvidia-cuda-nvcc-cu12", "nvidia-cuda-runtime-cu12", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12", "nvidia-cusolver-cu12", "nvidia-cusparse-cu12"]
+
+[[package]]
+name = "jaxlib"
+version = "0.4.25+cuda12.cudnn89"
+description = "XLA library for JAX"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:f2d162ce1aee92b4c98c9f18a87ba953616ee1a85b5137e4499367d5f7a92d18"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:c782b79314d7c7046c5834663902e703f3338ab97c86f698d54ba34ef89543d8"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:d9cf51dac8a334e74fe9c91ab833696325f027132b931c1347d6c2dfac33994e"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:59eb28feb28b4709f760d42c51fef2119d7ef7814eddd9266860138134b6c552"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:4a76cc71a71faef9a0898f95dd93973517b7c944d11f38b4cf26b99b2ca343d9"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:f466a534a9a0811d9dbce696a570775be9c8cceac1495fd2d8678a0f7425970c"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:4a5f54fbc4754fbfacfbf427929762b79a42e0f7d74d738c45eb5aba51dc63b6"},
+    {file = "jaxlib-0.4.25+cuda12.cudnn89-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:4741fce2435e77ae95cdbb5185ee25aedcdeaf77d78e4e165f14524d6fc443d9"},
+]
+
+[package.dependencies]
+ml-dtypes = ">=0.2.0"
+numpy = ">=1.22"
+scipy = ">=1.9"
+
+[package.extras]
+cuda11-pip = ["nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
+cuda12-pip = ["nvidia-cublas-cu12", "nvidia-cuda-cupti-cu12", "nvidia-cuda-nvcc-cu12", "nvidia-cuda-runtime-cu12", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12", "nvidia-cusolver-cu12", "nvidia-cusparse-cu12"]
+
+[package.source]
+type = "legacy"
+url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
+reference = "jax_cuda"
 
 [[package]]
 name = "jaxtyping"
@@ -3919,4 +3949,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "d91a858e1ee6866b1ca7573de62a76e28fcbf85b190edd2c35e1f05f1562040f"
+content-hash = "9ae162faedc15dee61a7e756efda27334138183ee413a8d2035562bf2fe6bc4d"
