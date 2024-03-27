@@ -58,7 +58,7 @@ def get_config() -> config_lib.Config:
         # set initial condition density according to Greenwald fraction.
         # Otherwise from nbar
         nbar_is_fGW=True,
-        nbar=0.33,
+        nbar=0.37,  # Greenwald fraction from (Rodriguez-Fernandez, 2020)
         npeak=1.5,  # Initial peaking factor of density profile
         # external heat source parameters
         w=0.1,  # Gaussian width in normalized radial coordinate
