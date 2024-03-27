@@ -139,7 +139,7 @@ def get_config() -> config_lib.Config:
             Ve_outer=0.0,
             chii_outer=2.0,
             chie_outer=2.0,
-            rho_outer=0.9,  # radius above which patch transport is applied
+            rho_outer=ped_top,  # radius above which patch transport is applied
             # For QLKNN model
             include_ITG=True,  # to toggle ITG modes on or off
             include_TEM=True,  # to toggle TEM modes on or off
