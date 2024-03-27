@@ -8,7 +8,7 @@ import param
 hv.extension("bokeh")
 
 
-class XarrayGUI(param.Parameterized):
+class PopsimGUI(param.Parameterized):
     add_var_selector = param.Action(default=lambda x: x.param.trigger("add_var_selector"), label="Add Plot")
     ALL_SIMS = "all_simulations"
 
@@ -25,8 +25,8 @@ class XarrayGUI(param.Parameterized):
         if self.simulation_dim:
             self.simulation_selector = pn.widgets.MultiSelect(
                 name="Simulation Case",
-                options=[XarrayGUI.ALL_SIMS, *list(self.ds[self.simulation_dim].values)],
-                value=[XarrayGUI.ALL_SIMS],
+                options=[PopsimGUI.ALL_SIMS, *list(self.ds[self.simulation_dim].values)],
+                value=[PopsimGUI.ALL_SIMS],
             )
         else:
             self.simulation_selector = pn.widgets.StaticText(name="Simulation Case", value="")
@@ -43,7 +43,7 @@ class XarrayGUI(param.Parameterized):
 
             data = (
                 self.ds
-                if (selected_simulations == [XarrayGUI.ALL_SIMS] or self.simulation_dim is None)
+                if (selected_simulations == [PopsimGUI.ALL_SIMS] or self.simulation_dim is None)
                 else self.ds.sel({self.simulation_dim: selected_simulations})
             )
 
