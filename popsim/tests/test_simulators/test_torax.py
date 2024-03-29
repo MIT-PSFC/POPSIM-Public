@@ -20,6 +20,7 @@ def test_sparc_prd():
     # Note that these values are not in line with the original SPARC papers.
     # Probably something off with the config/boundary conditions.
     # Worth getting a real physicist to check this.
+    # https://github.com/cfs-energy-internal/POPSIM/issues/32
     expected_final_ti0 = 14.0 # keV
     expected_final_te0 = 16.0 # keV
     expected_final_ne0 = 3.4 # 10^20 m^-3

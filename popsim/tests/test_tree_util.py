@@ -1,6 +1,9 @@
+import jax
 import jax.numpy as jnp
+import chex
 
 from popsim import tree_util
+from popsim import stochastic
 
 
 def test_tree_transpose():
