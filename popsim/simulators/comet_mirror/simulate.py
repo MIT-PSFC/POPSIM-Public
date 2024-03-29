@@ -1,6 +1,7 @@
 import typing
 
 import diffrax
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array
@@ -34,6 +35,7 @@ def simulate(
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
 
 
+@eqx.filter_jit
 def _simulate(model: cm.CometMirror, ts: Array, state0: cm.State, params: cm.Params) -> diffrax.Solution:
     def model_f(t, y, params, return_aux: bool = False):
         params_resolved = resolve_paths(params, t)
