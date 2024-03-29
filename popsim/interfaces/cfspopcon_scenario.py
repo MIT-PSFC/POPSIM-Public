@@ -22,11 +22,13 @@ def load_cfsopcon_scenario(case_name: str = "SPARC_PRD"):
 
     species_container = SpeciesContainer(species=[FuelSpecies.Deuterium, FuelSpecies.Tritium, *impurity_types])
 
-    """Compute the fraction of ions for each species."""
-    fuel_concentration = 1.0 - sum(input_parameters["impurities"].values)
+    """
+    For each species, compute the fraction of its density in terms of the total fuel ion density.
+    This is a bit inconsitent with CFSPOPCON: https://github.com/cfs-energy-internal/POPSIM/issues/33
+    """
     fuel_concentrations = {
-        FuelSpecies.Deuterium: (1.0 - input_parameters["heavier_fuel_species_fraction"]) * fuel_concentration,
-        FuelSpecies.Tritium: input_parameters["heavier_fuel_species_fraction"] * fuel_concentration,
+        FuelSpecies.Deuterium: (1.0 - input_parameters["heavier_fuel_species_fraction"]),
+        FuelSpecies.Tritium: input_parameters["heavier_fuel_species_fraction"],
     }
 
     impurity_concentrations = dict(

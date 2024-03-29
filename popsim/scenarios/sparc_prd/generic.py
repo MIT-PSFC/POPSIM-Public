@@ -9,7 +9,7 @@ def load_cfspopcon_prd():
 
 @chex.dataclass
 class Sparc2020TestData:
-    """Data from Creely et al., 2020. Meant to serve as a reference for testing."""
+    """Data from Creely et al., 2020 and Rodriguez-Fernandez et al., 2020. Meant to serve as a reference for testing."""
 
     R0: float = 1.85  # major radius [m]
     a_minor: float = 0.57  # minor radius [m]
@@ -39,3 +39,5 @@ class Sparc2020TestData:
     beta: float = 0.012  # plasma beta [-]
     betaN: float = 1.0  # normalized beta [-]
     Pfusion: float = 140  # fusion power [MW]
+    Prad: float = 10.4  # radiated power [MW]
+    PsepB0R0: float = 191.0  # (Psep * B0)/R0 [MW T m^-1]
