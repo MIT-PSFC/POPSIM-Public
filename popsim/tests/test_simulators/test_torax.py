@@ -13,7 +13,7 @@ def test_sparc_prd():
         return abs(actual - expected) / expected < PERCENT_ERROR / 100
 
     # Run the simulation.
-    ds = simulation_app.main(get_sim, return_xr=True)
+    ds = simulation_app.main(get_sim)
 
 
     # Check the final state of the simulation.
@@ -24,6 +24,6 @@ def test_sparc_prd():
     expected_final_te0 = 16.0 # keV
     expected_final_ne0 = 3.4 # 10^20 m^-3
 
-    assert within_percent_error(ds["temp_ion"].isel(time=-1).sel(rho=0, method="nearest").values, expected_final_ti0)
-    assert within_percent_error(ds["temp_el"].isel(time=-1).sel(rho=0, method="nearest").values, expected_final_te0)
-    assert within_percent_error(ds["ne"].isel(time=-1).sel(rho=0, method="nearest").values, expected_final_ne0)
+    assert within_percent_error(ds["temp_ion"].isel(time=-1).isel(rho_cell=0).values, expected_final_ti0)
+    assert within_percent_error(ds["temp_el"].isel(time=-1).isel(rho_cell=0).values, expected_final_te0)
+    assert within_percent_error(ds["ne"].isel(time=-1).isel(rho_cell=0).values, expected_final_ne0)
