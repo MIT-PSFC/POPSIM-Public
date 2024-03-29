@@ -78,7 +78,7 @@ class CometMirror:
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params, debug_info: bool = False) -> State:  # noqa: PLR0915
+    def __call__(self, state: State, params: Params, return_aux: bool = False) -> State:  # noqa: PLR0915
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,
@@ -272,11 +272,11 @@ class CometMirror:
             density_state=density_dot,
         )
 
-        if debug_info:
+        if return_aux:
             # Filter out any non-array-like variables
-            debugs = eqx.filter(locals(), eqx.is_array_like)
+            aux_data = eqx.filter(locals(), eqx.is_array_like)
             # Promote any scalar-like variables to arrays
-            debugs = jax.tree_map(jnp.asarray, debugs)
-            return debugs
+            aux_data = jax.tree_map(jnp.asarray, aux_data)
+            return aux_data
         else:
             return state_dot

@@ -18,4 +18,4 @@ def test_comet_mirror():
     )
     params.plasma_current = current_intrep
 
-    sol, debugs = simulate(model, ts, state, params, debug_info=True)
+    sol = simulate(model, ts, state, params)
