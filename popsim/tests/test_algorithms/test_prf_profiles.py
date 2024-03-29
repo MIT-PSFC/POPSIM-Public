@@ -1,13 +1,12 @@
 
 import jax.numpy as jnp
-import xarray as xr
 
-from popsim.tests import load_sparc_prd_data, Sparc2020Data
+from popsim.scenarios.sparc_prd.generic import Sparc2020TestData, load_cfspopcon_prd
 from popsim.algorithms.profiles import ProfileCalculator
 
 
-def test_prf_profiles(load_sparc_prd_data):
-    input_parameters, algorithm, points, impurity_types, impurity_concentrations = load_sparc_prd_data
+def test_prf_profiles():
+    input_parameters, *_= load_cfspopcon_prd()
 
     """
     Some numbers approximately correct for the SPARC PRD.
@@ -20,16 +19,16 @@ def test_prf_profiles(load_sparc_prd_data):
     """
     Prepare profile inputs
     """
-    average_electron_density_19 = Sparc2020Data.ne_vol
-    average_electron_temp_keV = Sparc2020Data.Te_vol
-    average_ion_temp_keV = Sparc2020Data.Ti_vol
-    ion_density_peaking_offset = input_parameters['ion_density_peaking_offset'].magnitude
-    electron_density_peaking_offset = input_parameters['electron_density_peaking_offset'].magnitude
-    temperature_peaking = input_parameters['temperature_peaking'].magnitude
-    major_radius = input_parameters['major_radius'].magnitude
-    z_effective = Sparc2020Data.Zeff
-    dilution = Sparc2020Data.dilution
-    normalized_inverse_temp_scale_length = input_parameters['normalized_inverse_temp_scale_length'].magnitude
+    average_electron_density_19 = Sparc2020TestData.ne_vol
+    average_electron_temp_keV = Sparc2020TestData.Te_vol
+    average_ion_temp_keV = Sparc2020TestData.Ti_vol
+    ion_density_peaking_offset = input_parameters['ion_density_peaking_offset']
+    electron_density_peaking_offset = input_parameters['electron_density_peaking_offset']
+    temperature_peaking = input_parameters['temperature_peaking']
+    major_radius = input_parameters['major_radius']
+    z_effective = Sparc2020TestData.Zeff
+    dilution = Sparc2020TestData.dilution
+    normalized_inverse_temp_scale_length = input_parameters['normalized_inverse_temp_scale_length']
 
     profout = pcalc(
         average_electron_density_19=average_electron_density_19,
@@ -41,7 +40,7 @@ def test_prf_profiles(load_sparc_prd_data):
         major_radius=major_radius,
         z_effective=z_effective,
         dilution=dilution,
-        beta_toroidal=Sparc2020Data.beta, # beta is dominated by the toroidal component.
+        beta_toroidal=Sparc2020TestData.beta, # beta is dominated by the toroidal component.
         normalized_inverse_temp_scale_length=normalized_inverse_temp_scale_length,
     )
 

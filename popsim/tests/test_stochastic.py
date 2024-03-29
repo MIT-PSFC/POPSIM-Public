@@ -4,7 +4,6 @@ import jax.numpy as jnp
 
 from popsim.enums import Impurity
 from popsim.stochastic import generate_random_walks
-from popsim.tests import load_sparc_prd_data_f
 
 
 def test_generate_random_walks():

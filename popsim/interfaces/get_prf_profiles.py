@@ -4,7 +4,6 @@ from functools import wraps
 import interpax
 import jax.numpy as jnp
 import pandas as pd
-
 from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
 
 

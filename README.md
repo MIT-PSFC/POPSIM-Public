@@ -22,3 +22,6 @@ POPSIM is designed to be a collection of Jax-based simulators that can interop (
 
 1) CometMirror (in `popsim/simulators/comet_mirror`)
 2) Torax (POPSIM code that is using torax is in `popsim/simulators/torax`, but `torax` source code is in `submodules/torax`)
+
+## Scenarios
+The design of scenario configuration is a major open problem. The current solution is to put 
