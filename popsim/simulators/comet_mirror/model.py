@@ -1,23 +1,22 @@
 import dataclasses
-from collections.abc import Sequence
 from typing import Callable
 
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array
-
-import popsim.algorithms.density as density_model
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from cfspopcon.named_options import ConfinementScaling
+from jaxtyping import Array
+
+import popsim.algorithms.density as density_model
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.algorithms.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
 from popsim.algorithms.profiles import ProfileCalculator
-from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species
+from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 
 
@@ -46,7 +45,7 @@ class Params:
 
 @chex.dataclass
 class Config:
-    species: Sequence[Species]
+    species: SpeciesContainer
     profile_form: ProfileForm
     rho: Array
     energy_confinement_scaling: ConfinementScaling
@@ -252,7 +251,7 @@ class CometMirror:
 
         dW_dt = -P_tau_MW + P_alpha_MW + P_ohmic_MW + Paux_MW - P_rad_MW
 
-        sources_and_sinks = {k: {} for k in self.config.species}
+        sources_and_sinks = {k: {} for k in self.config.species.species}
         for k, v in params.fueling19.items():
             sources_and_sinks[k]["fueling19"] = v
         sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second

@@ -1,5 +1,5 @@
 import popsim
-from popsim.simulators.torax.sparc_prd import get_sim
+from popsim.scenarios.sparc_prd.torax import get_sim
 import os
 from torax import simulation_app
 

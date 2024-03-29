@@ -1,8 +1,9 @@
 """Jax-compatible enums."""
+import typing
 from enum import IntEnum
-from typing import Union
 
 import cfspopcon.named_options as cfsno
+import chex
 
 
 def enum_to_intenum(enum_class):
@@ -29,8 +30,23 @@ class FuelSpecies(IntEnum):
 
 
 Impurity = enum_to_intenum(cfsno.Impurity)
-Species = Union[FuelSpecies, Impurity]
+Species = typing.Union[FuelSpecies, Impurity]
 ProfileForm = enum_to_intenum(cfsno.ProfileForm)
+
+
+@chex.dataclass
+class SpeciesContainer:
+    """Container for species to help separate fuel from impurities."""
+
+    species: typing.Sequence[Species]
+
+    @property
+    def fuel_species(self):
+        return [species for species in self.species if isinstance(species, FuelSpecies)]
+
+    @property
+    def impurity_species(self):
+        return [species for species in self.species if isinstance(species, Impurity)]
 
 
 # Map from Species to atomic number.

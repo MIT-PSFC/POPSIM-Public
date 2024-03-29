@@ -12,11 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Config for ITER hybrid scenario based parameters with nonlinear solver.
-
-ITER hybrid scenario based (roughly) on van Mulders Nucl. Fusion 2021.
-With Newton-Raphson stepper and adaptive timestep (backtracking)
-"""
 from torax import config as config_lib
 from torax import geometry
 from torax import sim as sim_lib
@@ -24,11 +19,14 @@ from torax.sources import source_config
 from torax.stepper import nonlinear_theta_method
 from torax.time_step_calculator import fixed_time_step_calculator
 
+from popsim.interfaces.cfspopcon_scenario import load_cfsopcon_scenario
 from popsim.interfaces.sparc_public import load_prd_transp_profiles
 
 
 def get_config() -> config_lib.Config:
     transp_data = load_prd_transp_profiles()
+    input_parameters, species_container, species_concentrations = load_cfsopcon_scenario("SPARC_PRD")
+
     ped_top = 0.9  # Location of the pedestal top in normalized radius.
     # NOTE: This approach to building the config is changing. Over time more
     # parts of this config will be built with pure Python constructors in
@@ -40,12 +38,12 @@ def get_config() -> config_lib.Config:
         # 1/multiplication factor for sigma (conductivity) to reduce current
         # diffusion timescale to be closer to heat diffusion timescale.
         resistivity_mult=1,
-        Ip=8.7,  # total plasma current in MA
+        Ip=1e-6 * input_parameters["plasma_current"],  # total plasma current in MA
         # physical inputs
-        Rmaj=1.85,  # major radius (R) in meters
-        Rmin=0.57,  # minor radius (a) in meters
+        Rmaj=input_parameters["major_radius"],  # major radius (R) in meters
+        Rmin=input_parameters["inverse_aspect_ratio"] * input_parameters["major_radius"],  # minor radius (a) in meters
         Ai=2.5,  # amu of main ion (if multiple isotope, make average)
-        B0=12.2,  # Toroidal magnetic field on axis [T]
+        B0=input_parameters["magnetic_field_on_axis"],  # Toroidal magnetic field on axis [T]
         Zeff=1.5,  # needed for qlknn and fusion power
         # effective impurity charge state assumed for matching dilution=0.862.
         Zimp=10,
