@@ -12,7 +12,7 @@ class PopsimGUI(param.Parameterized):
     add_var_selector = param.Action(default=lambda x: x.param.trigger("add_var_selector"), label="Add Plot")
     ALL_SIMS = "all_simulations"
 
-    def __init__(self, ds, time_dim: str, rho_dim: str, simulation_dim: typing.Optional[str] = None, **params):
+    def __init__(self, ds, time_dim: str, rho_dim: typing.Optional[str] = None, simulation_dim: typing.Optional[str] = None, **params):
         super().__init__(**params)
         self.ds = ds
         self.time_dim = time_dim
