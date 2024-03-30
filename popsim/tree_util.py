@@ -1,3 +1,4 @@
+import collections
 from collections.abc import Sequence
 from typing import Union
 
@@ -36,6 +37,8 @@ def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLi
 
 def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
     """Get the leaves of a PyTree as a single array.
+    Note: this currently does not preserve dictionary order!
+    https://github.com/google/jax/issues/4085
 
     Args:
         tree (PyTree[ArrayLike]): A PyTree of ArrayLike.
@@ -62,3 +65,17 @@ def resolve_paths(tree: PyTree[Union[ArrayLike, AbstractPath]], t0: float, *args
         is_leaf=lambda x: isinstance(x, AbstractPath),
     )
     return tree_resolved
+
+
+def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
+    """Create an ordered dictionary from two arrays. Note: the usage of ordered dictionaries is important because Jax can
+    accidentally sort non-ordered dictionaries. https://github.com/google/jax/issues/4085
+
+    Args:
+        keys (Array): keys for the dictionary.
+        vals (Array): values for the dictionary.
+
+    Returns:
+        collections.OrderedDict: An ordered dictionary with keys and values.
+    """
+    return collections.OrderedDict(zip(keys, vals))
