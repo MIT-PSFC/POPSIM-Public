@@ -34,9 +34,9 @@ def time_and_pytree_to_xarray(time, tree, multi_simulation: bool, rhogrid: Array
             else:
                 raise ValueError(f"Array has unexpected shape {arr.shape}.")
         else:
-            if arr.ndim == 2:
+            if arr.ndim == 1:
                 return (["time"], arr)
-            if arr.ndim == 3:
+            if arr.ndim == 2:
                 return (["time", "rho"], arr)
             else:
                 raise ValueError(f"Array has unexpected shape {arr.shape}.")
@@ -44,12 +44,13 @@ def time_and_pytree_to_xarray(time, tree, multi_simulation: bool, rhogrid: Array
     variables = {keypath_to_string(keypath): convert_array(leaf) for keypath, leaf in leaves_with_path}
 
     # Expect time to be the same for all simulations.
-    assert (time == time[0]).all()
+    if multi_simulation:
+        assert (time == time[0]).all()
 
     # Expect all leaves to have the same leading dimension.
     first_leaf_data = leaves_with_path[0][1]
     assert all(leaf.shape[0] == first_leaf_data.shape[0] for _, leaf in leaves_with_path)
-    coords = {"time": time[0]}
+    coords = {"time": time[0]} if multi_simulation else {"time": time}
 
     if multi_simulation:
         coords["simulation"] = list(range(first_leaf_data.shape[0]))
