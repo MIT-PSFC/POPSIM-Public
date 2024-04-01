@@ -50,7 +50,7 @@ ArrayOrPath = typing.Union[Array, diffrax.AbstractPath]
 @chex.dataclass
 class Params:
     plasma_resistance: ArrayLike
-    non_inductive_current: ArrayLike
+    non_inductive_current: ArrayLike = 0.0  # TODO(dboyer): https://github.com/cfs-energy-internal/POPSIM/issues/34
 
 
 @chex.dataclass
@@ -151,6 +151,7 @@ class TreeBuilder:
 def load():
     data = sio.loadmat(os.path.join(PACKAGE_ROOT, "data", "equil_data_101.mat"))
     metadata = sio.loadmat(os.path.join(PACKAGE_ROOT, "data", "equil_data_101_meta.mat"))
+
     # Rename keys.
     data["y0"] = data.pop("yo")
     data["y0_Fx"] = data.pop("yo_Fx")
