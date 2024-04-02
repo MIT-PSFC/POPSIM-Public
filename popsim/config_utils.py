@@ -51,38 +51,25 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
 
     # Check that all instances of MultiCases have the same length
     lengths = [len(x.config) for x in multi_cases]
-    length = lengths[0]
 
     if not all(length == lengths[0] for length in lengths):
         raise ValueError("All instances of MultiCases must have the same length.")
 
-    # Separate the tree into MultiCases and non-MultiCases
+    # Partition the tree into MultiCases and non-MultiCases
     multi_cases_tree, non_multi_cases_tree = eqx.partition(config, is_multi_case, is_leaf=is_multi_case)
 
-    # Build the outer definition using the first element of "MultiCases.config"
-    outer = jax.tree_map(
-        lambda x: MultiCases(config=x.config[0]) if is_multi_case(x) else x,
-        multi_cases_tree,
-        is_leaf=is_multi_case,
-    )
-    outer = jax.tree.structure(outer)
+    list_of_multi_cases, treedef = jax.tree.flatten(multi_cases_tree, is_leaf=is_multi_case)
 
-    # Build the inner definition using the list of cases.
-    inner = jax.tree.structure(["*" for _ in range(length)])
+    list_of_multi_cases_list = [x.config for x in list_of_multi_cases]
 
-    # Transpose the tree to get a list of trees. Each element of the list is one case.
-    multi_cases_transposes = jax.tree.transpose(outer, inner, multi_cases_tree)
+    cases = list(zip(*list_of_multi_cases_list))
 
-    # Replace all instances of MultiCases with their respective values
-    multi_cases_transposes = jax.tree_map(
-        lambda x: x.config if is_multi_case(x) else x,
-        multi_cases_transposes,
-        is_leaf=is_multi_case,
-    )
+    def reconstruct_tree(case):
+        reconstructed_multi_case_tree = jax.tree.unflatten(treedef, case)
+        return eqx.combine(non_multi_cases_tree, reconstructed_multi_case_tree)
 
-    # Add back in the non-MultiCases.
-    out = [eqx.combine(non_multi_cases_tree, multi_case) for multi_case in multi_cases_transposes]
-    return out
+    reconstructed_trees = [reconstruct_tree(case) for case in cases]
+    return reconstructed_trees
 
 
 def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
@@ -101,7 +88,7 @@ def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, Combina
     def is_comb_case(x):
         return isinstance(x, CombinatorialCases)
 
-    # Separate the tree into CombinatorialCases and non-CombinatorialCases
+    # Partition the tree into CombinatorialCases and non-CombinatorialCases
     comb_cases_tree, non_comb_cases_tree = eqx.partition(config, is_comb_case, is_leaf=is_comb_case)
 
     list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
