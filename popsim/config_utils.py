@@ -2,17 +2,15 @@ import itertools
 import typing
 
 import chex
-import diffrax
-from jaxtyping import Scalar
+import jax
+from jaxtyping import PyTree
 
-# Dictionary of times to values.
-TrajectoryInput = dict[Scalar, Scalar]
-TrajectoryOrTrajectoryInput = diffrax.AbstractPath | TrajectoryInput
-ConstantOrTimeDependent = Scalar | TrajectoryOrTrajectoryInput
+import popsim.interp as pinterp
+import popsim.types as ptypes
 
 
 class CombinatorialCases:
-    def __init__(self, config: typing.Sequence[ConstantOrTimeDependent]):
+    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependent]):
         self.config = config
 
 
@@ -54,8 +52,44 @@ def generate_combinations(params: chex.dataclass) -> list[chex.dataclass]:
     return params_combinations
 
 
-def build_config(config):
-    pass
+def build_config_paths(
+    config: PyTree[ptypes.ConstantOrTimeDependentSpec], interp_type: str = "linear"
+) -> PyTree[ptypes.ConstantOrTimeDependent]:
+    """Given a user-specified configuration of the form "ConstantOrTimeDependentSpec", turn instances of "TrajectorySpec" into
+    instances of "diffrax.AbstractPath" by interpolating the values at the specified times.
+
+    Args:
+        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): A user-specified configuration.
+        interp_type (str): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
+
+    Returns:
+        PyTree[ptypes.ConstantOrTimeDependent]: A configuration where all instances of "TrajectorySpec" have been interpolated.
+    """
+
+    def is_traj_spec(x):
+        # I would prefer to do a:
+        #   isinstance(x, ptypes.TrajectorySpec)  # noqa: ERA001
+        # but isinstance does not work with paramerized generics.
+        # Instead, we will check that "x" is a dictionary with float keys.
+        # We will also check that all values have the same tree structure.
+        # First, check if 'x' is a dictionary.
+        if not isinstance(x, dict):
+            return False
+
+        # Check if all keys are floats
+        keys_all_floats = all(isinstance(key, float) for key in x.keys())
+        if not keys_all_floats:
+            return False
+
+        # Check if all values have the same tree structure
+        values = list(x.values())
+        structures = [jax.tree.structure(v) for v in values]
+        return all(structure == structures[0] for structure in structures)
+
+    def maybe_interp(x):
+        return x if not is_traj_spec(x) else pinterp.interp_time_dic(x, interp_type=interp_type)
+
+    return jax.tree_map(maybe_interp, config, is_leaf=is_traj_spec)
 
 
 def build_combinatorial_config():

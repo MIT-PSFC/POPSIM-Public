@@ -7,7 +7,8 @@ import jax.numpy as jnp
 from jaxtyping import Array
 
 import popsim.simulators.comet_mirror.model as cm
-from popsim.tree_util import resolve_paths, tree_transpose
+from popsim.interp import resolve_paths
+from popsim.tree_util import tree_transpose
 from popsim.xarray_utils import solution_to_xarray
 
 

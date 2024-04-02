@@ -18,7 +18,6 @@ from jaxtyping import Array, ArrayLike, PyTree
 from popsim import PACKAGE_ROOT
 from popsim.controllers import PIController
 from popsim.gui import PopsimGUI
-from popsim.interp import interp_trees
 from popsim.tree_util import build_ordered_dict
 from popsim.xarray_utils import time_and_pytree_to_xarray
 
@@ -196,8 +195,9 @@ def load():
     # Matlab creates these nested array things. Convert to single arrays.
     trajectories = jax.tree_map(lambda arr: to_single_array(arr), trajectories)
     # Perform an interpolation to get the derivatives.
-    li_interp = interp_trees(time, trajectories["li"], "cubic")
-    bp_interp = interp_trees(time, trajectories["betap"], "cubic")
+
+    li_interp = diffrax.LinearInterpolation(ts=time, ys=trajectories["li"])
+    bp_interp = diffrax.LinearInterpolation(time, ys=trajectories["betap"])
     trajectories["li_dot"] = li_interp.derivative(time)
     trajectories["betap_dot"] = bp_interp.derivative(time)
     trajectories["Ini"] = np.zeros_like(
@@ -205,7 +205,7 @@ def load():
     )  # TODO(dboyer): currently all zeros https://github.com/cfs-energy-internal/POPSIM/issues/34
 
     equil = LTVEquil(time=time, **trajectories)
-    equil = interp_trees(equil.time, equil, "linear")
+    equil = diffrax.LinearInterpolation(ts=equil.time, ys=equil)
 
     current_labels = labels_to_list(metadata["dima"])
     vessel_mode_labels = labels_to_list(metadata["dimu"])
