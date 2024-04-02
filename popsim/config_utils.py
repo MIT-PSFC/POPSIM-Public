@@ -57,9 +57,7 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
         raise ValueError("All instances of MultiCases must have the same length.")
 
     # Separate the tree into MultiCases and non-MultiCases
-    multi_cases_tree, non_multi_cases_tree = eqx.partition(
-        params, lambda x: isinstance(x, MultiCases), is_leaf=lambda x: isinstance(x, MultiCases)
-    )
+    multi_cases_tree, non_multi_cases_tree = eqx.partition(params, is_multi_case, is_leaf=is_multi_case)
 
     # Build the outer definition using the first element of "MultiCases.config"
     outer = jax.tree_map(
@@ -72,14 +70,14 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
     # Build the inner definition using the list of cases.
     inner = jax.tree.structure(["*" for _ in range(length)])
 
-    # Transpose the tree to get a list of trees.
+    # Transpose the tree to get a list of trees. Each element of the list is one case.
     multi_cases_transposes = jax.tree.transpose(outer, inner, multi_cases_tree)
 
     # Replace all instances of MultiCases with their respective values
     multi_cases_transposes = jax.tree_map(
-        lambda x: x.config if isinstance(x, MultiCases) else x,
+        lambda x: x.config if is_multi_case(x) else x,
         multi_cases_transposes,
-        is_leaf=lambda x: isinstance(x, MultiCases),
+        is_leaf=is_multi_case,
     )
 
     # Add back in the non-MultiCases.

@@ -23,9 +23,11 @@ class SimpleParams:
     c: float
 
 def test_generate_params_combinations():
-    # Example usage
-    complex_b = SimpleParams(a=1.0, b={"b0": 2.0, "b1": [3.0, -3.0]}, c=3.0)
-    params = SimpleParams(a=CombinatorialCases(config=[1.0, 2.0, 3.0]), b=complex_b, c=CombinatorialCases(config=[{'a': 3.0}, {'a': 4.0}]))
+    #
+    # Generate combinations of simple objects (floats) while keeping a dictionary constant.
+    #
+    static_b = SimpleParams(a=1.0, b={"b0": 2.0, "b1": [3.0, -3.0]}, c=3.0)
+    params = SimpleParams(a=CombinatorialCases(config=[1.0, 2.0, 3.0]), b=static_b, c=CombinatorialCases(config=[{'a': 3.0}, {'a': 4.0}]))
     combinations = generate_combinatorial_cases(params)
 
     assert len(combinations) == 6
@@ -35,6 +37,24 @@ def test_generate_params_combinations():
     assert combinations[3] == SimpleParams(a=2.0, b=params.b, c={'a': 4.0})
     assert combinations[4] == SimpleParams(a=3.0, b=params.b, c={'a': 3.0})
     assert combinations[5] == SimpleParams(a=3.0, b=params.b, c={'a': 4.0})
+
+    #
+    # Generate combinations of more complex objects (nested dicts, lists).
+    #
+    cases_a = CombinatorialCases(config=[{"a": {"a0": 1.0, "a1": 2.0}}, {"a": {"a0": 3.0, "a1": 4.0}}])
+    cases_b = CombinatorialCases(config=[[1.0, 2.0], [3.0, 4.0]])
+    cases_c = CombinatorialCases(config=[{0.0: 2.0, 1.0: 3.0}, {0.0: 4.0, 1.0: 5.0}])
+    params2 = SimpleParams(a=cases_a, b=cases_b, c=cases_c)
+    combinations2 = generate_combinatorial_cases(params2)
+    assert len(combinations2) == len(cases_a.config) * len(cases_b.config) * len(cases_c.config)
+    assert combinations2[0] == SimpleParams(a=cases_a.config[0], b=cases_b.config[0], c=cases_c.config[0])
+    assert combinations2[1] == SimpleParams(a=cases_a.config[0], b=cases_b.config[0], c=cases_c.config[1])
+    assert combinations2[2] == SimpleParams(a=cases_a.config[0], b=cases_b.config[1], c=cases_c.config[0])
+    assert combinations2[3] == SimpleParams(a=cases_a.config[0], b=cases_b.config[1], c=cases_c.config[1])
+    assert combinations2[4] == SimpleParams(a=cases_a.config[1], b=cases_b.config[0], c=cases_c.config[0])
+    assert combinations2[5] == SimpleParams(a=cases_a.config[1], b=cases_b.config[0], c=cases_c.config[1])
+    assert combinations2[6] == SimpleParams(a=cases_a.config[1], b=cases_b.config[1], c=cases_c.config[0])
+    assert combinations2[7] == SimpleParams(a=cases_a.config[1], b=cases_b.config[1], c=cases_c.config[1])
 
 def test_generate_multi_cases():
     params = SimpleParams(a=MultiCases(config=[1.0, 2.0]), b=[2.0, 3.0], c=MultiCases(config=[{'a': 1.0}, {'a': 2.0}]))
