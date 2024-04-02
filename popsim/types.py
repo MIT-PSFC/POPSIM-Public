@@ -23,5 +23,5 @@ TrajectoryOrTrajectorySpec = diffrax.AbstractPath | TrajectorySpec
 # This type is the user-facing API for config.
 ConstantOrTimeDependentSpec = typing.Any | TrajectoryOrTrajectorySpec
 
-#
+# Once the user-facing API is parsed, configs take the form of a PyTree of ConstantOrTimeDependent.
 ConstantOrTimeDependent = typing.Any | diffrax.AbstractPath
