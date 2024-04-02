@@ -1,7 +1,9 @@
+import dataclasses
 import itertools
 import typing
 
 import chex
+import equinox as eqx
 import jax
 from jaxtyping import PyTree
 
@@ -9,52 +11,113 @@ import popsim.interp as pinterp
 import popsim.types as ptypes
 
 
+@chex.dataclass
 class CombinatorialCases:
-    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependentSpec]):
-        self.config = config
+    config: list = dataclasses.field(default_factory=list)
 
 
+@chex.dataclass
 class MultiCases:
-    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependentSpec]):
-        self.config = config
+    config: list = dataclasses.field(default_factory=list)
 
 
-def generate_combinations(params: chex.dataclass) -> list[chex.dataclass]:
-    """Given a dataclass with fields that are instances of CombinatorialCases, generate all combinations of the list fields.
+def get_cases(tree, type_):
+    def func(x):
+        return isinstance(x, type_)
+
+    return [x for x in jax.tree.leaves(tree, func) if func(x)]
+
+
+def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
+    """Given a PyTree with instances of MultiCases, generate all possible cases.
+    Note that all instances of MultiCases must have the same length.
 
     Args:
-        params (chex.dataclass): A dataclass instance with fields that are instances of CombinatorialCases.
+        params (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
+
+    Raises:
+        ValueError: error if all instances of MultiCases do not have the same length.
 
     Returns:
-        list[chex.dataclass]: A list of dataclass instances with all combinations of the list fields.
+        list[PyTree[typing.Any]]: A list of PyTrees where all instances of MultiCases have been replaced with their respective values.
     """
-    # Identify list fields and their respective values
-    list_fields = {
-        field: getattr(params, field).config for field in params.__annotations__ if isinstance(getattr(params, field), CombinatorialCases)
-    }
-    if not list_fields:
-        return [params]
+    multi_cases = get_cases(params, MultiCases)
 
-    # Generate all combinations of list fields
-    keys, values = zip(*list_fields.items())
-    combinations = itertools.product(*values)
+    if not multi_cases:
+        return params
 
-    # Create a list to hold all combinations of Params instances
-    params_combinations = []
+    def is_multi_case(x):
+        return isinstance(x, MultiCases)
 
-    # Get the constructor of the class of 'params'
-    constructor = type(params)
+    # Check that all instances of MultiCases have the same length
+    lengths = [len(x.config) for x in multi_cases]
+    length = lengths[0]
 
-    for combination in combinations:
-        # Create a dictionary for the current combination
-        combo_dict = dict(zip(keys, combination))
+    if not all(length == lengths[0] for length in lengths):
+        raise ValueError("All instances of MultiCases must have the same length.")
 
-        # Create a Params instance for the current combination
-        # Update the non-list fields with their original values
-        new_params = {field: getattr(params, field) if field not in combo_dict else combo_dict[field] for field in params.__annotations__}
-        params_combinations.append(constructor(**new_params))
+    # Separate the tree into MultiCases and non-MultiCases
+    multi_cases_tree, non_multi_cases_tree = eqx.partition(
+        params, lambda x: isinstance(x, MultiCases), is_leaf=lambda x: isinstance(x, MultiCases)
+    )
 
-    return params_combinations
+    # Build the outer definition using the first element of "MultiCases.config"
+    outer = jax.tree_map(
+        lambda x: MultiCases(config=x.config[0]) if is_multi_case(x) else x,
+        multi_cases_tree,
+        is_leaf=is_multi_case,
+    )
+    outer = jax.tree.structure(outer)
+
+    # Build the inner definition using the list of cases.
+    inner = jax.tree.structure(["*" for _ in range(length)])
+
+    # Transpose the tree to get a list of trees.
+    multi_cases_transposes = jax.tree.transpose(outer, inner, multi_cases_tree)
+
+    # Replace all instances of MultiCases with their respective values
+    multi_cases_transposes = jax.tree_map(
+        lambda x: x.config if isinstance(x, MultiCases) else x,
+        multi_cases_transposes,
+        is_leaf=lambda x: isinstance(x, MultiCases),
+    )
+
+    # Add back in the non-MultiCases.
+    out = [eqx.combine(non_multi_cases_tree, multi_case) for multi_case in multi_cases_transposes]
+    return out
+
+
+def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
+    """Given a PyTree with instances of CombinatorialCases, generate all combinations of the fields of the CombinatorialCases.
+
+    Args:
+        params (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
+
+    Returns:
+        list[PyTree[typing.Any]]: A list of PyTrees where all instances of CombinatorialCases have been replaced with various combinations of their fields.
+    """
+    comb_cases = get_cases(params, CombinatorialCases)
+    if not comb_cases:
+        return params
+
+    def is_comb_case(x):
+        return isinstance(x, CombinatorialCases)
+
+    # Separate the tree into CombinatorialCases and non-CombinatorialCases
+    comb_cases_tree, non_comb_cases_tree = eqx.partition(params, is_comb_case, is_leaf=is_comb_case)
+
+    list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
+
+    list_of_comb_cases_list = [x.config for x in list_of_comb_cases]
+
+    combinations = list(itertools.product(*list_of_comb_cases_list))
+
+    def reconstruct_tree(comb):
+        reconstructed_comb_cases_tree = jax.tree.unflatten(treedef, comb)
+        return eqx.combine(non_comb_cases_tree, reconstructed_comb_cases_tree)
+
+    reconstructed_trees = [reconstruct_tree(comb) for comb in combinations]
+    return reconstructed_trees
 
 
 def build_config_paths(
@@ -106,14 +169,8 @@ def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
         config (PyTree[ptypes.ConstantOrTimeDependentSpec]): The configuration to check.
     """
 
-    def is_combinatorial_cases(x):
-        return isinstance(x, CombinatorialCases)
-
-    def is_multi_cases(x):
-        return isinstance(x, MultiCases)
-
-    combinatorial_cases = [x for x in jax.tree.leaves(config, is_combinatorial_cases) if is_combinatorial_cases(x)]
-    multi_cases = [x for x in jax.tree.leaves(config, is_multi_cases) if is_multi_cases(x)]
+    combinatorial_cases = get_cases(config, CombinatorialCases)
+    multi_cases = get_cases(config, MultiCases)
 
     if combinatorial_cases and multi_cases:
         raise ValueError("config can only contain instances of CombinatorialCases or MultiCases and not both.")
@@ -123,6 +180,34 @@ def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
         if not all(length == lengths[0] for length in lengths):
             raise ValueError("All instances of MultiCases must have the same length.")
 
+    out = {
+        "combinatorial_cases": combinatorial_cases,
+        "multi_cases": multi_cases,
+    }
+    return out
 
-def build_combinatorial_config():
-    pass
+
+def build_configs(
+    config: PyTree[ptypes.ConstantOrTimeDependentSpec], interp_type: str = "linear"
+) -> typing.Union[list[PyTree[ptypes.ConstantOrTimeDependent]], PyTree[ptypes.ConstantOrTimeDependent]]:
+    """Given a config PyTree, generate simulation-ready configurations. This involves two steps:
+        1) Interpolating all instances of TrajectorySpec for all CombinatorialCases and MultiCases.
+        2) Resolving all instances of CombinatorialCases and MultiCases.
+
+    Args:
+        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): _description_
+
+    Returns:
+        list[PyTree[ptypes.ConstantOrTimeDependent]]: _description_
+    """
+    out = check_config(config)
+    interped = build_config_paths(config, interp_type)
+
+    if out["combinatorial_cases"]:
+        # Generate all combinations of CombinatorialCases
+        combinations = generate_combinatorial_cases(interped)
+        return combinations
+    elif out["multi_cases"]:
+        pass
+    else:
+        return interped

@@ -1,6 +1,8 @@
 import chex
 import pytest
+
 from popsim import interp
+
 
 @pytest.mark.parametrize("interp_type", ["linear", "cubic"])
 def test_linear_interp_time_dic(interp_type):

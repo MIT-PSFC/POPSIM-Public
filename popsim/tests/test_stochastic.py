@@ -3,7 +3,6 @@ import jax.numpy as jnp
 
 from popsim.enums import Impurity
 from popsim.stochastic import generate_random_walks
-import popsim.tree_util as ptu
 
 
 def test_generate_random_walks():
