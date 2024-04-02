@@ -10,7 +10,12 @@ import popsim.types as ptypes
 
 
 class CombinatorialCases:
-    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependent]):
+    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependentSpec]):
+        self.config = config
+
+
+class MultiCases:
+    def __init__(self, config: typing.Sequence[ptypes.ConstantOrTimeDependentSpec]):
         self.config = config
 
 
@@ -90,6 +95,33 @@ def build_config_paths(
         return x if not is_traj_spec(x) else pinterp.interp_time_dic(x, interp_type=interp_type)
 
     return jax.tree_map(maybe_interp, config, is_leaf=is_traj_spec)
+
+
+def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
+    """Check the config for validity.
+    The rules are:
+        1) config can only contain instances of CombinatorialCases or MultiCases and not both.
+
+    Args:
+        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): The configuration to check.
+    """
+
+    def is_combinatorial_cases(x):
+        return isinstance(x, CombinatorialCases)
+
+    def is_multi_cases(x):
+        return isinstance(x, MultiCases)
+
+    combinatorial_cases = [x for x in jax.tree.leaves(config, is_combinatorial_cases) if is_combinatorial_cases(x)]
+    multi_cases = [x for x in jax.tree.leaves(config, is_multi_cases) if is_multi_cases(x)]
+
+    if combinatorial_cases and multi_cases:
+        raise ValueError("config can only contain instances of CombinatorialCases or MultiCases and not both.")
+    if multi_cases:
+        # All cases must have the same length
+        lengths = [len(x.config) for x in multi_cases]
+        if not all(length == lengths[0] for length in lengths):
+            raise ValueError("All instances of MultiCases must have the same length.")
 
 
 def build_combinatorial_config():

@@ -2,29 +2,28 @@ import chex
 
 import pytest
 from jaxtyping import ArrayLike
-from popsim.config_utils import CombinatorialCases, generate_combinations, build_config_paths
+from popsim.config_utils import CombinatorialCases, MultiCases, generate_combinations, build_config_paths, check_config
 import popsim.enums as penums
 import popsim.interp as pinterp
 
+@chex.dataclass
+class SimpleParams:
+    a: float
+    b: float
+    c: float
+
 def test_generate_params_combinations():
-    @chex.dataclass
-    class Params:
-        a: float
-        b: float
-        c: float
-
-
     # Example usage
-    params = Params(a=CombinatorialCases([1.0, 2.0, 3.0]), b=2.0, c=CombinatorialCases([3.0, 4.0]))
+    params = SimpleParams(a=CombinatorialCases([1.0, 2.0, 3.0]), b=2.0, c=CombinatorialCases([3.0, 4.0]))
     combinations = generate_combinations(params)
 
     assert len(combinations) == 6
-    assert combinations[0] == Params(a=1.0, b=2.0, c=3.0)
-    assert combinations[1] == Params(a=1.0, b=2.0, c=4.0)
-    assert combinations[2] == Params(a=2.0, b=2.0, c=3.0)
-    assert combinations[3] == Params(a=2.0, b=2.0, c=4.0)
-    assert combinations[4] == Params(a=3.0, b=2.0, c=3.0)
-    assert combinations[5] == Params(a=3.0, b=2.0, c=4.0)
+    assert combinations[0] == SimpleParams(a=1.0, b=2.0, c=3.0)
+    assert combinations[1] == SimpleParams(a=1.0, b=2.0, c=4.0)
+    assert combinations[2] == SimpleParams(a=2.0, b=2.0, c=3.0)
+    assert combinations[3] == SimpleParams(a=2.0, b=2.0, c=4.0)
+    assert combinations[4] == SimpleParams(a=3.0, b=2.0, c=3.0)
+    assert combinations[5] == SimpleParams(a=3.0, b=2.0, c=4.0)
 
 @pytest.mark.parametrize("interp_type", ["linear", "cubic"])
 def test_build_config_paths(interp_type):
@@ -82,3 +81,28 @@ def test_build_config_paths(interp_type):
     new_config3 = build_config_paths(config, interp_type)
     expected_config3 = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: interped_imps[penums.Impurity.Tungsten], penums.Impurity.Neon: 5.0})
     chex.assert_trees_all_equal(new_config3, expected_config3)
+
+
+@pytest.mark.parametrize("config, should_raise", [
+    # Neither CombinatorialCases nor MultiCases, should not raise an exception
+    ({"example": SimpleParams(a=1.0, b=2.0, c=3.0)}, False),
+    
+    # Only MultiCases, should not raise an exception
+    ({"example": SimpleParams(a=MultiCases([1.0, 2.0]), b=2.0, c=3.0)}, False),
+
+    # Only CombinatorialCases, should not raise an exception
+    ({"example": SimpleParams(a=CombinatorialCases([1.0, 2.0]), b=2.0, c=CombinatorialCases([3.0, 4.0]))}, False),
+
+    # Both CombinatorialCases and MultiCases, should raise an exception
+    ({"example": SimpleParams(a=CombinatorialCases([1.0, 2.0]), b=2.0, c=MultiCases([3.0, 4.0]))}, True),
+
+    # Only MultiCases, but lengths are not the same, should raise an exception.
+    ({"example": SimpleParams(a=MultiCases([1.0, 2.0]), b=2.0, c=MultiCases([3.0, 4.0, 5.0]))}, True),
+])
+def test_check_config(config, should_raise):
+    if should_raise:
+        with pytest.raises(ValueError):
+            check_config(config)
+    else:
+        # This block attempts to run check_config and will fail the test if an exception is raised
+        check_config(config)
