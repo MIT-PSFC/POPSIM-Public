@@ -28,12 +28,12 @@ def get_cases(tree, type_):
     return [x for x in jax.tree.leaves(tree, func) if func(x)]
 
 
-def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
+def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of MultiCases, generate all possible cases.
     Note that all instances of MultiCases must have the same length.
 
     Args:
-        params (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
+        config (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
 
     Raises:
         ValueError: error if all instances of MultiCases do not have the same length.
@@ -41,10 +41,10 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
     Returns:
         list[PyTree[typing.Any]]: A list of PyTrees where all instances of MultiCases have been replaced with their respective values.
     """
-    multi_cases = get_cases(params, MultiCases)
+    multi_cases = get_cases(config, MultiCases)
 
     if not multi_cases:
-        return params
+        return config
 
     def is_multi_case(x):
         return isinstance(x, MultiCases)
@@ -57,7 +57,7 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
         raise ValueError("All instances of MultiCases must have the same length.")
 
     # Separate the tree into MultiCases and non-MultiCases
-    multi_cases_tree, non_multi_cases_tree = eqx.partition(params, is_multi_case, is_leaf=is_multi_case)
+    multi_cases_tree, non_multi_cases_tree = eqx.partition(config, is_multi_case, is_leaf=is_multi_case)
 
     # Build the outer definition using the first element of "MultiCases.config"
     outer = jax.tree_map(
@@ -85,24 +85,24 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
     return out
 
 
-def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
+def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of CombinatorialCases, generate all combinations of the fields of the CombinatorialCases.
 
     Args:
-        params (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
+        config (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
 
     Returns:
         list[PyTree[typing.Any]]: A list of PyTrees where all instances of CombinatorialCases have been replaced with various combinations of their fields.
     """
-    comb_cases = get_cases(params, CombinatorialCases)
+    comb_cases = get_cases(config, CombinatorialCases)
     if not comb_cases:
-        return params
+        return config
 
     def is_comb_case(x):
         return isinstance(x, CombinatorialCases)
 
     # Separate the tree into CombinatorialCases and non-CombinatorialCases
-    comb_cases_tree, non_comb_cases_tree = eqx.partition(params, is_comb_case, is_leaf=is_comb_case)
+    comb_cases_tree, non_comb_cases_tree = eqx.partition(config, is_comb_case, is_leaf=is_comb_case)
 
     list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
 
