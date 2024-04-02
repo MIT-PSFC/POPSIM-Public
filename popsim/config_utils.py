@@ -193,6 +193,8 @@ def build_configs(
         combinations = generate_combinatorial_cases(interped)
         return combinations
     elif out["multi_cases"]:
-        pass
+        # Generate all combinations of MultiCases
+        combinations = generate_multi_cases(interped)
+        return combinations
     else:
         return interped

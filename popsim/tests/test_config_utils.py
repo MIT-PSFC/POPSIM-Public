@@ -12,7 +12,8 @@ from popsim.config_utils import (
     build_config_paths,
     check_config,
     generate_combinatorial_cases,
-    generate_multi_cases
+    generate_multi_cases,
+    build_configs
 )
 
 
@@ -177,3 +178,93 @@ def test_check_config(config, should_raise):
     else:
         # This block attempts to run check_config and will fail the test if an exception is raised
         check_config(config)
+
+@pytest.mark.parametrize("interp_type", ["linear", "cubic"])
+def test_build_config(interp_type):
+    """
+    Test the user-facing API for building configurations.
+    We want to cover:
+        1) The identity case (output config should be exact same).
+        2) Interpolation in the linear and cubic cases and with both MultiCases and CombinatorialCases.
+        3) Complex data structures
+    """
+    @chex.dataclass
+    class Params:
+        a: float
+        nested_b: dict[str, ArrayLike]
+        imps: dict[penums.Impurity, float]
+    
+    #
+    # Check the identity case.
+    #
+    config = Params(
+        a=1.0,
+        nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
+        imps={
+            penums.Impurity.Tungsten: 4.0,
+            penums.Impurity.Neon: 5.0,
+        },
+    )
+    chex.assert_trees_all_equal(build_configs(config), config)
+
+    #
+    # Now specify a trajectory for Tungsten.
+    #
+    time_dep_tungsten = {
+        0.0: 4.0,
+        1.0: 5.0,
+        2.5: 6.0,
+    }
+    config.imps[penums.Impurity.Tungsten] = time_dep_tungsten
+    interped_tungsten = pinterp.interp_time_dic(time_dep_tungsten, interp_type)
+    expected_config = dataclasses.replace(config, imps={penums.Impurity.Tungsten: interped_tungsten, penums.Impurity.Neon: 5.0})
+    chex.assert_trees_all_equal(build_configs(config, interp_type), expected_config)
+
+    #
+    # Now use MultiCases to generate the following cases:
+    #   (interped_tungsten, constant_neon)
+    #   (constant_tungsten, interped_neon)
+    #   (interped_tungsten, interped_neon)
+    #
+    time_dep_neon = {
+        0.0: 5.0,
+        1.0: 6.0,
+        2.5: 7.0,
+    }
+    interped_neon = pinterp.interp_time_dic(time_dep_neon, interp_type)
+    config.imps = {
+        penums.Impurity.Tungsten: MultiCases(config=[time_dep_tungsten, 4.0, time_dep_tungsten]),
+        penums.Impurity.Neon: MultiCases(config=[5.0, time_dep_neon, time_dep_neon]),
+    }
+    cases = build_configs(config, interp_type)
+    expected_cases = [
+        dataclasses.replace(config, imps={penums.Impurity.Tungsten: interped_tungsten, penums.Impurity.Neon: 5.0}), # (interped_tungsten, constant_neon)
+        dataclasses.replace(config, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: interped_neon}), # (constant_tungsten, interped_neon)
+        dataclasses.replace(config, imps={penums.Impurity.Tungsten: interped_tungsten, penums.Impurity.Neon: interped_neon}), # (interped_tungsten, interped_neon)
+    ]
+    for case, expected_case in zip(cases, expected_cases):
+        chex.assert_trees_all_equal(case, expected_case)
+
+    #
+    # Now use combinatorial cases to test multiple impurity cases simultaneously with different values of "b0".
+    #
+    b0_cases = CombinatorialCases(config=[1.0, (2.0, 3.0)])
+    tungsten_cases = CombinatorialCases(config=[time_dep_tungsten, 4.0])
+    config = Params(
+        a=1.0,
+        nested_b={"b0": b0_cases, "b1": [3.0, -3.0]},
+        imps={
+            penums.Impurity.Tungsten: tungsten_cases,
+            penums.Impurity.Neon: 5.0,
+        },
+    )
+    cases = build_configs(config, interp_type)
+    assert len(cases) == len(b0_cases.config) * len(tungsten_cases.config)
+    expected_cases = [
+        dataclasses.replace(config, nested_b={"b0": 1.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: interped_tungsten, penums.Impurity.Neon: 5.0}),
+        dataclasses.replace(config, nested_b={"b0": (2.0, 3.0), "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: interped_tungsten, penums.Impurity.Neon: 5.0}),
+        dataclasses.replace(config, nested_b={"b0": 1.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0}),
+        dataclasses.replace(config, nested_b={"b0": (2.0, 3.0), "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0}),
+    ]
+    for case, expected_case in zip(cases, expected_cases):
+        chex.assert_trees_all_equal(case, expected_case)
