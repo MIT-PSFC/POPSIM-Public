@@ -11,10 +11,12 @@ import diffrax
 import jax
 import jax.numpy as jnp
 import numpy as np
+import panel as pn
 import scipy.io as sio
 from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import PACKAGE_ROOT
+from popsim.controllers import PIController
 from popsim.gui import PopsimGUI
 from popsim.interp import interp_trees
 from popsim.tree_util import build_ordered_dict
@@ -50,7 +52,6 @@ ArrayOrPath = typing.Union[Array, diffrax.AbstractPath]
 @chex.dataclass
 class Params:
     plasma_resistance: ArrayLike
-    non_inductive_current: ArrayLike = 0.0  # TODO(dboyer): https://github.com/cfs-energy-internal/POPSIM/issues/34
 
 
 @chex.dataclass
@@ -91,22 +92,24 @@ class LTVEquil:
     y0_Fx: ArrayOrPath  # Feed-forward output for flux grid
     betap: ArrayOrPath  # Feed-forward beta_p.
     li: ArrayOrPath  # Feed-forward li.
-    li_dot: ArrayOrPath  # Derivative of li.
+    Ini: ArrayOrPath  # TODO(dboyer): currently all zeros https://github.com/cfs-energy-internal/POPSIM/issues/34
     betap_dot: ArrayOrPath  # Derivative of bp.
+    li_dot: ArrayOrPath  # Derivative of li.
     x0: ArrayOrPath  # Feed-forward trajectory.
 
-    def build_interpolation(self, method="linear") -> diffrax.AbstractPath:
-        return interp_trees(self.time, self, method)
+    @property
+    def dummy_ff_controls(self) -> Array:
+        # The control vector is []
+        non_coil_controls = self.non_coil_controls
+        n_voltages = self.Bmod.shape[1] - non_coil_controls.size
+        return jnp.concatenate([jnp.zeros(n_voltages), non_coil_controls])
 
-
-def dynamics(equil_slice: LTVEquil, state: Array, control: Array, params: Params) -> Array:
-    state_dot = (
-        equil_slice.Amod @ state
-        + params.plasma_resistance * equil_slice.Ares @ state.plasma_current
-        + equil_slice.Bmod @ control
-        + params.plasma_resistance * equil_slice.Bres @ params.non_inductive_current
-    )
-    return state_dot
+    @property
+    def non_coil_controls(self) -> Array:
+        """
+        The control vector is made up of [coil_voltages] + [betap, li, Ini, betap_dot, li-dot].
+        """
+        return jnp.array([self.betap, self.li, self.Ini, self.betap_dot, self.li_dot])
 
 
 @chex.dataclass(frozen=True)
@@ -118,13 +121,13 @@ class TreeBuilder:
     control_labels: list[str]
 
     def build_state_tree(self, arr: Array) -> PyTree[ArrayLike]:
+        IP = arr[0]
         coil_current = arr[: len(self.coil_current_labels)]
         vessel_modes = arr[len(self.coil_current_labels) : len(self.coil_current_labels) + len(self.vessel_mode_labels)]
-        IP = arr[-1]
         out = {
+            "IP": jnp.array(IP),
             "coil_currents": build_ordered_dict(self.coil_current_labels, coil_current),
             "vessel_modes": build_ordered_dict(self.vessel_mode_labels, vessel_modes),
-            "IP": jnp.array(IP),
         }
         return collections.OrderedDict(out)
 
@@ -146,6 +149,32 @@ class TreeBuilder:
 
     def build_control_tree(self, arr: Array) -> PyTree[ArrayLike]:
         return build_ordered_dict(self.control_labels, arr)
+
+
+@chex.dataclass
+class Model:
+    equil_ff: LTVEquil
+    tree_builder: TreeBuilder
+    feedback_control: bool
+
+    @staticmethod
+    def build_controllers(control_labels):
+        pi_controllers = {k: PIController(PIController.Config(kp=1.0, ki=0.0)) for k in control_labels if k.startswith("Va_")}
+        return pi_controllers
+
+    @staticmethod
+    def dynamics(equil_slice: LTVEquil, state: Array, control: Array, params: Params) -> Array:
+        state_dot = (
+            equil_slice.Amod @ state
+            + params.plasma_resistance * equil_slice.Ares @ state.plasma_current
+            + equil_slice.Bmod @ control
+            + params.plasma_resistance * equil_slice.Bres @ params.non_inductive_current
+        )
+        return state_dot
+
+    @staticmethod
+    def output(equil_slice: LTVEquil, state: Array, control: Array) -> Array:
+        return equil_slice.C @ state + equil_slice.D @ control + equil_slice.y0
 
 
 def load():
@@ -171,6 +200,9 @@ def load():
     bp_interp = interp_trees(time, trajectories["betap"], "cubic")
     trajectories["li_dot"] = li_interp.derivative(time)
     trajectories["betap_dot"] = bp_interp.derivative(time)
+    trajectories["Ini"] = np.zeros_like(
+        trajectories["li"]
+    )  # TODO(dboyer): currently all zeros https://github.com/cfs-energy-internal/POPSIM/issues/34
 
     equil = LTVEquil(time=time, **trajectories)
     equil = interp_trees(equil.time, equil, "linear")
@@ -185,7 +217,6 @@ def load():
     control_labels = replace_in_list(control_labels, "Ini_001_S", "Ini")
     control_labels = replace_in_list(control_labels, "dCodt_bp_001", "betap_dot")
     control_labels = replace_in_list(control_labels, "dCodt_li_001", "li_dot")
-
     Bm_labels = labels_to_list(metadata["dimm"])
     Ff_labels = labels_to_list(metadata["dimf"])
     tree_builder = TreeBuilder(
@@ -195,28 +226,36 @@ def load():
         Ff_labels=Ff_labels,
         control_labels=control_labels,
     )
-    return equil, tree_builder
+
+    model = Model(equil_ff=equil, tree_builder=tree_builder, feedback_control=True)
+
+    return model
+
+
+def check_model_output_fun(model):
+    times = model.equil_ff.ts
+
+    def compute_output_for_time(t):
+        equil_slice = model.equil_ff.evaluate(t)
+        return model.output(equil_slice, equil_slice.x0, equil_slice.dummy_ff_controls)
+
+    outputs_compute = jax.vmap(compute_output_for_time)(times)
+    outputs_data = model.equil_ff.ys.y0
+
+    outputs_compute_tree = jax.vmap(model.tree_builder.build_output_tree)(outputs_compute)
+    outputs_data_tree = jax.vmap(model.tree_builder.build_output_tree)(outputs_data)
+
+    tree = {
+        "computed_outputs": outputs_compute_tree,
+        "data_outputs": outputs_data_tree,
+    }
+
+    ds = time_and_pytree_to_xarray(times, tree, multi_simulation=False)
+    gui_handle = PopsimGUI(ds, time_dim="time")
+    pn.serve(gui_handle.build_view(), port=8080, show=False)
 
 
 if __name__ == "__main__":
-    import panel as pn
+    model = load()
 
-    equil, tree_builder = load()
-    ts = jnp.linspace(equil.ts[0], equil.ts[-1], 100)
-    equil_slices = jax.vmap(equil.evaluate)(ts)
-
-    states = jax.vmap(tree_builder.build_state_tree)(equil_slices.x0)
-    outputs = jax.vmap(tree_builder.build_output_tree)(equil_slices.y0)
-    betap = equil_slices.betap
-    li = equil_slices.li
-
-    tree = {
-        "states": states,
-        "outputs": outputs,
-        "betap": betap,
-        "li": li,
-    }
-
-    ds = time_and_pytree_to_xarray(ts, tree, multi_simulation=False)
-    gui_handle = PopsimGUI(ds, time_dim="time")
-    pn.serve(gui_handle.build_view(), port=8080, show=False)
+    check_model_output_fun(model)
