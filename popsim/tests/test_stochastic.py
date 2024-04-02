@@ -3,6 +3,7 @@ import jax.numpy as jnp
 
 from popsim.enums import Impurity
 from popsim.stochastic import generate_random_walks
+import popsim.tree_util as ptu
 
 
 def test_generate_random_walks():
@@ -19,5 +20,7 @@ def test_generate_random_walks():
 
     res = generate_random_walks(jax.random.PRNGKey(0), n_samples, ts, y0, diffusion_mags)
 
-    assert res.ys[Impurity.Helium].shape == (n_samples, len(ts))
-    assert res.ys[Impurity.Beryllium].shape == (n_samples, len(ts))
+    assert len(res) == n_samples
+    for r in res:
+        assert r.ys[Impurity.Helium].shape == (len(ts),)
+        assert r.ys[Impurity.Beryllium].shape == (len(ts),)

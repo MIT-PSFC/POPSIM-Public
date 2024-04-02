@@ -121,8 +121,9 @@ class TreeBuilder:
 
     def build_state_tree(self, arr: Array) -> PyTree[ArrayLike]:
         IP = arr[0]
-        coil_current = arr[: len(self.coil_current_labels)]
-        vessel_modes = arr[len(self.coil_current_labels) : len(self.coil_current_labels) + len(self.vessel_mode_labels)]
+        rest = arr[1:]
+        coil_current = rest[: len(self.coil_current_labels)]
+        vessel_modes = rest[len(self.coil_current_labels) : len(self.coil_current_labels) + len(self.vessel_mode_labels)]
         out = {
             "IP": jnp.array(IP),
             "coil_currents": build_ordered_dict(self.coil_current_labels, coil_current),

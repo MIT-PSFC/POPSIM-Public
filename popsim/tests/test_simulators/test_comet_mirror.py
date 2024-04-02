@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import popsim.scenarios.sparc_prd.comet_mirror as sparc_prd_cm
 from popsim.scenarios.sparc_prd.generic import Sparc2020TestData
 from popsim.simulators.comet_mirror.simulate import simulate
+import popsim.enums as penums
 
 
 def test_comet_mirror_prd():
@@ -44,4 +45,6 @@ def test_comet_mirror_prd():
 
 
 def test_comet_mirror_configuration_modes():
-    pass
+    model, state, params = sparc_prd_cm.build_comet_mirror_config()
+
+    params.fueling19[penums.Impurity.Tungsten] = {0.0: 0.0, 1.0: 0.1, 1.1: 0.0}

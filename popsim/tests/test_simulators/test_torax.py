@@ -7,7 +7,7 @@ import popsim
 from popsim.scenarios.sparc_prd.torax import get_sim
 
 
-@pytest.skipif(os.getenv("USER") != "awang", reason="Torax is currently only available to certain users.")
+@pytest.mark.skipif(os.getenv("USER") != "awang", reason="Torax is currently only available to certain users.")
 def test_sparc_prd():
     # Hard-coded setting of environment variables.
     # Not great, but... it works.
