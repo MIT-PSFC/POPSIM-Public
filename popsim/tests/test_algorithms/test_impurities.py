@@ -12,11 +12,11 @@ radas_curves = read_atomic_data()
 def test_sensitivity_to_electron_density_temp(impurity):
     """
     Current setup requires a guess for the electron density + temp to determine
-    the charge state to determine the electron density + temp creating a bit of 
+    the charge state to determine the electron density + temp creating a bit of
     a chicken and egg problem. This test checks that the output of charge state
     calculation is not too sensitive to the guess for the electron density + temperature.
     """
-    RTOL = 1e-6 
+    RTOL = 1e-6
     RTOL_TUNGSTEN_DENS = 2e-4 # Tungsten is more sensitive to the electron density guess.
     RTOL_TUNGSTEN_TEMP = 0.8 # TODO(allenw): Tungsten can be quite sensitive to the electron temperature guess.
     DENSITY_PERTUBATION_FACTORS = jnp.linspace(0.5, 1.5, 10)
@@ -24,7 +24,7 @@ def test_sensitivity_to_electron_density_temp(impurity):
     electron_density_19_tests = jnp.linspace(1.0, 40.0, 10)
     electron_temp_kev_tests = jnp.linspace(1.0, 20.0, 10)
 
-    
+
     @jax.jit
     def calc_maximum_normalized_diff(x):
         """
@@ -33,14 +33,14 @@ def test_sensitivity_to_electron_density_temp(impurity):
         """
         return (jnp.max(x) - jnp.min(x))/jnp.mean(x)
 
-    """ 
+    """
     Test the sensitivity of the charge state to the electron density guess at a range of electron densities + temperatures.
     """
     def test_perturb_density(nominal_density_19, electron_temp_kev):
         charge_states = calc_impurity_charge_state(average_electron_density_19=DENSITY_PERTUBATION_FACTORS * nominal_density_19, average_electron_temp_keV=electron_temp_kev, radas_curves=radas_curves[impurity])
         out = calc_maximum_normalized_diff(charge_states)
         return out
-    
+
     # Essentially a triple for loop over nominal_density_19_tests, electron_temp_kev_tests.
     combinatorial_test_case = jax.vmap(jax.vmap(test_perturb_density, in_axes=(0, None)), in_axes=(None, 0))
     test_results = combinatorial_test_case(electron_density_19_tests, electron_temp_kev_tests)
@@ -52,7 +52,7 @@ def test_sensitivity_to_electron_density_temp(impurity):
     def test_perturb_temperature(nominal_density_19, electron_temp_kev):
         charge_states = calc_impurity_charge_state(average_electron_density_19=nominal_density_19, average_electron_temp_keV=TEMPERATURE_PERTURBATION_FACTORS * electron_temp_kev, radas_curves=radas_curves[impurity])
         return calc_maximum_normalized_diff(charge_states)
-    
+
     # Again, a triple for loop over nominal_density_19_tests, electron_temp_kev_tests, and impurity_concentration_tests.
     combinatorial_test_case = jax.vmap(jax.vmap(test_perturb_temperature, in_axes=(0, None)), in_axes=(None, 0))
     test_results = combinatorial_test_case(electron_density_19_tests, electron_temp_kev_tests)

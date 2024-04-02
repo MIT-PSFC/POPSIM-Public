@@ -1,11 +1,10 @@
-import diffrax
-import equinox as eqx
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 
 import popsim.scenarios.sparc_prd.comet_mirror as sparc_prd_cm
 from popsim.scenarios.sparc_prd.generic import Sparc2020TestData
 from popsim.simulators.comet_mirror.simulate import simulate
+
 
 def test_comet_mirror_prd():
     # Test that the simulator runs and compare against a reference solution.
@@ -16,13 +15,13 @@ def test_comet_mirror_prd():
 
     def percent_error(expected, actual):
         return 100 * jnp.abs(expected - actual) / expected
-    
+
     # The checks take the form of (actual, expected, percent_tolerance).
-    PsepB0R0 = (final_aux['P_tau_MW'] * params.magnetic_field_on_axis)/params.geometry.major_radius
+    PsepB0R0 = (final_aux["P_tau_MW"] * params.magnetic_field_on_axis)/params.geometry.major_radius
     checks = {
         "P_fusion_MW": (final_aux["P_fusion_MW"], Sparc2020TestData.Pfusion, 20.0),
         "P_ohmic_MW": (final_aux["P_ohmic_MW"], Sparc2020TestData.Pohm, 20.0),
-        "P_aux_MW": (final_aux['params']['P_aux_MW'], Sparc2020TestData.Paux, 1e-3), # Should be exact because it's a parameter.
+        "P_aux_MW": (final_aux["params"]["P_aux_MW"], Sparc2020TestData.Paux, 1e-3), # Should be exact because it's a parameter.
         "beta_t": (final_aux["beta_t"], Sparc2020TestData.beta, 20.0),
         "tau_E": (final_aux["tau_E"], Sparc2020TestData.tauE, 10.0),
         "P_rad_MW": (final_aux["P_rad_MW"], Sparc2020TestData.Prad, 15.0),

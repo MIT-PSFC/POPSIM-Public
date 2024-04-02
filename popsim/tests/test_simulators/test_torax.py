@@ -1,8 +1,13 @@
-import popsim
-from popsim.scenarios.sparc_prd.torax import get_sim
 import os
+
+import pytest
 from torax import simulation_app
 
+import popsim
+from popsim.scenarios.sparc_prd.torax import get_sim
+
+
+@pytest.skipif(os.getenv("USER") != "awang", reason="Torax is currently only available to certain users.")
 def test_sparc_prd():
     # Hard-coded setting of environment variables.
     # Not great, but... it works.

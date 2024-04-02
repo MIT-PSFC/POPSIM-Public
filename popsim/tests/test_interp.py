@@ -1,5 +1,7 @@
 import chex
-import popsim.interp as interp
+
+from popsim import interp
+
 
 def test_linear_interp_time_dic():
     tree0 = {

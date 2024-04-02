@@ -1,6 +1,5 @@
-import jax
-import jax.numpy as jnp
 import chex
+import jax.numpy as jnp
 
 from popsim import tree_util
 

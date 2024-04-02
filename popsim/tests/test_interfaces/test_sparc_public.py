@@ -1,4 +1,5 @@
-import popsim.interfaces.sparc_public as sparc_public
+from popsim.interfaces import sparc_public
+
 
 def test_load_transp():
     ds = sparc_public.load_prd_transp_profiles()

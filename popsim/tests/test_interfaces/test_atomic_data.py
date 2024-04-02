@@ -1,11 +1,12 @@
 
+import cfspopcon
 import jax.numpy as jnp
 import xarray as xr
-
-import cfspopcon
 from cfspopcon.formulas import impurity_effects
+
 from popsim.interfaces import atomic_data
 from popsim.scenarios.sparc_prd.generic import load_cfspopcon_prd
+
 
 def test_interpolator_modes():
     input_parameters, *_= load_cfspopcon_prd()

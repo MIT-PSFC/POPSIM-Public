@@ -1,5 +1,4 @@
-import popsim.algorithms.density as density_model
-from popsim.enums import FuelSpecies, Impurity, Species
+from popsim.enums import FuelSpecies, Impurity
 
 
 def test_multi_species_density_model():

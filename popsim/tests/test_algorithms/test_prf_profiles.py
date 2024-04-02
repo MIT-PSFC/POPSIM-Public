@@ -1,8 +1,8 @@
 
 import jax.numpy as jnp
 
-from popsim.scenarios.sparc_prd.generic import Sparc2020TestData, load_cfspopcon_prd
 from popsim.algorithms.profiles import ProfileCalculator
+from popsim.scenarios.sparc_prd.generic import Sparc2020TestData, load_cfspopcon_prd
 
 
 def test_prf_profiles():
@@ -14,7 +14,7 @@ def test_prf_profiles():
 
 
     # calculate profiles
-    pcalc = ProfileCalculator(profile_form=input_parameters['profile_form'], rho=jnp.linspace(0, 1, 100))
+    pcalc = ProfileCalculator(profile_form=input_parameters["profile_form"], rho=jnp.linspace(0, 1, 100))
 
     """
     Prepare profile inputs
@@ -22,13 +22,13 @@ def test_prf_profiles():
     average_electron_density_19 = Sparc2020TestData.ne_vol
     average_electron_temp_keV = Sparc2020TestData.Te_vol
     average_ion_temp_keV = Sparc2020TestData.Ti_vol
-    ion_density_peaking_offset = input_parameters['ion_density_peaking_offset']
-    electron_density_peaking_offset = input_parameters['electron_density_peaking_offset']
-    temperature_peaking = input_parameters['temperature_peaking']
-    major_radius = input_parameters['major_radius']
+    ion_density_peaking_offset = input_parameters["ion_density_peaking_offset"]
+    electron_density_peaking_offset = input_parameters["electron_density_peaking_offset"]
+    temperature_peaking = input_parameters["temperature_peaking"]
+    major_radius = input_parameters["major_radius"]
     z_effective = Sparc2020TestData.Zeff
     dilution = Sparc2020TestData.dilution
-    normalized_inverse_temp_scale_length = input_parameters['normalized_inverse_temp_scale_length']
+    normalized_inverse_temp_scale_length = input_parameters["normalized_inverse_temp_scale_length"]
 
     profout = pcalc(
         average_electron_density_19=average_electron_density_19,

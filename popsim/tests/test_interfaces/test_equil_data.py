@@ -1,6 +1,8 @@
-import popsim.interfaces.equil_data as equil_data
-import popsim.tree_util as tree_util
 import chex
+
+from popsim import tree_util
+from popsim.interfaces import equil_data
+
 
 def test_builders():
     equil, tree_builder = equil_data.load()

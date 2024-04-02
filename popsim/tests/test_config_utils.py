@@ -1,5 +1,7 @@
 import chex
+
 from popsim.config_utils import CombinatorialCases, generate_combinations
+
 
 def test_generate_params_combinations():
     @chex.dataclass
