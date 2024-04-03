@@ -5,7 +5,9 @@ from popsim.interfaces import equil_data
 
 
 def test_builders():
-    model = equil_data.load()
+    # MATLAB files are not loading in CI unless we disable the integrity check.
+    # https://stackoverflow.com/questions/42607271/unable-to-read-mat-file-with-scipy
+    model = equil_data.load(verify_compressed_data_integrity=False)
 
     ts_test = [0.0, 0.5, 1.0]
     for t in ts_test:
