@@ -6,8 +6,15 @@ from torax import simulation_app
 import popsim
 from popsim.scenarios.sparc_prd.torax import get_sim
 
+def is_module_installed(module_name):
+    try:
+        __import__(module_name)
+        return True
+    except ModuleNotFoundError:
+        return False
 
-@pytest.mark.skipif(os.getenv("USER") != "awang", reason="Torax is currently only available to certain users.")
+
+@pytest.mark.skipif(not is_module_installed("torax"), reason="Torax is currently only available to certain users.")
 def test_sparc_prd():
     # Hard-coded setting of environment variables.
     # Not great, but... it works.
