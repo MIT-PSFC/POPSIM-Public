@@ -1,5 +1,8 @@
+import typing
+
 import jax.numpy as jnp
 from cfspopcon.jax_compatible import impurity_effects, radiated_power
+from jaxtyping import Array
 
 import popsim.physics.density as density_model
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
@@ -71,12 +74,24 @@ def calc_impurity_state(
 
 
 def calc_impurity_radiated_power_radas(
-    electron_temp_profile,
-    electron_density_profile,
-    impurity_concentrations,
-    volume_integrator,
+    electron_temp_profile: Array,
+    electron_density_profile: Array,
+    impurity_concentrations: dict[Impurity, float],  # type: ignore  # noqa: PGH003
+    volume_integrator: typing.Callable[[Array], float],
     radas_curves: RadasCurves,
-):
+) -> tuple[float, dict[Species, float]]:
+    """Calculate the radiated power for each impurity species using the radas curves.
+
+    Args:
+        electron_temp_profile (Array): electron temperature profile eV.
+        electron_density_profile (Array): electron density profile 1/m^3.
+        impurity_concentrations (dict[Impurity, float]): impurity concentrations as a fraction of the electron density.
+        radas_curves (RadasCurves): radas curves for each impurity species.
+
+    Returns:
+        tuple[float, dict[Species, float]]: total radiated power and radiated power for each species.
+    """
+
     def species_calc(species, concentration):
         return radiated_power.calc_impurity_radiated_power_radas(
             electron_temp_profile=electron_temp_profile,

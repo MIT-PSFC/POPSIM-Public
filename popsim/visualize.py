@@ -28,6 +28,7 @@ def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3) -> hv.Layout:
             color="blue",
             legend=False,
             xlabel="Time",
+            by="simulation" if "simulation" in dataset.dims else None,
             title=f"{var}",
         )
 

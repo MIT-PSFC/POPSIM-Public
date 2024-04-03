@@ -1,6 +1,7 @@
 import typing
 
 import diffrax
+import jax.tree_util as tu
 from jaxtyping import ArrayLike, Float, PyTree
 
 """
@@ -18,10 +19,12 @@ TrajectorySpec = dict[Float[ArrayLike, ""], PyTree[ArrayLike]]
 # A TrajectorySpec or a Trajectory.
 TrajectoryOrTrajectorySpec = diffrax.AbstractPath | TrajectorySpec
 
-
 # A constant or a time dependent value.
 # This type is the user-facing API for config.
 ConstantOrTimeDependentSpec = typing.Any | TrajectoryOrTrajectorySpec
 
 # Once the user-facing API is parsed, configs take the form of a PyTree of ConstantOrTimeDependent.
 ConstantOrTimeDependent = typing.Any | diffrax.AbstractPath
+
+# Type alias for a Jax PyTree key.
+PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]
