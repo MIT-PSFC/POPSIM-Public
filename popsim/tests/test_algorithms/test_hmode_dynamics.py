@@ -22,15 +22,18 @@ def test_sim_and_clip():
 
     #
     # Three phases:
-    #   1) Power well above LH threshold.
-    #   2) Power above HL threshold but below LH threshold.
-    #   3) Power well below HL threshold.
+    #   1) Conducted power well above LH threshold.
+    #   2) Conducted power above HL threshold but below LH threshold.
+    #   3) Conducted power well below HL threshold.
+    #   4) Conducted power above LH threshold, but input power below LH threshold.
     #
-    times = jnp.array([0.0, 0.5, 0.6, 1.0, 1.01, 1.11])
-    powers = jnp.array([15.0, 15.0, 9.0, 9.0, 7.0, 5.0])
-    power_traj = diffrax.LinearInterpolation(ts=times, ys=powers)
+    times = jnp.array([0.0, 0.5, 0.6, 1.0, 1.01, 1.11, 1.3])
+    conducted_powers = jnp.array([15.0, 15.0, 9.0, 9.0, 7.0, 5.0, 15.0])
+    conducted_powers_traj = diffrax.LinearInterpolation(ts=times, ys=conducted_powers)
+    input_powers = jnp.array([15.0, 15.0, 15.0, 15.0, 15.0, 0.0, 0.0])
+    input_powers_traj = diffrax.LinearInterpolation(ts=times, ys=input_powers)
 
-    params = hmode.Params(transition_characteristic_time=0.1, P_tau_MW=power_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
+    params = hmode.Params(transition_characteristic_time=0.1, P_tau_MW=conducted_powers_traj, P_input_MW=input_powers_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
 
     def fun(t, y, args):
         params_t = resolve_paths(params, t)
@@ -55,3 +58,4 @@ def test_sim_and_clip():
     assert in_hmodes[3] == True
     assert in_hmodes[4] == True
     assert in_hmodes[5] == False
+    assert in_hmodes[6] == False

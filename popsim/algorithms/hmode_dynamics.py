@@ -34,6 +34,7 @@ class State(eqx.Module):
 class Params:
     transition_characteristic_time: chex.Numeric  # amount of time for a L->H or H->L transition to occur [s].
     P_tau_MW: chex.Numeric  # Power conducted to the scrape-off layer [MW]
+    P_input_MW: chex.Numeric  # Power input to the plasma [MW]
     hl_threshold_MW: chex.Numeric  # threshold for the H-mode to L-mode transition [MW].
     lh_threshold_MW: chex.Numeric  # threshold for the L-mode to H-mode transition [MW].
 
@@ -48,13 +49,21 @@ def dynamics(state: State, params: Params) -> State:
     Returns:
         State: time derivative of the H-mode state.
     """
+
+    # If we are in H-mode, the relevant threshold is the one for H->L transition.
+    # If we are in L-mode, the relevant threshold is the one for L->H transition.
     threshold = jnp.where(state.in_hmode, params.hl_threshold_MW, params.lh_threshold_MW)
 
     # If we want the transition from L-mode to H-mode to happen in 0.1s, then we need to get
     # from 0 to 0.5 in 0.1s, which means we need a speed of 0.5 / 0.1 = 5.
     # Similarly for H->L transition.
     transition_speed = CRITICAL_THRESHOLD / params.transition_characteristic_time
-    hmode_dot = jnp.where(params.P_tau_MW < threshold, -transition_speed, transition_speed)
+
+    # Trigger L->H if both conducted power and input power are above the threshold.
+    # I originally just had a cnoducted power condition, but in H->L back transitions
+    # the conducted power shoots up for a while, which causes a trigger back to H mode which doesn't make sense.
+    trigger_l_to_h = jnp.logical_and(params.P_tau_MW >= threshold, params.P_input_MW >= threshold)
+    hmode_dot = jnp.where(trigger_l_to_h, transition_speed, -transition_speed)
 
     # If hmode_dot > 0.0 but we the state is already at max, then we should set hmode_dot to 0.0.
     hmode_dot = jnp.where(jnp.logical_and(hmode_dot > 0.0, state.hmode >= state.max_value), 0.0, hmode_dot)

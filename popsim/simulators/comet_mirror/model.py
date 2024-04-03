@@ -228,31 +228,12 @@ class CometMirror:
             )
             return jnp.array([tau_E, P_tau_MW])
 
+        in_hmode = state.hmode_state.in_hmode
         tau_E, P_tau_MW = jnp.where(
-            state.hmode_state.in_hmode,
+            in_hmode,
             calc_with_scaling_law_fun(self.hmode_tau_e_and_P),
             calc_with_scaling_law_fun(self.lmode_tau_e_and_P),
         )
-
-        """Calculate H + L mode dynamics."""
-        lh_threshold = calc_LH_transition_threshold_power(
-            plasma_current=1e-6 * params.plasma_current,
-            magnetic_field_on_axis=params.magnetic_field_on_axis,
-            minor_radius=params.geometry.minor_radius,
-            major_radius=params.geometry.major_radius,
-            surface_area=params.geometry.surface_area,
-            fuel_average_mass_number=fuel_average_mass_number,
-            average_electron_density=average_electron_density_19,
-        )
-        hmode_params = hmode.Params(
-            transition_characteristic_time=params.hmode_transition_characteristic_time,
-            P_tau_MW=jnp.abs(P_tau_MW),
-            lh_threshold_MW=lh_threshold,
-            hl_threshold_MW=params.hl_threshold_scalar
-            * lh_threshold,  # Assume the h->l transition is some fraction of the l->h transition.
-        )
-
-        hmode_dot = hmode.dynamics(state.hmode_state, hmode_params)
 
         """Calculate ohmic power."""
         bootstrap_fraction = current_drive.calc_bootstrap_fraction(
@@ -302,6 +283,27 @@ class CometMirror:
         )
 
         density_dot = density_model.multi_species_derivs(state.density_state, density_params)
+
+        """Calculate H + L mode dynamics."""
+        lh_threshold = calc_LH_transition_threshold_power(
+            plasma_current=1e-6 * params.plasma_current,
+            magnetic_field_on_axis=params.magnetic_field_on_axis,
+            minor_radius=params.geometry.minor_radius,
+            major_radius=params.geometry.major_radius,
+            surface_area=params.geometry.surface_area,
+            fuel_average_mass_number=fuel_average_mass_number,
+            average_electron_density=average_electron_density_19,
+        )
+        hmode_params = hmode.Params(
+            transition_characteristic_time=params.hmode_transition_characteristic_time,
+            P_tau_MW=jnp.abs(P_tau_MW),
+            P_input_MW=jnp.abs(Paux_MW + P_ohmic_MW + P_alpha_MW),
+            lh_threshold_MW=lh_threshold,
+            hl_threshold_MW=params.hl_threshold_scalar
+            * lh_threshold,  # Assume the h->l transition is some fraction of the l->h transition.
+        )
+
+        hmode_dot = hmode.dynamics(state.hmode_state, hmode_params)
 
         state_dot = State(
             stored_energy=dW_dt,
