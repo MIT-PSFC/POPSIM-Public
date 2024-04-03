@@ -21,7 +21,7 @@ def build_comet_mirror_config():
         "deuterium_fueling19": 150.0,  # 1e19/s
         "tritium_fueling19": 150.0,  # 1e19/s
         "hmode_transition_characteristic_time": 0.1,  # s
-        "hl_threshold_scalar": 0.7,  # Assumed ratio of PHL/PLH
+        "hl_threshold_scalar": 0.8,  # Assumed ratio of PHL/PLH
     }
 
     config = cm.model.Config(

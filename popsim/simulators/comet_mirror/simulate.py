@@ -20,8 +20,11 @@ def simulate(
     return_xarray: bool = False,
 ) -> diffrax.Solution:
     if isinstance(params, cm.Params):
+        multi_sim = False
+        sol = _simulate(model, ts, state0, params)
         return solution_to_xarray(_simulate(model, ts, state0, params)) if return_xarray else _simulate(model, ts, state0, params)
     elif isinstance(params, typing.Sequence):
+        multi_sim = True
         # We first need to perform a tree-transpose to vectorize the parameters.
         params_vectorized = tree_transpose(params)
         params_axes = jax.tree_map(lambda x: 0, params_vectorized)
@@ -29,11 +32,12 @@ def simulate(
         # Perform a vectorized simulation.
         sol = jax.vmap(
             _simulate,
-            in_axes=(params_axes,),
-        )(params_vectorized)
-        return solution_to_xarray(sol, multi_simulation=True) if return_xarray else sol
+            in_axes=(None, None, None, params_axes),
+        )(model, ts, state0, params_vectorized)
     else:
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
+
+    return solution_to_xarray(sol.ys, multi_simulation=multi_sim) if return_xarray else sol
 
 
 @eqx.filter_jit

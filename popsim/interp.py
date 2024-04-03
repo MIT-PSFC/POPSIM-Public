@@ -8,6 +8,31 @@ from jaxtyping import Array, ArrayLike, PyTree
 from popsim.tree_util import tree_transpose
 
 
+def interp(
+    times: Array, tree: PyTree[Array], interp_type: str = "linear"
+) -> typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]:
+    """Thing wrapper around diffrax.LinearInterpolation and diffrax.CubicInterpolation.
+
+    Args:
+        times (Array): times of the data.
+        tree (PyTree[Array]): tree of arrays where the first dimension is the same as times.
+        interp_type (str, optional): interpolation interp_type. Can be "linear" or "cubic". Defaults to "linear".
+
+    Raises:
+        ValueError: if interp_type is not "linear" or "cubic".
+
+    Returns:
+        typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]: interpolation object.
+    """
+
+    if interp_type == "linear":
+        return diffrax.LinearInterpolation(ts=times, ys=tree)
+    elif interp_type == "cubic":
+        return diffrax.CubicInterpolation(ts=times, coeffs=diffrax.backward_hermite_coefficients(times, tree))
+    else:
+        raise ValueError(f"Unknown interp_type: {interp_type}")
+
+
 def interp_time_dic(
     dic_trees: dict[float, PyTree[ArrayLike]], interp_type: str = "linear"
 ) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
@@ -25,10 +50,10 @@ def interp_time_dic(
     """
     times = jnp.array(list(dic_trees.keys()))
     trees = list(dic_trees.values())
-    return interp_trees(times, trees, interp_type)
+    return interp_tree_seq(times, trees, interp_type)
 
 
-def interp_trees(
+def interp_tree_seq(
     times: Array, trees: typing.Sequence[PyTree[ArrayLike]], interp_type: str = "linear"
 ) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
     """Given a sequence of times and a list of trees, interpolate the trees at the times.

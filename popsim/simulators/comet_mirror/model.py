@@ -228,12 +228,11 @@ class CometMirror:
             )
             return jnp.array([tau_E, P_tau_MW])
 
-        out = jnp.where(
+        tau_E, P_tau_MW = jnp.where(
             state.hmode_state.in_hmode,
             calc_with_scaling_law_fun(self.hmode_tau_e_and_P),
             calc_with_scaling_law_fun(self.lmode_tau_e_and_P),
         )
-        tau_E, P_tau_MW = out[0], out[1]
 
         """Calculate H + L mode dynamics."""
         lh_threshold = calc_LH_transition_threshold_power(
