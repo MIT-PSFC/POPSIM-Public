@@ -13,13 +13,13 @@ from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylin
 from cfspopcon.named_options import ConfinementScaling
 from jaxtyping import Array
 
-import popsim.algorithms.density as density_model
-import popsim.algorithms.hmode_dynamics as hmode
-from popsim.algorithms.geometry import GeometryCFSPopcon
-from popsim.algorithms.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
-from popsim.algorithms.profiles import ProfileCalculator
+import popsim.physics.density as density_model
+import popsim.physics.hmode_dynamics as hmode
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
+from popsim.physics.geometry import GeometryCFSPopcon
+from popsim.physics.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
+from popsim.physics.profiles import ProfileCalculator
 
 
 @chex.dataclass

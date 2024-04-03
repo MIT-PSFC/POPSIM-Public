@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from cfspopcon.jax_compatible import impurity_effects, radiated_power
 
-import popsim.algorithms.density as density_model
+import popsim.physics.density as density_model
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
 from popsim.interfaces.atomic_data import RadasCurves, RadasCurvesForSpecies
 from popsim.tree_util import leaves_as_array

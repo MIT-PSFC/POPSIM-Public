@@ -1,10 +1,10 @@
 import numpy as np
 
-import popsim.algorithms.density as density_model
-import popsim.algorithms.hmode_dynamics as hmode
+import popsim.physics.density as density_model
+import popsim.physics.hmode_dynamics as hmode
 import popsim.simulators.comet_mirror as cm
-from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.enums import FuelSpecies
+from popsim.physics.geometry import GeometryCFSPopcon
 
 from .generic import load_cfsopcon_scenario
 

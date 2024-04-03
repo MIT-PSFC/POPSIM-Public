@@ -1,6 +1,6 @@
 import diffrax
 import jax.numpy as jnp
-import popsim.algorithms.hmode_dynamics as hmode
+import popsim.physics.hmode_dynamics as hmode
 from popsim.interp import resolve_paths
 
 def test_state():

@@ -1,7 +1,7 @@
 
 import jax.numpy as jnp
 
-from popsim.algorithms.profiles import ProfileCalculator
+from popsim.physics.profiles import ProfileCalculator
 from popsim.scenarios.sparc_prd.generic import Sparc2020TestData, load_cfspopcon_prd
 
 
