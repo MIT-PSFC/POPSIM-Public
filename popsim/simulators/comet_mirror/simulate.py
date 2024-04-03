@@ -26,7 +26,7 @@ def unpack_lists(inp):
 def simulate(
     model: cm.CometMirror,
     ts: Array,
-    state0: cm.State,
+    initial_state: cm.State,
     params: typing.Union[cm.Params, typing.Sequence[cm.Params]],
     interp_type: str = "linear",
     return_xarray: bool = True,
@@ -47,7 +47,7 @@ def simulate(
     params_vectorized = tree_transpose(params)
 
     # Perform the simulation.
-    sol = _vec_simulate(model, ts, state0, params_vectorized)
+    sol = _vec_simulate(model, ts, initial_state, params_vectorized)
 
     sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
 
