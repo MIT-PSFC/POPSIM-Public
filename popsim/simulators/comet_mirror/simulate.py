@@ -25,7 +25,7 @@ def unpack_lists(inp):
 
 def simulate(
     model: cm.CometMirror,
-    ts: Array,
+    time_base: Array,
     initial_state: cm.State,
     params: typing.Union[cm.Params, typing.Sequence[cm.Params]],
     interp_type: str = "linear",
@@ -39,7 +39,7 @@ def simulate(
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
 
     # First build the parameter configurations.
-    params = [build_configs(p, interp_type) for p in params]
+    params = [build_configs(p, time_base, interp_type) for p in params]
     params = unpack_lists(params)
     multi_sim = len(params) > 1
 
@@ -47,7 +47,7 @@ def simulate(
     params_vectorized = tree_transpose(params)
 
     # Perform the simulation.
-    sol = _vec_simulate(model, ts, initial_state, params_vectorized)
+    sol = _vec_simulate(model, time_base, initial_state, params_vectorized)
 
     sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
 
