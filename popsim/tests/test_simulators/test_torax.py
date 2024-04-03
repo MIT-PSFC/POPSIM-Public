@@ -1,10 +1,8 @@
 import os
 
 import pytest
-from torax import simulation_app
 
 import popsim
-from popsim.scenarios.sparc_prd.torax import get_sim
 
 def is_module_installed(module_name):
     try:
@@ -16,6 +14,10 @@ def is_module_installed(module_name):
 
 @pytest.mark.skipif(not is_module_installed("torax"), reason="Torax is currently only available to certain users.")
 def test_sparc_prd():
+    # Put imports in here to avoid importing torax if the test is skipped.
+    from popsim.scenarios.sparc_prd.torax import get_sim
+    from torax import simulation_app
+
     # Hard-coded setting of environment variables.
     # Not great, but... it works.
     os.environ["TORAX_QLKNN_MODEL_PATH"] = popsim.TORAX_QLKNN_MODEL_PATH
