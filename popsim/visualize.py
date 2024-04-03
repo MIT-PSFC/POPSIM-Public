@@ -3,7 +3,7 @@ import hvplot.xarray  # noqa: F401
 import xarray as xr
 
 
-def visualize_time_series(dataset: xr.Dataset) -> hv.Layout:
+def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3) -> hv.Layout:
     """Visualize the time series of the variables in the dataset.
 
     Args:
@@ -18,17 +18,19 @@ def visualize_time_series(dataset: xr.Dataset) -> hv.Layout:
         # Extract the current variable to plot
         current_var = dataset[var]
 
+        if current_var.dtype == bool:
+            # Cast bools to ints for visualization.
+            current_var = current_var.astype(int)
+
         # Creating the line plot for this variable over the time for each simulation
         plot = current_var.hvplot.line(
             x="time",
-            by="simulation",
             color="blue",
             legend=False,
             xlabel="Time",
-            ylabel=var,
             title=f"{var}",
         )
 
         # Append the plot to the collection
         plots.append(plot)
-    return hv.Layout(plots)
+    return hv.Layout(plots).cols(max_cols)

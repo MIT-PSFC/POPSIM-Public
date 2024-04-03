@@ -3,9 +3,12 @@ import itertools
 import typing
 
 import chex
+import diffrax
 import equinox as eqx
 import jax
-from jaxtyping import PyTree
+import jax.numpy as jnp
+import numpy as np
+from jaxtyping import Array, PyTree
 
 import popsim.interp as pinterp
 import popsim.types as ptypes
@@ -26,6 +29,21 @@ def get_cases(tree, type_):
         return isinstance(x, type_)
 
     return [x for x in jax.tree.leaves(tree, func) if func(x)]
+
+
+def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
+    """Create a time base from t0 to t1 with a step size of dt.
+    Use numpy as jnp may give unhashable types.
+
+    Args:
+        t0 (float): time to start.
+        t1 (float): time to end.
+        dt (float): time step.
+
+    Returns:
+        np.ndarray: time base.
+    """
+    return np.arange(t0, t1 + dt, dt)
 
 
 def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
@@ -106,7 +124,7 @@ def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, Combina
 
 
 def build_config_paths(
-    config: PyTree[ptypes.ConstantOrTimeDependentSpec], interp_type: str = "linear"
+    config: PyTree[ptypes.ConstantOrTimeDependentSpec], time_base: Array, interp_type: str = "linear"
 ) -> PyTree[ptypes.ConstantOrTimeDependent]:
     """Given a user-specified configuration of the form "ConstantOrTimeDependentSpec", turn instances of "TrajectorySpec" into
     instances of "diffrax.AbstractPath" by interpolating the values at the specified times.
@@ -114,6 +132,7 @@ def build_config_paths(
     Args:
         config (PyTree[ptypes.ConstantOrTimeDependentSpec]): A user-specified configuration.
         interp_type (str): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
+        time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
     Returns:
         PyTree[ptypes.ConstantOrTimeDependent]: A configuration where all instances of "TrajectorySpec" have been interpolated.
@@ -139,10 +158,36 @@ def build_config_paths(
         structures = [jax.tree.structure(v) for v in values]
         return all(structure == structures[0] for structure in structures)
 
-    def maybe_interp(x):
-        return x if not is_traj_spec(x) else pinterp.interp_time_dic(x, interp_type=interp_type)
+    def interp_traj_spec(traj_spec):
+        traj_times = list(traj_spec.keys())
+        # Check that the times are within the time base
+        if not all(time in time_base for time in traj_times):
+            raise ValueError(f"All times in specification must be within the time base. Times: {traj_times}, Time base: {time_base}.")
+        # Pad the traj_spec.
+        traj_spec[time_base[0]] = traj_spec[traj_times[0]]
+        traj_spec[time_base[-1]] = traj_spec[traj_times[-1]]
 
-    return jax.tree_map(maybe_interp, config, is_leaf=is_traj_spec)
+        # Perform an interpolation to map the TrajectorySpec to the time base.
+        intermediate_interp = pinterp.interp_time_dic(traj_spec, interp_type=interp_type)
+        vals_on_time_base = jax.tree_map(
+            lambda x: x.evaluate(time_base), intermediate_interp, is_leaf=lambda x: isinstance(x, diffrax.AbstractPath)
+        )
+
+        # Return the final interpolation on the time base.
+        final_interp = pinterp.interp(time_base, vals_on_time_base, interp_type=interp_type)
+        return final_interp
+
+    def interp_onto_timebase(x):
+        if is_traj_spec(x):
+            return interp_traj_spec(x)
+        elif isinstance(x, diffrax.AbstractPath):
+            vals = x.evaluate(time_base)
+            return pinterp.interp(time_base, vals, interp_type=interp_type)
+        else:
+            vals = jnp.array([x for _ in time_base])
+            return pinterp.interp(time_base, vals, interp_type=interp_type)
+
+    return jax.tree_map(interp_onto_timebase, config, is_leaf=is_traj_spec)
 
 
 def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
@@ -173,7 +218,7 @@ def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
 
 
 def build_configs(
-    config: PyTree[ptypes.ConstantOrTimeDependentSpec], interp_type: str = "linear"
+    config: PyTree[ptypes.ConstantOrTimeDependentSpec], time_base: Array, interp_type: str = "linear"
 ) -> typing.Union[list[PyTree[ptypes.ConstantOrTimeDependent]], PyTree[ptypes.ConstantOrTimeDependent]]:
     """Given a config PyTree, generate simulation-ready configurations. This involves two steps:
         1) Interpolating all instances of TrajectorySpec for all CombinatorialCases and MultiCases.
@@ -181,12 +226,13 @@ def build_configs(
 
     Args:
         config (PyTree[ptypes.ConstantOrTimeDependentSpec]): _description_
+        time_base (Array): time base to interpolate everything to.
 
     Returns:
         list[PyTree[ptypes.ConstantOrTimeDependent]]: _description_
     """
     out = check_config(config)
-    interped = build_config_paths(config, interp_type)
+    interped = build_config_paths(config, time_base, interp_type)
 
     if out["combinatorial_cases"]:
         # Generate all combinations of CombinatorialCases

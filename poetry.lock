@@ -1687,6 +1687,26 @@ notebook = "*"
 qtconsole = "*"
 
 [[package]]
+name = "jupyter-bokeh"
+version = "4.0.1"
+description = "A Jupyter extension for rendering Bokeh content."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "jupyter_bokeh-4.0.1-py3-none-any.whl", hash = "sha256:9cf5bb4623bd0ed6129b6b56c925768faa504f25534e32184b6193cd753e3508"},
+    {file = "jupyter_bokeh-4.0.1.tar.gz", hash = "sha256:076ddcfdd3c154ea506913b734b27270576c9f41ce26cad3ff2606a63a19ed19"},
+]
+
+[package.dependencies]
+bokeh = "==3.*"
+ipywidgets = "==8.*"
+
+[package.extras]
+all = ["jupyter-bokeh[build]", "jupyter-bokeh[tests]"]
+build = ["jupyterlab (>=4.0,<5.0)", "setuptools (>=40.8.0)"]
+tests = ["flake8", "pytest"]
+
+[[package]]
 name = "jupyter-client"
 version = "8.6.1"
 description = "Jupyter protocol implementation and client libraries"
@@ -4033,7 +4053,8 @@ matplotlib = ">=3.3.0"
 numpy = ">=1.24.1"
 PyYAML = ">=6.0.1"
 setuptools = {version = "*", markers = "python_version >= \"3.10\""}
-typing_extensions = ">=4.2.0"
+typing-extensions = ">=4.2.0"
+xarray = ">=2023.12.0"
 
 [package.source]
 type = "directory"
@@ -4312,4 +4333,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "6d0deeb6eb6cd9a8467cf884d47822cae3f28add35da610e38706dcf0aada60e"
+content-hash = "870669fb0b498f2bf77989f355177ba10f408aff5033a087238b22d0c3c6fb89"
