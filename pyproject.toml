@@ -35,7 +35,7 @@ nbmake = "^1.4.6"
 optional = true
 
 [tool.poetry.group.torax.dependencies]
-torax = { path = "./submodules/torax", develop = true }
+torax = { git = "git@github.com:google-deepmind/torax.git", rev = "61ec7fd641fd524bb803f1f89da65a2b68c87c4c" }
 
 [[tool.poetry.source]]
 name = "PyPI"
