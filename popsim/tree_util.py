@@ -1,8 +1,10 @@
 import collections
+import typing
 from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as tu
 from jaxtyping import Array, ArrayLike, PyTree, ScalarLike
 
 """
@@ -59,3 +61,22 @@ def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
         collections.OrderedDict: An ordered dictionary with keys and values.
     """
     return collections.OrderedDict(zip(keys, vals))
+
+
+def get_key(key: typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]) -> typing.Union[int, typing.Hashable, str]:
+    """The different key types in Jax have different accessors. This is a wrapper function to get the key value.
+
+    Args:
+        key (typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]): key to access.
+
+    Returns:
+        typing.Union[int, typing.Hashable, str]: key value.
+    """
+    if isinstance(key, tu.SequenceKey):
+        return key.idx
+    elif isinstance(key, tu.DictKey):
+        return key.key
+    elif isinstance(key, tu.GetAttrKey):
+        return key.name
+    else:
+        raise ValueError(f"Key type {type(key)} not recognized.")

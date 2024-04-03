@@ -1,6 +1,10 @@
+from enum import Enum, IntEnum
+
 import jax
 import xarray as xr
 from jaxtyping import Array
+
+import popsim.tree_util as ptu
 
 
 def keypath_to_string(keypath) -> str:
@@ -12,9 +16,28 @@ def keypath_to_string(keypath) -> str:
     Returns:
         str: _description_
     """
+
+    def string_func(x):
+        key = ptu.get_key(x)
+        if isinstance(x, (Enum, IntEnum)):
+            return key.name
+        return str(key)
+
+    strings = [string_func(x) for x in keypath]
+
     # For some reason, there is often a leading dot in the keypath.
+    strings = [x.lstrip(".") for x in strings]
+
     # The gui also does show quantities between <>.
-    return ".".join(str(x).lstrip(".").replace("<", "").replace(">", "") for x in keypath)
+    strings = [x.replace("<", "").replace(">", "") for x in strings]
+
+    # Strip away brackets.
+    strings = [x.replace("[", "").replace("]", "") for x in strings]
+
+    # Finally strip away unnecessary quotes.
+    strings = [x.replace("'", "") for x in strings]
+
+    return ".".join(strings)
 
 
 def solution_to_xarray(sol, multi_simulation: bool) -> xr.Dataset:
