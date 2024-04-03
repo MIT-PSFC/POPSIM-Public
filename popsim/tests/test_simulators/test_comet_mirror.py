@@ -12,7 +12,8 @@ def test_comet_mirror_prd():
     model, state, params = sparc_prd_cm.build_comet_mirror_config()
     ts = jnp.linspace(0, 1.0, 10)
     sol = simulate(model, ts, state, params, return_xarray=False)
-    final_state, final_aux = jax.tree_map(lambda x: x[-1], sol.ys)
+    out = jax.tree_map(lambda x: x[-1], sol.ys)
+    final_state, final_aux = out["state"], out["aux"]
 
     def percent_error(expected, actual):
         return 100 * jnp.abs(expected - actual) / expected

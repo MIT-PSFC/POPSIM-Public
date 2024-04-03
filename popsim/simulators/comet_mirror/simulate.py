@@ -75,7 +75,8 @@ def _simulate(model: cm.CometMirror, ts: Array, state0: cm.State, params: cm.Par
 
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
-        return y, model_f(t, y, args, return_aux=True)
+        out = {"state": y, "aux": model_f(t, y, args, return_aux=True)}
+        return out
 
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(model_f),
