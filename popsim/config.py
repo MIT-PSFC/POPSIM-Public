@@ -187,7 +187,7 @@ def build_config_paths(
             vals = jnp.array([x for _ in time_base])
             return pinterp.interp(time_base, vals, interp_type=interp_type)
 
-    return jax.tree_map(interp_onto_timebase, config, is_leaf=is_traj_spec)
+    return jax.tree_map(interp_onto_timebase, config, is_leaf=lambda x: is_traj_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
 def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:

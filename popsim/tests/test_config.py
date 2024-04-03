@@ -328,3 +328,24 @@ def test_build_config(interp_type):
         resolved_case = pinterp.resolve_paths(case, 9.0)
         expected_case_resolved = pinterp.resolve_paths(expected_case, 9.0)
         chex.assert_trees_all_equal(resolved_case, expected_case_resolved)
+    
+    #
+    # Check the case where a config is an interp.
+    #
+    interped_a = pinterp.interp(time_base, time_base, interp_type=interp_type)
+    config = Params(
+        a=interped_a,
+        nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
+        imps={
+            penums.Impurity.Tungsten: 4.0,
+            penums.Impurity.Neon: 5.0,
+        },
+    )
+    new = build_configs(config, time_base, interp_type)
+
+    expected_t0 = dataclasses.replace(config, a=0.0)
+    expected_t15 = dataclasses.replace(config, a=1.5)
+    expected_t812 = dataclasses.replace(config, a=8.12)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 0.0), expected_t0)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 1.5), expected_t15)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 8.12), expected_t812)
