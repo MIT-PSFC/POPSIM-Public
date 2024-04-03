@@ -44,3 +44,12 @@ class GeometryCFSPopcon:
     def f_shaping(self):
         f_shaping = current_drive.calc_f_shaping(self.inverse_aspect_ratio, self.areal_elongation, self.triangularity_psi95)
         return f_shaping
+
+    @property
+    def surface_area(self):
+        sa = geometry.calc_plasma_surface_area(
+            major_radius=self.major_radius,
+            inverse_aspect_ratio=self.inverse_aspect_ratio,
+            areal_elongation=self.areal_elongation,
+        )
+        return sa

@@ -6,6 +6,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
+from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
@@ -13,6 +14,7 @@ from cfspopcon.named_options import ConfinementScaling
 from jaxtyping import Array
 
 import popsim.algorithms.density as density_model
+import popsim.algorithms.hmode_dynamics as hmode
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.algorithms.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
 from popsim.algorithms.profiles import ProfileCalculator
@@ -24,6 +26,7 @@ from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 class State:
     stored_energy: float  # [MJ]
     density_state: density_model.State
+    hmode_state: hmode.State
 
 
 @chex.dataclass
@@ -41,6 +44,8 @@ class Params:
     geometry: GeometryCFSPopcon
     fueling19: dict[Species, float]  # 1e19/s
     particle_confinement_scalar: dict[Species, float]  # [-]
+    hmode_transition_characteristic_time: float  # [s]
+    hl_threshold_scalar: float  # Assume the h->l transition is some fraction of the l->h transition [-]
 
 
 @chex.dataclass
@@ -48,7 +53,8 @@ class Config:
     species: SpeciesContainer
     profile_form: ProfileForm
     rho: Array
-    energy_confinement_scaling: ConfinementScaling
+    hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
+    lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
     fusion_reaction: ReactionType = ReactionType.DT
     radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
 
@@ -57,7 +63,8 @@ class Config:
 class CometMirror:
     config: Config
     profiles: ProfileCalculator
-    calc_tau_e_and_P_in_from_scaling: Callable
+    hmode_tau_e_and_P: Callable
+    lmode_tau_e_and_P: Callable
     calc_fuel_average_mass_number: Callable
 
     def __init__(
@@ -66,9 +73,8 @@ class CometMirror:
     ):
         self.config = config
         self.profiles = ProfileCalculator(profile_form=self.config.profile_form, rho=self.config.rho)
-        self.calc_tau_e_and_P_in_from_scaling = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(
-            scaling=self.config.energy_confinement_scaling
-        )
+        self.hmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.hmode_scaling)
+        self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
 
         def calc_fuel_average_mass_number(
             heavier_fuel_species_fraction: float,
@@ -199,25 +205,55 @@ class CometMirror:
         # Convert reactions_per_second to 1e19/s.
         reactions_per_second = reactions_per_second / 1e19
 
-        """Calculate conduction losses."""
+        """Calculate tauE and conduction losses"""
         fuel_average_mass_number = self.calc_fuel_average_mass_number(heavier_fuel_species_fraction)
-        tau_E, P_tau_MW = self.calc_tau_e_and_P_in_from_scaling(
-            confinement_time_scalar=params.confinement_time_scalar,
-            # Convert to MA.
+
+        def calc_with_scaling_law_fun(scaling_law_fun):
+            tau_E, P_tau_MW = scaling_law_fun(
+                confinement_time_scalar=params.confinement_time_scalar,
+                # Convert to MA.
+                plasma_current=1e-6 * params.plasma_current,
+                magnetic_field_on_axis=params.magnetic_field_on_axis,
+                average_electron_density=average_electron_density_19,
+                major_radius=params.geometry.major_radius,
+                areal_elongation=params.geometry.areal_elongation,
+                separatrix_elongation=params.geometry.separatrix_elongation,
+                inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
+                fuel_average_mass_number=fuel_average_mass_number,
+                triangularity_psi95=params.geometry.triangularity_psi95,
+                separatrix_triangularity=params.geometry.separatrix_triangularity,
+                # Convert to MJ.
+                plasma_stored_energy=state.stored_energy,
+                q_star=q_star,
+            )
+            return jnp.array([tau_E, P_tau_MW])
+
+        out = jnp.where(
+            state.hmode_state.in_hmode,
+            calc_with_scaling_law_fun(self.hmode_tau_e_and_P),
+            calc_with_scaling_law_fun(self.lmode_tau_e_and_P),
+        )
+        tau_E, P_tau_MW = out[0], out[1]
+
+        """Calculate H + L mode dynamics."""
+        lh_threshold = calc_LH_transition_threshold_power(
             plasma_current=1e-6 * params.plasma_current,
             magnetic_field_on_axis=params.magnetic_field_on_axis,
-            average_electron_density=average_electron_density_19,
+            minor_radius=params.geometry.minor_radius,
             major_radius=params.geometry.major_radius,
-            areal_elongation=params.geometry.areal_elongation,
-            separatrix_elongation=params.geometry.separatrix_elongation,
-            inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
+            surface_area=params.geometry.surface_area,
             fuel_average_mass_number=fuel_average_mass_number,
-            triangularity_psi95=params.geometry.triangularity_psi95,
-            separatrix_triangularity=params.geometry.separatrix_triangularity,
-            # Convert to MJ.
-            plasma_stored_energy=state.stored_energy,
-            q_star=q_star,
+            average_electron_density=average_electron_density_19,
         )
+        hmode_params = hmode.Params(
+            transition_characteristic_time=params.hmode_transition_characteristic_time,
+            P_tau_MW=P_tau_MW,
+            lh_threshold_MW=lh_threshold,
+            hl_threshold_MW=params.hl_threshold_scalar
+            * lh_threshold,  # Assume the h->l transition is some fraction of the l->h transition.
+        )
+
+        hmode_dot = hmode.dynamics(state.hmode_state, hmode_params)
 
         """Calculate ohmic power."""
         bootstrap_fraction = current_drive.calc_bootstrap_fraction(
@@ -254,6 +290,7 @@ class CometMirror:
         sources_and_sinks = {k: {} for k in self.config.species.species}
         for k, v in params.fueling19.items():
             sources_and_sinks[k]["fueling19"] = v
+
         sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second
         sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
         sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
@@ -270,6 +307,7 @@ class CometMirror:
         state_dot = State(
             stored_energy=dW_dt,
             density_state=density_dot,
+            hmode_state=hmode_dot,
         )
 
         if return_aux:

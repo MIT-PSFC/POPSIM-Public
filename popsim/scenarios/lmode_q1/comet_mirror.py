@@ -1,6 +1,7 @@
 import numpy as np
 
 import popsim.algorithms.density as density_model
+import popsim.algorithms.hmode_dynamics as hmode
 import popsim.simulators.comet_mirror as cm
 from popsim.algorithms.geometry import GeometryCFSPopcon
 from popsim.enums import FuelSpecies
@@ -19,13 +20,14 @@ def build_comet_mirror_config():
         "Paux": 9.4,  # MW
         "deuterium_fueling19": 150.0,  # 1e19/s
         "tritium_fueling19": 150.0,  # 1e19/s
+        "hmode_transition_characteristic_time": 0.1,  # s
+        "hl_threshold_scalar": 0.7,  # Assumed ratio of PHL/PLH
     }
 
     config = cm.model.Config(
         species=species_container,
         profile_form=input_parameters["profile_form"],
         rho=np.linspace(0, 1, 30),
-        energy_confinement_scaling=input_parameters["energy_confinement_scaling"],
     )
 
     model = cm.model.CometMirror(config=config)
@@ -69,11 +71,14 @@ def build_comet_mirror_config():
             FuelSpecies.Tritium: additional_assumptions["tritium_fueling19"],
         },
         particle_confinement_scalar=particle_confinement_scalars,
+        hmode_transition_characteristic_time=additional_assumptions["hmode_transition_characteristic_time"],
+        hl_threshold_scalar=additional_assumptions["hl_threshold_scalar"],
     )
 
     state = cm.model.State(
         stored_energy=additional_assumptions["stored_energy"],
         density_state=density_model.State(vol_avg_ion=density_states),
+        hmode_state=hmode.State(hmode=0.0),
     )
 
     return model, state, params
