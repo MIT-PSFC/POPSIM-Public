@@ -247,7 +247,7 @@ class CometMirror:
         )
         hmode_params = hmode.Params(
             transition_characteristic_time=params.hmode_transition_characteristic_time,
-            P_tau_MW=P_tau_MW,
+            P_tau_MW=jnp.abs(P_tau_MW),
             lh_threshold_MW=lh_threshold,
             hl_threshold_MW=params.hl_threshold_scalar
             * lh_threshold,  # Assume the h->l transition is some fraction of the l->h transition.
