@@ -13,12 +13,12 @@ import popsim.types as ptypes
 
 @chex.dataclass
 class CombinatorialCases:
-    config: list = dataclasses.field(default_factory=list)
+    cases: list = dataclasses.field(default_factory=list)
 
 
 @chex.dataclass
 class MultiCases:
-    config: list = dataclasses.field(default_factory=list)
+    cases: list = dataclasses.field(default_factory=list)
 
 
 def get_cases(tree, type_):
@@ -50,7 +50,7 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
         return isinstance(x, MultiCases)
 
     # Check that all instances of MultiCases have the same length
-    lengths = [len(x.config) for x in multi_cases]
+    lengths = [len(x.cases) for x in multi_cases]
 
     if not all(length == lengths[0] for length in lengths):
         raise ValueError("All instances of MultiCases must have the same length.")
@@ -60,7 +60,7 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
 
     list_of_multi_cases, treedef = jax.tree.flatten(multi_cases_tree, is_leaf=is_multi_case)
 
-    list_of_multi_cases_list = [x.config for x in list_of_multi_cases]
+    list_of_multi_cases_list = [x.cases for x in list_of_multi_cases]
 
     cases = list(zip(*list_of_multi_cases_list))
 
@@ -93,7 +93,7 @@ def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, Combina
 
     list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
 
-    list_of_comb_cases_list = [x.config for x in list_of_comb_cases]
+    list_of_comb_cases_list = [x.cases for x in list_of_comb_cases]
 
     combinations = list(itertools.product(*list_of_comb_cases_list))
 
@@ -161,7 +161,7 @@ def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
         raise ValueError("config can only contain instances of CombinatorialCases or MultiCases and not both.")
     if multi_cases:
         # All cases must have the same length
-        lengths = [len(x.config) for x in multi_cases]
+        lengths = [len(x.cases) for x in multi_cases]
         if not all(length == lengths[0] for length in lengths):
             raise ValueError("All instances of MultiCases must have the same length.")
 

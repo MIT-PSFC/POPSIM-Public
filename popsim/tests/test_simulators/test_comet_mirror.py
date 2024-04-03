@@ -11,7 +11,7 @@ def test_comet_mirror_prd():
     # Test that the simulator runs and compare against a reference solution.
     model, state, params = sparc_prd_cm.build_comet_mirror_config()
     ts = jnp.linspace(0, 1.0, 10)
-    sol = simulate(model, ts, state, params)
+    sol = simulate(model, ts, state, params, return_xarray=False)
     final_state, final_aux = jax.tree_map(lambda x: x[-1], sol.ys)
 
     def percent_error(expected, actual):

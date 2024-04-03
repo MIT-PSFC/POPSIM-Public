@@ -7,9 +7,20 @@ import jax.numpy as jnp
 from jaxtyping import Array
 
 import popsim.simulators.comet_mirror.model as cm
+from popsim.config_utils import build_configs
 from popsim.interp import resolve_paths
 from popsim.tree_util import tree_transpose
 from popsim.xarray_utils import solution_to_xarray
+
+
+def unpack_lists(inp):
+    unpacked_list = []
+    for item in inp:
+        if isinstance(item, list):
+            unpacked_list.extend(item)
+        else:
+            unpacked_list.append(item)
+    return unpacked_list
 
 
 def simulate(
@@ -17,27 +28,42 @@ def simulate(
     ts: Array,
     state0: cm.State,
     params: typing.Union[cm.Params, typing.Sequence[cm.Params]],
-    return_xarray: bool = False,
+    interp_type: str = "linear",
+    return_xarray: bool = True,
 ) -> diffrax.Solution:
     if isinstance(params, cm.Params):
-        multi_sim = False
-        sol = _simulate(model, ts, state0, params)
-        return solution_to_xarray(_simulate(model, ts, state0, params)) if return_xarray else _simulate(model, ts, state0, params)
+        params = [params]
     elif isinstance(params, typing.Sequence):
-        multi_sim = True
-        # We first need to perform a tree-transpose to vectorize the parameters.
-        params_vectorized = tree_transpose(params)
-        params_axes = jax.tree_map(lambda x: 0, params_vectorized)
-
-        # Perform a vectorized simulation.
-        sol = jax.vmap(
-            _simulate,
-            in_axes=(None, None, None, params_axes),
-        )(model, ts, state0, params_vectorized)
+        pass
     else:
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
 
-    return solution_to_xarray(sol.ys, multi_simulation=multi_sim) if return_xarray else sol
+    # First build the parameter configurations.
+    params = [build_configs(p, interp_type) for p in params]
+    params = unpack_lists(params)
+    multi_sim = len(params) > 1
+
+    # We need to perform a tree-transpose to vectorize the parameters.
+    params_vectorized = tree_transpose(params)
+
+    # Perform the simulation.
+    sol = _vec_simulate(model, ts, state0, params_vectorized)
+
+    sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
+
+    return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
+
+
+@eqx.filter_jit
+def _vec_simulate(model, ts, state0, params_vectorized):
+    params_axes = jax.tree_map(lambda x: 0, params_vectorized)
+
+    # Perform a vectorized simulation.
+    sol = jax.vmap(
+        _simulate,
+        in_axes=(None, None, None, params_axes),
+    )(model, ts, state0, params_vectorized)
+    return sol
 
 
 @eqx.filter_jit
