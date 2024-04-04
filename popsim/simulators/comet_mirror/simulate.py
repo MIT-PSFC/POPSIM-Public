@@ -7,20 +7,9 @@ import jax.numpy as jnp
 from jaxtyping import Array
 
 import popsim.simulators.comet_mirror.model as cm
-from popsim.config import build_configs
+from popsim.config import build_vectorized_configs
 from popsim.interp import resolve_paths
-from popsim.tree_util import tree_transpose
 from popsim.xarray_utils import solution_to_xarray
-
-
-def unpack_lists(inp):
-    unpacked_list = []
-    for item in inp:
-        if isinstance(item, list):
-            unpacked_list.extend(item)
-        else:
-            unpacked_list.append(item)
-    return unpacked_list
 
 
 def simulate(
@@ -38,13 +27,8 @@ def simulate(
     else:
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
 
-    # First build the parameter configurations.
-    params = [build_configs(p, time_base, interp_type) for p in params]
-    params = unpack_lists(params)
-    multi_sim = len(params) > 1
-
-    # We need to perform a tree-transpose to vectorize the parameters.
-    params_vectorized = tree_transpose(params)
+    # Build the configurations.
+    params_vectorized, multi_sim = build_vectorized_configs(params, time_base, interp_type)
 
     # Perform the simulation.
     sol = _vec_simulate(model, time_base, initial_state, params_vectorized)

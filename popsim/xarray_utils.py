@@ -93,13 +93,13 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation
     variables = {keypath_to_string(keypath): convert_array(leaf) for keypath, leaf in leaves_with_path}
 
     # Expect time to be the same for all simulations.
-    if multi_simulation:
+    if multi_simulation and time.ndim == 2:
         assert (time == time[0]).all()
 
     # Expect all leaves to have the same leading dimension.
     first_leaf_data = leaves_with_path[0][1]
     assert all(leaf.shape[0] == first_leaf_data.shape[0] for _, leaf in leaves_with_path)
-    coords = {"time": time[0]} if multi_simulation else {"time": time}
+    coords = {"time": time[0]} if multi_simulation and time.ndim == 2 else {"time": time}
 
     if multi_simulation:
         coords["simulation"] = list(range(first_leaf_data.shape[0]))

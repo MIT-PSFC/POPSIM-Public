@@ -12,6 +12,7 @@ from jaxtyping import Array, PyTree
 
 import popsim.interp as pinterp
 import popsim.types as ptypes
+from popsim.tree_util import tree_transpose
 
 
 @chex.dataclass
@@ -244,3 +245,24 @@ def build_configs(
         return combinations
     else:
         return interped
+
+
+def build_vectorized_configs(
+    configs: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: Array, interp_type: str = "linear"
+) -> PyTree[ptypes.ConstantOrTimeDependent]:
+    def unpack_lists(inp):
+        unpacked_list = []
+        for item in inp:
+            if isinstance(item, list):
+                unpacked_list.extend(item)
+            else:
+                unpacked_list.append(item)
+        return unpacked_list
+
+    # First build the parameter configurations.
+    params = [build_configs(p, time_base, interp_type) for p in configs]
+    params = unpack_lists(params)
+
+    # We need to perform a tree-transpose to vectorize the parameters.
+    params_vectorized = tree_transpose(params)
+    return params_vectorized, len(params) > 1

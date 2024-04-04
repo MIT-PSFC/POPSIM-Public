@@ -52,9 +52,5 @@ def generate_random_walks(
         return diffusion_mags
 
     sol = _generate_random_walks(key, n_samps, ts, y0, drift, diffusion)
-    return sol
 
-
-def interp_random_walk_solution(sol: diffrax.Solution):
-    n_samps = sol.ts.shape[0]
     return [diffrax.LinearInterpolation(ts=sol.ts[i], ys=jax.tree_map(lambda x, i=i: x[i], sol.ys)) for i in range(n_samps)]

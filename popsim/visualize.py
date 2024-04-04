@@ -3,6 +3,9 @@ import hvplot.xarray  # noqa: F401
 import panel as pn
 import xarray as xr
 
+import popsim.config as pconfig
+import popsim.xarray_utils as pxr
+
 
 def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3, fontsize: int = 10) -> hv.Layout:
     """Visualize the time series of the variables in the dataset.
@@ -39,3 +42,19 @@ def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3, fontsize: int 
 
     layout = hv.Layout(plots).cols(max_cols)
     return pn.panel(layout, sizing_mode="stretch_width")
+
+
+def visualize_config(config, time_base, interp_type: str = "linear"):
+    """Visualize the configuration of the simulation.
+
+    Args:
+        config (dict): Configuration dictionary.
+        time_base (np.ndarray): Time base for the simulation.
+        interp_type (str): Interpolation type.
+
+    Returns:
+        pn.pane.Markdown: Markdown pane with the configuration information.
+    """
+    config_vec, multi_sim = pconfig.build_vectorized_configs(config, time_base, interp_type)
+    dataset = pxr.time_and_pytree_to_xarray(time_base, config_vec, multi_simulation=multi_sim)
+    return visualize_time_series(dataset)
