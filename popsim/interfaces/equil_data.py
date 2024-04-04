@@ -177,13 +177,9 @@ class Model:
         return equil_slice.C @ state + equil_slice.D @ control + equil_slice.y0
 
 
-def load(verify_compressed_data_integrity: bool = True):
-    data = sio.loadmat(
-        os.path.join(PACKAGE_ROOT, "data", "equil_data_101.mat"), verify_compressed_data_integrity=verify_compressed_data_integrity
-    )
-    metadata = sio.loadmat(
-        os.path.join(PACKAGE_ROOT, "data", "equil_data_101_meta.mat"), verify_compressed_data_integrity=verify_compressed_data_integrity
-    )
+def load():
+    data = sio.loadmat(os.path.join(PACKAGE_ROOT, "data", "equil_data_101.mat"))
+    metadata = sio.loadmat(os.path.join(PACKAGE_ROOT, "data", "equil_data_101_meta.mat"))
 
     # Rename keys.
     data["y0"] = data.pop("yo")
