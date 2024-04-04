@@ -54,6 +54,10 @@ def build_comet_mirror_config():
         for k in species_container.species
     }
 
+    fueling19 = {k: 0.0 for k in species_container.species}
+    fueling19[FuelSpecies.Deuterium] = additional_assumptions["deuterium_fueling19"]
+    fueling19[FuelSpecies.Tritium] = additional_assumptions["tritium_fueling19"]
+
     params = cm.model.Params(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],
         plasma_current=input_parameters["plasma_current"],
@@ -66,10 +70,7 @@ def build_comet_mirror_config():
         confinement_time_scalar=input_parameters["confinement_time_scalar"],
         P_aux_MW=additional_assumptions["Paux"],
         geometry=geom,
-        fueling19={
-            FuelSpecies.Deuterium: additional_assumptions["deuterium_fueling19"],
-            FuelSpecies.Tritium: additional_assumptions["tritium_fueling19"],
-        },
+        fueling19=fueling19,
         particle_confinement_scalar=particle_confinement_scalars,
         hmode_transition_characteristic_time=additional_assumptions["hmode_transition_characteristic_time"],
         hl_threshold_scalar=additional_assumptions["hl_threshold_scalar"],

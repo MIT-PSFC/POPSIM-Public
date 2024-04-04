@@ -39,7 +39,6 @@ def generate_random_walks(
     ts: jnp.ndarray,
     y0: PyTree[ArrayLike],
     diffusion_mags: PyTree[ArrayLike],
-    return_interp: bool = True,
 ):
     # Assert y0 and diffusion_mags have the same structure.
     assert jax.tree.structure(y0) == jax.tree.structure(diffusion_mags)
@@ -53,8 +52,9 @@ def generate_random_walks(
         return diffusion_mags
 
     sol = _generate_random_walks(key, n_samps, ts, y0, drift, diffusion)
+    return sol
 
-    if return_interp:
-        return [diffrax.LinearInterpolation(ts=sol.ts[i], ys=jax.tree_map(lambda x, i=i: x[i], sol.ys)) for i in range(n_samps)]
-    else:
-        return sol
+
+def interp_random_walk_solution(sol: diffrax.Solution):
+    n_samps = sol.ts.shape[0]
+    return [diffrax.LinearInterpolation(ts=sol.ts[i], ys=jax.tree_map(lambda x, i=i: x[i], sol.ys)) for i in range(n_samps)]

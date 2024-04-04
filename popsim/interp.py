@@ -48,6 +48,7 @@ def interp_time_dic(
     Returns:
         typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]: _description_
     """
+    dic_trees = dict(sorted(dic_trees.items()))  # sort the dictionary by time
     times = jnp.array(list(dic_trees.keys()))
     trees = list(dic_trees.values())
     return interp_tree_seq(times, trees, interp_type)
