@@ -34,6 +34,10 @@ def atleast1d_inputs(func):
 
 
 def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, interpax.Interpolator3D]:
+    # Strip away pint units as they are currently not working with Jax.
+    # https://github.com/cfs-energy-internal/POPSIM/issues/3
+    curve = curve.pint.dequantify()
+
     # By default, electron temperature is in eV and density is in 1e19.
     # "log" means log10.
     log_temp = jnp.array(curve.dim_log_electron_temperature)
