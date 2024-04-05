@@ -27,7 +27,7 @@ def get_config() -> config_lib.Config:
     transp_data = load_prd_transp_profiles()
     input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
 
-    ped_top = 0.9  # Location of the pedestal top in normalized radius.
+    ped_top = 0.95  # Location of the pedestal top in normalized radius.
     # NOTE: This approach to building the config is changing. Over time more
     # parts of this config will be built with pure Python constructors in
     # `get_sim()`.
@@ -97,7 +97,7 @@ def get_config() -> config_lib.Config:
         # Multiplication factor for bootstrap current
         bootstrap_mult=1,
         # numerical (e.g. no. of grid points, other info needed by solver)
-        nr=25,  # radial grid points
+        nr=30,  # radial grid points
         ion_heat_eq=True,
         el_heat_eq=True,
         current_eq=True,
