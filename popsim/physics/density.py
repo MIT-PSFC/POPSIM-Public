@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree
@@ -19,7 +20,18 @@ class State:
 
     @property
     def total_volume_average_ion_density(self) -> float:
-        return jnp.sum(leaves_as_array(self.vol_avg_ion))
+        # Logic to make sure this works for both the scalar and array cases.
+        # See associated unit test.
+        leaves = jax.tree_util.tree_leaves(self.vol_avg_ion)
+        leaves = jax.tree_map(jnp.atleast_1d, leaves)  # Promote scalars.
+        n_t = leaves[0].size  # Number of time steps.
+        eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
+        if n_t > 1:
+            # Do a separate computation for each time step.
+            return jax.vmap(lambda x: jnp.sum(leaves_as_array(x)))(self.vol_avg_ion)
+        else:
+            # Do a single computation.
+            return jnp.sum(leaves_as_array(self.vol_avg_ion))
 
     @property
     def species(self) -> Sequence[Species]:

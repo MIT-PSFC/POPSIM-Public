@@ -1,3 +1,5 @@
+from typing import Optional
+
 import holoviews as hv
 import hvplot.xarray  # noqa: F401
 import panel as pn
@@ -7,7 +9,9 @@ import popsim.config as pconfig
 import popsim.xarray_utils as pxr
 
 
-def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3, fontsize: int = 10) -> hv.Layout:
+def visualize_time_series(
+    dataset: xr.Dataset, hlines: Optional[dict[str, float]] = None, max_cols: int = 3, fontsize: int = 10
+) -> hv.Layout:
     """Visualize the time series of the variables in the dataset.
 
     Args:
@@ -16,6 +20,8 @@ def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3, fontsize: int 
     Returns:
         hv.Layout: HoloViews layout with the time series of the variables.
     """
+    if hlines is None:
+        hlines = {}
     plots = []
 
     for i, var in enumerate(dataset.data_vars):
@@ -37,7 +43,11 @@ def visualize_time_series(dataset: xr.Dataset, max_cols: int = 3, fontsize: int 
             title=f"{var}",
         ).opts(ylabel="", fontsize=fontsize)
 
-        # Append the plot to the collection
+        if var in hlines:
+            hline = hv.Curve([(dataset.time.min(), hlines[var]), (dataset.time.max(), hlines[var])]).opts(color="red")
+            # For some reason, the overlay causes all plots to be linked unless we set shared_axes=False.
+            plot = hv.Overlay([plot, hline]).opts(shared_axes=False)
+
         plots.append(plot)
 
     layout = hv.Layout(plots).cols(max_cols)
