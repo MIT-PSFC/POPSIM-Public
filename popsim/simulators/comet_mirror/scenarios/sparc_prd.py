@@ -5,11 +5,11 @@ import popsim.physics.hmode_dynamics as hmode
 import popsim.simulators.comet_mirror as cm
 from popsim.enums import FuelSpecies
 from popsim.physics.geometry import GeometryCFSPopcon
-from popsim.simulators.scenario_data.sparc_prd import load_cfsopcon_scenario
+from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
 
 
 def build_comet_mirror_config():
-    input_parameters, species_container, species_concentrations = load_cfsopcon_scenario("SPARC_PRD")
+    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
 
     # Assumptions that aren't provided by the CFSPOPCON scenario.
     additional_assumptions = {

@@ -8,10 +8,14 @@ from popsim import SUBMODULES_DIR
 from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 
 
-def load_cfsopcon_scenario(case_name: str = "SPARC_PRD"):
+def load_cfspopcon_scenario(case_name: str = "SPARC_PRD"):
     case_path = os.path.join(SUBMODULES_DIR, f"cfspopcon/example_cases/{case_name}")
     input_parameters, algorithm, points = cfspopcon.read_case(case_path)
+    return input_parameters, algorithm, points
 
+
+def load_cfspopcon_scenario_for_comet_mirror(case_name: str = "SPARC_PRD"):
+    input_parameters, algorithm, points = load_cfspopcon_scenario(case_name)
     # Strip units away from Pint quantities as we currently don't have Jax<->Pint compatibility.
     for k, v in input_parameters.items():
         if isinstance(v, Quantity):

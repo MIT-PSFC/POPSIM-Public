@@ -19,13 +19,13 @@ from torax.sources import source_config
 from torax.stepper import nonlinear_theta_method
 from torax.time_step_calculator import fixed_time_step_calculator
 
-from popsim.interfaces.cfspopcon_scenario import load_cfsopcon_scenario
+from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario_for_comet_mirror
 from popsim.interfaces.sparc_public import load_prd_transp_profiles
 
 
 def get_config() -> config_lib.Config:
     transp_data = load_prd_transp_profiles()
-    input_parameters, species_container, species_concentrations = load_cfsopcon_scenario("SPARC_PRD")
+    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
 
     ped_top = 0.9  # Location of the pedestal top in normalized radius.
     # NOTE: This approach to building the config is changing. Over time more
@@ -33,7 +33,7 @@ def get_config() -> config_lib.Config:
     # `get_sim()`.
     return config_lib.Config(
         # simulation control
-        t_final=10,  # length of simulation time in seconds
+        t_final=5,  # length of simulation time in seconds
         fixed_dt=1.0,
         # 1/multiplication factor for sigma (conductivity) to reduce current
         # diffusion timescale to be closer to heat diffusion timescale.
