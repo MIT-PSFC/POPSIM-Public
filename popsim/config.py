@@ -124,24 +124,28 @@ def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, Combina
     return reconstructed_trees
 
 
-def build_config_paths(
-    config: PyTree[ptypes.ConstantOrTimeDependentSpec], time_base: Array, interp_type: str = "linear"
-) -> PyTree[ptypes.ConstantOrTimeDependent]:
-    """Given a user-specified configuration of the form "ConstantOrTimeDependentSpec", turn instances of "TrajectorySpec" into
-    instances of "diffrax.AbstractPath" by interpolating the values at the specified times.
+def build_config_paths(config: ptypes.ConfigSpec, time_base: Array, interp_type: str = "linear") -> PyTree[diffrax.AbstractPath]:
+    """Given a user-specified configuration that is a PyTree of "ConstantOrPathSpec", generate
+    a new PyTree of "AbstractPath" on the given time_base. Leaves are handeled as follows:
+        1) If the leaf is a dictionary with float keys, it is assumed to be a PathSpec and is interpolated onto "time_base".
+        2) If the leaf is an instance of AbstractPath, we re-map to "time_base" and interpolate again.
+        3) Otherwise, the leaf is assumed to be a constant, is repeated for all times in "time_base", and interpolated.
+    Why interpolate everything? This is done to ensure the inputs to jax.jitted functions are all the same shape across
+    calls to prevent re-compiling (which is the main computational cost right now). This way, if the user switches from
+    specifying a params as a constant to trajectory, the function will not need to be re-compiled.
 
     Args:
-        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): A user-specified configuration.
+        config (ptypes.ConfigSpec): A user-specified configuration.
         interp_type (str): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
         time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
     Returns:
-        PyTree[ptypes.ConstantOrTimeDependent]: A configuration where all instances of "TrajectorySpec" have been interpolated.
+        PyTree[diffrax.AbstractPath]: A configuration where all instances of "PathSpec" have been interpolated.
     """
 
-    def is_traj_spec(x):
+    def is_path_spec(x):
         # I would prefer to do a:
-        #   isinstance(x, ptypes.TrajectorySpec)  # noqa: ERA001
+        #   isinstance(x, ptypes.PathSpec)  # noqa: ERA001
         # but isinstance does not work with paramerized generics.
         # Instead, we will check that "x" is a dictionary with float keys.
         # We will also check that all values have the same tree structure.
@@ -159,17 +163,17 @@ def build_config_paths(
         structures = [jax.tree.structure(v) for v in values]
         return all(structure == structures[0] for structure in structures)
 
-    def interp_traj_spec(traj_spec):
-        traj_times = list(traj_spec.keys())
+    def interp_path_spec(path_spec):
+        traj_times = list(path_spec.keys())
         # Check that the times are within the time base
         if not all(time in time_base for time in traj_times):
             raise ValueError(f"All times in specification must be within the time base. Times: {traj_times}, Time base: {time_base}.")
-        # Pad the traj_spec.
-        traj_spec[time_base[0]] = traj_spec[traj_times[0]]
-        traj_spec[time_base[-1]] = traj_spec[traj_times[-1]]
+        # Pad the path_spec.
+        path_spec[time_base[0]] = path_spec[traj_times[0]]
+        path_spec[time_base[-1]] = path_spec[traj_times[-1]]
 
-        # Perform an interpolation to map the TrajectorySpec to the time base.
-        intermediate_interp = pinterp.interp_time_dic(traj_spec, interp_type=interp_type)
+        # Perform an interpolation to map the PathSpec to the time base.
+        intermediate_interp = pinterp.interp_time_dic(path_spec, interp_type=interp_type)
         vals_on_time_base = jax.tree_map(
             lambda x: x.evaluate(time_base), intermediate_interp, is_leaf=lambda x: isinstance(x, diffrax.AbstractPath)
         )
@@ -179,8 +183,8 @@ def build_config_paths(
         return final_interp
 
     def interp_onto_timebase(x):
-        if is_traj_spec(x):
-            return interp_traj_spec(x)
+        if is_path_spec(x):
+            return interp_path_spec(x)
         elif isinstance(x, diffrax.AbstractPath):
             vals = x.evaluate(time_base)
             return pinterp.interp(time_base, vals, interp_type=interp_type)
@@ -188,16 +192,16 @@ def build_config_paths(
             vals = jnp.array([x for _ in time_base])
             return pinterp.interp(time_base, vals, interp_type=interp_type)
 
-    return jax.tree_map(interp_onto_timebase, config, is_leaf=lambda x: is_traj_spec(x) or isinstance(x, diffrax.AbstractPath))
+    return jax.tree_map(interp_onto_timebase, config, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
-def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
+def check_config(config: ptypes.ConfigSpec) -> None:
     """Check the config for validity.
     The rules are:
         1) config can only contain instances of CombinatorialCases or MultiCases and not both.
 
     Args:
-        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): The configuration to check.
+        config (ptypes.ConfigSpec): The configuration to check.
     """
 
     combinatorial_cases = get_cases(config, CombinatorialCases)
@@ -219,18 +223,20 @@ def check_config(config: PyTree[ptypes.ConstantOrTimeDependentSpec]) -> None:
 
 
 def build_configs(
-    config: PyTree[ptypes.ConstantOrTimeDependentSpec], time_base: Array, interp_type: str = "linear"
-) -> typing.Union[list[PyTree[ptypes.ConstantOrTimeDependent]], PyTree[ptypes.ConstantOrTimeDependent]]:
+    config: ptypes.ConfigSpec, time_base: Array, interp_type: str = "linear"
+) -> typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]:
     """Given a config PyTree, generate simulation-ready configurations. This involves two steps:
-        1) Interpolating all instances of TrajectorySpec for all CombinatorialCases and MultiCases.
+        1) Interpolating all instances of PathSpec for all CombinatorialCases and MultiCases.
         2) Resolving all instances of CombinatorialCases and MultiCases.
 
     Args:
-        config (PyTree[ptypes.ConstantOrTimeDependentSpec]): _description_
+        config (ptypes.ConfigSpec): configuration tree.
         time_base (Array): time base to interpolate everything to.
 
     Returns:
-        list[PyTree[ptypes.ConstantOrTimeDependent]]: _description_
+        typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]: either
+            a list of PyTrees where all instances of CombinatorialCases and MultiCases have been resolved, or
+            a single PyTree where paths have been interpolated.
     """
     out = check_config(config)
     interped = build_config_paths(config, time_base, interp_type)
@@ -248,8 +254,22 @@ def build_configs(
 
 
 def build_vectorized_configs(
-    configs: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: Array, interp_type: str = "linear"
-) -> PyTree[ptypes.ConstantOrTimeDependent]:
+    configs: typing.Union[ptypes.ConfigSpec, typing.Sequence[ptypes.ConfigSpec]],
+    time_base: Array,
+    interp_type: str = "linear",
+) -> tuple[PyTree[diffrax.AbstractPath], bool]:
+    """Given a configuration (or a list of configurations), build the vectorized configurations
+    s.t. jax.vmap can be performed on the configurations.
+
+    Args:
+        configs (typing.Union[ptypes.ConfigSpec, typing.Sequence[ptypes.ConfigSpec]]): configuration tree or list of configuration trees.
+        time_base (Array): time base to interpolate everything to.
+        interp_type (str, optional): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
+
+    Returns:
+        tuple[PyTree[diffrax.AbstractPath], bool]: A vectorized configuration and a bool indicating if the configuration is multi-simulation.
+    """
+
     def unpack_lists(inp):
         unpacked_list = []
         for item in inp:
