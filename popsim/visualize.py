@@ -1,9 +1,12 @@
+import typing
 from typing import Optional
 
 import holoviews as hv
 import hvplot.xarray  # noqa: F401
+import numpy as np
 import panel as pn
 import xarray as xr
+from jaxtyping import PyTree
 
 import popsim.config as pconfig
 import popsim.xarray_utils as pxr
@@ -11,7 +14,7 @@ import popsim.xarray_utils as pxr
 
 def visualize_time_series(
     dataset: xr.Dataset, hlines: Optional[dict[str, float]] = None, max_cols: int = 3, fontsize: int = 10
-) -> hv.Layout:
+) -> pn.panel:
     """Visualize the time series of the variables in the dataset.
 
     Args:
@@ -54,16 +57,16 @@ def visualize_time_series(
     return pn.panel(layout, sizing_mode="stretch_width")
 
 
-def visualize_config(config, time_base, interp_type: str = "linear"):
-    """Visualize the configuration of the simulation.
+def visualize_config(config: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: str = "linear") -> pn.panel:
+    """Visualize the configuration of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 
     Args:
-        config (dict): Configuration dictionary.
+        config (typing.Union[PyTree, typing.Sequence[PyTree]]): Configuration tree.
         time_base (np.ndarray): Time base for the simulation.
         interp_type (str): Interpolation type.
 
     Returns:
-        pn.pane.Markdown: Markdown pane with the configuration information.
+        pn.panel: panel showing the configuration as a time trace.
     """
     config_vec, multi_sim = pconfig.build_vectorized_configs(config, time_base, interp_type)
     dataset = pxr.time_and_pytree_to_xarray(time_base, config_vec, multi_simulation=multi_sim)
