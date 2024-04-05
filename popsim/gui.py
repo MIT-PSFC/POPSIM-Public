@@ -19,6 +19,7 @@ class PopsimGUI(param.Parameterized):
         rho_dim: typing.Optional[str] = None,
         simulation_dim: typing.Optional[str] = None,
         max_sims_for_legend: int = 5,
+        search_option_limit: int = 10,
         **params,
     ):
         super().__init__(**params)
@@ -30,6 +31,7 @@ class PopsimGUI(param.Parameterized):
         self.variable_selectors = pn.Column()
         self.plots = pn.GridBox(ncols=2)
         self.max_sims_for_legend = max_sims_for_legend
+        self.search_option_limit = search_option_limit
 
         if self.simulation_dim:
             self.simulation_selector = pn.widgets.MultiSelect(
@@ -42,7 +44,9 @@ class PopsimGUI(param.Parameterized):
 
     @param.depends("add_var_selector", watch=True)
     def add_var_selector_callback(self):
-        var_selector = pn.widgets.MultiChoice(name="Choose Variables", options=list(self.ds.data_vars))
+        var_selector = pn.widgets.MultiChoice(
+            name="Choose Variables", options=list(self.ds.data_vars), search_option_limit=self.search_option_limit
+        )
         remove_button = pn.widgets.Button(name="Remove", button_type="danger")
         remove_button.on_click(lambda event, widget=var_selector: self.remove_widget_callback(event, id(widget)))
 
