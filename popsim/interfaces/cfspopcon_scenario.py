@@ -1,6 +1,7 @@
 import os
 
 import cfspopcon
+import xarray as xr
 from cfspopcon.unit_handling import Quantity
 
 from popsim import SUBMODULES_DIR
@@ -15,6 +16,10 @@ def load_cfsopcon_scenario(case_name: str = "SPARC_PRD"):
     for k, v in input_parameters.items():
         if isinstance(v, Quantity):
             input_parameters[k] = v.magnitude
+        elif isinstance(v, xr.DataArray):
+            # Strip away pint units as they are currently not working with Jax.
+            # https://github.com/cfs-energy-internal/POPSIM/issues/3
+            input_parameters[k] = v.pint.dequantify()
 
     algorithm.validate_inputs(input_parameters)
 
