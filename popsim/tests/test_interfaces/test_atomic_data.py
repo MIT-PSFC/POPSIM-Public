@@ -5,7 +5,7 @@ import xarray as xr
 from cfspopcon.formulas import impurity_effects
 
 from popsim.interfaces import atomic_data
-from popsim.scenarios.sparc_prd.generic import load_cfspopcon_prd
+from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_prd
 
 
 def test_interpolator_modes():

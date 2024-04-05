@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 
 from popsim.physics.profiles import ProfileCalculator
-from popsim.scenarios.sparc_prd.generic import Sparc2020TestData, load_cfspopcon_prd
+from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData, load_cfspopcon_prd
 
 
 def test_prf_profiles():

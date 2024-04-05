@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 
 import popsim.enums as penums
-import popsim.scenarios.sparc_prd.comet_mirror as sparc_prd_cm
-from popsim.scenarios.sparc_prd.generic import Sparc2020TestData
+import popsim.simulators.comet_mirror.scenarios.sparc_prd as sparc_prd_cm
+from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData
 from popsim.simulators.comet_mirror.simulate import simulate
 
 

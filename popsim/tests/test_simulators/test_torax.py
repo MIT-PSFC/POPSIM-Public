@@ -15,7 +15,7 @@ def is_module_installed(module_name):
 @pytest.mark.skipif(not is_module_installed("torax"), reason="Torax is currently only available to certain users.")
 def test_sparc_prd():
     # Put imports in here to avoid importing torax if the test is skipped.
-    from popsim.scenarios.sparc_prd.torax import get_sim
+    from popsim.simulators.torax.scenarios.sparc_prd import get_sim
     from torax import simulation_app
 
     # Hard-coded setting of environment variables.

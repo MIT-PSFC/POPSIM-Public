@@ -5,8 +5,7 @@ import popsim.physics.hmode_dynamics as hmode
 import popsim.simulators.comet_mirror as cm
 from popsim.enums import FuelSpecies
 from popsim.physics.geometry import GeometryCFSPopcon
-
-from .generic import load_cfsopcon_scenario
+from popsim.simulators.scenario_data.sparc_prd import load_cfsopcon_scenario
 
 
 def build_comet_mirror_config():
