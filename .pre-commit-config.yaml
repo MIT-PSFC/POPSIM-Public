@@ -8,7 +8,6 @@ repos:
         stages: [commit]
         language: system
         entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
-        exclude: "^popsim/demos/"
       - id: ruff_format
         name: ruff_format 
         entry: poetry run ruff format
