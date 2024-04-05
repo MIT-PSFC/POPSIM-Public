@@ -12,7 +12,15 @@ class PopsimGUI(param.Parameterized):
     add_var_selector = param.Action(default=lambda x: x.param.trigger("add_var_selector"), label="Add Plot")
     ALL_SIMS = "all_simulations"
 
-    def __init__(self, ds, time_dim: str, rho_dim: typing.Optional[str] = None, simulation_dim: typing.Optional[str] = None, **params):
+    def __init__(
+        self,
+        ds,
+        time_dim: str,
+        rho_dim: typing.Optional[str] = None,
+        simulation_dim: typing.Optional[str] = None,
+        max_sims_for_legend: int = 5,
+        **params,
+    ):
         super().__init__(**params)
         self.ds = ds
         self.time_dim = time_dim
@@ -21,6 +29,7 @@ class PopsimGUI(param.Parameterized):
         self.time = pn.widgets.DiscreteSlider(name="Time (s)", options=list(self.ds.time.values))
         self.variable_selectors = pn.Column()
         self.plots = pn.GridBox(ncols=2)
+        self.max_sims_for_legend = max_sims_for_legend
 
         if self.simulation_dim:
             self.simulation_selector = pn.widgets.MultiSelect(
@@ -54,13 +63,14 @@ class PopsimGUI(param.Parameterized):
 
             def plot_variable(var):
                 data_to_plot = data[var]
+                show_legend = len(selected_simulations) <= self.max_sims_for_legend
                 if self.rho_dim in data_to_plot.dims:  # Check if 'rho' is a dimension for the variable
                     # Select the slice for the specified time_value and plot with 'rho' on the x-axis
                     slice_data = data_to_plot.sel({self.time_dim: time_value})
-                    plot = slice_data.hvplot.line(x=self.rho_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=False)
+                    plot = slice_data.hvplot.line(x=self.rho_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=show_legend)
                 else:
                     # Plot with time on the x-axis for variables without 'rho' dimension
-                    plot = data_to_plot.hvplot.line(x=self.time_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=False)
+                    plot = data_to_plot.hvplot.line(x=self.time_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=show_legend)
                 return plot
 
             any_profiles = False
@@ -70,7 +80,7 @@ class PopsimGUI(param.Parameterized):
                 if self.rho_dim in data[var].dims:
                     any_profiles = True
 
-            overlay = hv.Overlay(plots).opts(title=",".join(variables_list), xlabel="Variable", ylabel="Value", legend_position="right")
+            overlay = hv.Overlay(plots)
 
             if not any_profiles:
                 # Add a vertical line at the time corresponding to the time_slider value
