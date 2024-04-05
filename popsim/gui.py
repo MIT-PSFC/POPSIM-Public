@@ -50,38 +50,32 @@ class PopsimGUI(param.Parameterized):
             # Select the data for the selected variables
             data = data[variables_list]
 
-            # Define a list of colors, one for each variable
-            colors = ["blue", "green", "red", "purple", "orange", "brown", "pink", "gray", "olive", "cyan"]
-            color_map = dict(zip(variables_list, colors[: len(variables_list)]))  # Map each variable to a color
-
             plots = []
 
-            def plot_variable(var, sim):
-                if sim:
-                    data_plot = data[var].sel({self.simulation_dim: sim})
-                else:
-                    data_plot = data[var]
-                if self.rho_dim in data_plot.dims:  # Check if 'rho' is a dimension for the variable
+            def plot_variable(var):
+                data_to_plot = data[var]
+                if self.rho_dim in data_to_plot.dims:  # Check if 'rho' is a dimension for the variable
                     # Select the slice for the specified time_value and plot with 'rho' on the x-axis
-                    slice_data = data_plot.sel({self.time_dim: time_value})
-                    plot = slice_data.hvplot.line(x=self.rho_dim, label=var, color=color_map[var])
+                    slice_data = data_to_plot.sel({self.time_dim: time_value})
+                    plot = slice_data.hvplot.line(x=self.rho_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=False)
                 else:
                     # Plot with time on the x-axis for variables without 'rho' dimension
-                    plot = data_plot.hvplot.line(x=self.time_dim, label=var, color=color_map[var])
+                    plot = data_to_plot.hvplot.line(x=self.time_dim, label=var, cmap="viridis", by=self.simulation_dim, legend=False)
                 return plot
 
+            any_profiles = False
             for var in variables_list:
-                if self.simulation_dim:
-                    sim_plots_for_var = [plot_variable(var, sim) for sim in data[self.simulation_dim].values]
-                else:
-                    sim_plots_for_var = [plot_variable(var, None)]
+                sim_plots_for_var = plot_variable(var)
                 plots.extend(sim_plots_for_var)
+                if self.rho_dim in data[var].dims:
+                    any_profiles = True
 
             overlay = hv.Overlay(plots).opts(title=",".join(variables_list), xlabel="Variable", ylabel="Value", legend_position="right")
 
-            # Add a vertical line at the time corresponding to the time_slider value
-            vline = hv.VLine(time_value).opts(color="red", line_width=1.5)
-            overlay = overlay * vline
+            if not any_profiles:
+                # Add a vertical line at the time corresponding to the time_slider value
+                vline = hv.VLine(time_value).opts(color="red", line_width=1.5)
+                overlay = overlay * vline
 
             return overlay
 
