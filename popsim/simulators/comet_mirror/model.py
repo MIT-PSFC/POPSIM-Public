@@ -24,6 +24,10 @@ from popsim.physics.profiles import ProfileCalculator
 
 @chex.dataclass
 class State:
+    """
+    State variables for the CometMirror model.
+    """
+
     stored_energy: float  # [MJ]
     density_state: density_model.State
     hmode_state: hmode.State
@@ -31,6 +35,10 @@ class State:
 
 @chex.dataclass
 class Params:
+    """
+    Dynamic parameters for the CometMirror model.
+    """
+
     magnetic_field_on_axis: float  # [T]
     plasma_current: float  # [A]
     fraction_of_external_power_coupled: float  # [-]
@@ -50,6 +58,10 @@ class Params:
 
 @chex.dataclass
 class Config:
+    """
+    Static compile-time configuration for the CometMirror model.
+    """
+
     species: SpeciesContainer
     profile_form: ProfileForm
     rho: Array
