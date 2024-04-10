@@ -7,7 +7,7 @@ from jaxtyping import ArrayLike
 
 import popsim.enums as penums
 import popsim.interp as pinterp
-from popsim.config import (
+from popsim.param_utils import (
     CombinatorialCases,
     MultiCases,
     build_config_paths,

@@ -8,8 +8,8 @@ import panel as pn
 import xarray as xr
 from jaxtyping import PyTree
 
-import popsim.config as pconfig
 import popsim.xarray_utils as pxr
+from popsim import param_utils
 
 
 def visualize_time_series(
@@ -68,6 +68,6 @@ def visualize_config(config: typing.Union[PyTree, typing.Sequence[PyTree]], time
     Returns:
         pn.panel: panel showing the configuration as a time trace.
     """
-    config_vec, multi_sim = pconfig.build_vectorized_configs(config, time_base, interp_type)
+    config_vec, multi_sim = param_utils.build_vectorized_configs(config, time_base, interp_type)
     dataset = pxr.time_and_pytree_to_xarray(time_base, config_vec, multi_simulation=multi_sim)
     return visualize_time_series(dataset)
