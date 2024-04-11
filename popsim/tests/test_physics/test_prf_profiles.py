@@ -3,18 +3,15 @@ import jax.numpy as jnp
 
 from popsim.physics.profiles import ProfileCalculator
 from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData, load_cfspopcon_prd
+from popsim.interfaces.sparc_public import load_prd_transp_profiles
 
 
 def test_prf_profiles():
     input_parameters, *_= load_cfspopcon_prd()
-
-    """
-    Some numbers approximately correct for the SPARC PRD.
-    """
-
+    transp_profiles = load_prd_transp_profiles()
 
     # calculate profiles
-    pcalc = ProfileCalculator(profile_form=input_parameters["profile_form"], rho=jnp.linspace(0, 1, 100))
+    pcalc = ProfileCalculator(profile_form=input_parameters["profile_form"], rho=transp_profiles.rho.values)
 
     """
     Prepare profile inputs
@@ -44,8 +41,28 @@ def test_prf_profiles():
         normalized_inverse_temp_scale_length=normalized_inverse_temp_scale_length,
     )
 
-    # Simple checks on the outputs #TODO: make these more official
-    assert profout["electron_density_profile"][0] > 40 and profout["electron_density_profile"][0] < 50
-    assert profout["ion_density_profile"][0] > 30 and profout["ion_density_profile"][0] < 40
-    assert profout["electron_temp_profile"][0] > 15 and profout["electron_temp_profile"][0] < 20
-    assert profout["ion_temp_profile"][0] > 15 and profout["ion_temp_profile"][0] < 20
+    ne20 = 0.1 * profout["electron_density_profile"]
+    te_keV = profout["electron_temp_profile"]
+    ti_keV = profout["ion_temp_profile"]
+    ne20_transp = transp_profiles.ne20.values
+    te_keV_transp = transp_profiles.Te_keV.values
+    ti_keV_transp = transp_profiles.Ti_keV.values
+
+    def calc_percent_error(a, b):
+        return jnp.abs(a - b) / a * 100
+
+    # Check at the axis.
+    PERCENT_ERROR = 25.0
+    assert calc_percent_error(ne20[0], ne20_transp[0]) < PERCENT_ERROR
+    assert calc_percent_error(te_keV[0], te_keV_transp[0]) < PERCENT_ERROR
+    assert calc_percent_error(ti_keV[0], ti_keV_transp[0]) < PERCENT_ERROR
+
+    # Check at rho=0.5.
+    assert calc_percent_error(ne20[50], ne20_transp[50]) < PERCENT_ERROR
+    assert calc_percent_error(te_keV[50], te_keV_transp[50]) < PERCENT_ERROR
+    assert calc_percent_error(ti_keV[50], ti_keV_transp[50]) < PERCENT_ERROR
+
+    # Check at rho=0.8.
+    assert calc_percent_error(ne20[80], ne20_transp[80]) < PERCENT_ERROR
+    assert calc_percent_error(te_keV[80], te_keV_transp[80]) < PERCENT_ERROR
+    assert calc_percent_error(ti_keV[80], ti_keV_transp[80]) < PERCENT_ERROR
