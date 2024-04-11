@@ -21,7 +21,4 @@ Is POPSIM a machine learning (ML) model or a physics-based simulator? It's both!
 POPSIM is designed to be a collection of Jax-based simulators that can interop (at least somewhat) with each other. As of March 27th 2024, there are two "simulators":
 
 1) CometMirror (in `popsim/simulators/comet_mirror`)
-2) Torax (POPSIM code that is using torax is in `popsim/simulators/torax`, but `torax` source code is in `submodules/torax`)
-
-## Scenarios
-The design of scenario configuration is a major open problem. The current solution is to put 
+2) Torax (POPSIM code that is using torax is in `popsim/simulators/torax`)
