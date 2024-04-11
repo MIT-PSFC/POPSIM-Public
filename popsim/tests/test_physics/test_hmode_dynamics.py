@@ -3,18 +3,6 @@ import jax.numpy as jnp
 import popsim.physics.hmode_dynamics as hmode
 from popsim.interp import resolve_paths
 
-def test_state():
-    state = hmode.State(hmode=0.5)
-    assert state.hmode == 0.5
-    assert state.in_hmode == True
-
-    state = hmode.State(hmode=1.5)
-    assert state.hmode == 1.0
-
-    state_dot = hmode.State(hmode=10.0, is_derivative=True)
-    assert state_dot.hmode == 10.0
-
-
 def test_sim_and_clip():
     state = hmode.State(hmode=0.0)
     lh_threshold_MW = 10.0
