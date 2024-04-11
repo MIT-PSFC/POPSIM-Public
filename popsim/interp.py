@@ -11,7 +11,7 @@ from popsim.tree_util import tree_transpose
 def interp(
     times: Array, tree: PyTree[Array], interp_type: str = "linear"
 ) -> typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]:
-    """Thing wrapper around diffrax.LinearInterpolation and diffrax.CubicInterpolation.
+    """Thin wrapper around diffrax.LinearInterpolation and diffrax.CubicInterpolation.
 
     Args:
         times (Array): times of the data.
