@@ -2,8 +2,9 @@
 import typing
 from enum import IntEnum
 
-import cfspopcon.named_options as cfsno
 import chex
+
+import cfspopcon.named_options as cfsno
 
 
 def enum_to_intenum(enum_class):

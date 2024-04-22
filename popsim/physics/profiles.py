@@ -3,12 +3,12 @@ from typing import Optional
 import chex
 import interpax
 import jax.numpy as jnp
-from cfspopcon.jax_compatible import density_peaking, plasma_profiles
-from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
 from jaxtyping import Array
 from numpy import float64
 from numpy.typing import NDArray
 
+from cfspopcon.jax_compatible import density_peaking, plasma_profiles
+from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
 from popsim.enums import ProfileForm
 from popsim.interfaces import get_prf_profiles
 

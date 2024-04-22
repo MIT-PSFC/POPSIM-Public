@@ -1,17 +1,17 @@
 import typing
 
 import jax.numpy as jnp
-from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from jaxtyping import Array
 
-import popsim.physics.density as density_model
+import popsim.modules.density as density_model
+from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
 from popsim.interfaces.atomic_data import RadasCurves, RadasCurvesForSpecies
 from popsim.tree_util import leaves_as_array
 
 
 def calc_impurity_state(
-    density_state: density_model.State, average_pressure_kev_1e19: float, radas_curves: RadasCurves
+    density_state: density_model.Density.State, average_pressure_kev_1e19: float, radas_curves: RadasCurves
 ) -> dict[str, float]:
     """Calculate the effective charge, dilution, and volume-averaged electron density given particle densities and the average electron pressure.
 

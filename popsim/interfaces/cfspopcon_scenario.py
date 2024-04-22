@@ -1,9 +1,9 @@
 import os
 
-import cfspopcon
 import xarray as xr
-from cfspopcon.unit_handling import Quantity
 
+import cfspopcon
+from cfspopcon.unit_handling import Quantity
 from popsim import SUBMODULES_DIR
 from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 

@@ -5,16 +5,16 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxtyping import Array
+
+import popsim.modules.density as density_model
+import popsim.modules.hmode_dynamics as hmode
 from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.jax_compatible.fusion_rates import ReactionType
 from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from cfspopcon.named_options import ConfinementScaling
-from jaxtyping import Array
-
-import popsim.physics.density as density_model
-import popsim.physics.hmode_dynamics as hmode
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 from popsim.physics.geometry import GeometryCFSPopcon
@@ -29,8 +29,8 @@ class State:
     """
 
     stored_energy: float  # [MJ]
-    density_state: density_model.State
-    hmode_state: hmode.State
+    density_state: density_model.Density.State
+    hmode_state: hmode.HmodeDynamics.State
 
 
 @chex.dataclass
@@ -287,7 +287,7 @@ class CometMirror:
         sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
         sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
 
-        density_params = density_model.Params(
+        density_params = density_model.Density.Params(
             sources_and_sinks=sources_and_sinks,
             species_confinement_time=jax.tree_map(lambda k: k * tau_E, params.particle_confinement_scalar),
             volume_dot=0.0,  # TODO(allenw): add with time-varying geometry.
@@ -306,7 +306,7 @@ class CometMirror:
             fuel_average_mass_number=fuel_average_mass_number,
             average_electron_density=average_electron_density_19,
         )
-        hmode_params = hmode.Params(
+        hmode_params = hmode.HmodeDynamics.Params(
             transition_characteristic_time=params.hmode_transition_characteristic_time,
             P_tau_MW=jnp.abs(P_tau_MW),
             P_input_MW=jnp.abs(Paux_MW + P_ohmic_MW + P_alpha_MW),
