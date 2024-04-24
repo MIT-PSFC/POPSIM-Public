@@ -57,17 +57,17 @@ def visualize_time_series(
     return pn.panel(layout, sizing_mode="stretch_width")
 
 
-def visualize_config(config: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: str = "linear") -> pn.panel:
-    """Visualize the configuration of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
+def visualize_params(params: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: str = "linear") -> pn.panel:
+    """Visualize the params of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 
     Args:
-        config (typing.Union[PyTree, typing.Sequence[PyTree]]): Configuration tree.
+        params (typing.Union[PyTree, typing.Sequence[PyTree]]): params tree.
         time_base (np.ndarray): Time base for the simulation.
         interp_type (str): Interpolation type.
 
     Returns:
-        pn.panel: panel showing the configuration as a time trace.
+        pn.panel: panel showing the params as a time trace.
     """
-    config_vec, multi_sim = param_utils.build_vectorized_configs(config, time_base, interp_type)
-    dataset = pxr.time_and_pytree_to_xarray(time_base, config_vec, multi_simulation=multi_sim)
+    params_vec, multi_sim = param_utils.build_vectorized_params(params, time_base, interp_type)
+    dataset = pxr.time_and_pytree_to_xarray(time_base, params_vec, multi_simulation=multi_sim)
     return visualize_time_series(dataset)

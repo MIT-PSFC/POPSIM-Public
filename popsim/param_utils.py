@@ -47,12 +47,12 @@ def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
     return np.arange(t0, t1 + dt, dt)
 
 
-def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
+def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of MultiCases, generate all possible cases.
     Note that all instances of MultiCases must have the same length.
 
     Args:
-        config (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
+        params (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
 
     Raises:
         ValueError: error if all instances of MultiCases do not have the same length.
@@ -60,10 +60,10 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
     Returns:
         list[PyTree[typing.Any]]: A list of PyTrees where all instances of MultiCases have been replaced with their respective values.
     """
-    multi_cases = get_cases(config, MultiCases)
+    multi_cases = get_cases(params, MultiCases)
 
     if not multi_cases:
-        return config
+        return params
 
     def is_multi_case(x):
         return isinstance(x, MultiCases)
@@ -75,7 +75,7 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
         raise ValueError("All instances of MultiCases must have the same length.")
 
     # Partition the tree into MultiCases and non-MultiCases
-    multi_cases_tree, non_multi_cases_tree = eqx.partition(config, is_multi_case, is_leaf=is_multi_case)
+    multi_cases_tree, non_multi_cases_tree = eqx.partition(params, is_multi_case, is_leaf=is_multi_case)
 
     list_of_multi_cases, treedef = jax.tree.flatten(multi_cases_tree, is_leaf=is_multi_case)
 
@@ -91,24 +91,24 @@ def generate_multi_cases(config: PyTree[typing.Union[typing.Any, MultiCases]]) -
     return reconstructed_trees
 
 
-def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
+def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of CombinatorialCases, generate all combinations of the fields of the CombinatorialCases.
 
     Args:
-        config (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
+        params (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
 
     Returns:
         list[PyTree[typing.Any]]: A list of PyTrees where all instances of CombinatorialCases have been replaced with various combinations of their fields.
     """
-    comb_cases = get_cases(config, CombinatorialCases)
+    comb_cases = get_cases(params, CombinatorialCases)
     if not comb_cases:
-        return config
+        return params
 
     def is_comb_case(x):
         return isinstance(x, CombinatorialCases)
 
     # Partition the tree into CombinatorialCases and non-CombinatorialCases
-    comb_cases_tree, non_comb_cases_tree = eqx.partition(config, is_comb_case, is_leaf=is_comb_case)
+    comb_cases_tree, non_comb_cases_tree = eqx.partition(params, is_comb_case, is_leaf=is_comb_case)
 
     list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
 
@@ -124,8 +124,8 @@ def generate_combinatorial_cases(config: PyTree[typing.Union[typing.Any, Combina
     return reconstructed_trees
 
 
-def build_config_paths(config: ptypes.ConfigSpec, time_base: Array, interp_type: str = "linear") -> PyTree[diffrax.AbstractPath]:
-    """Given a user-specified configuration that is a PyTree of "ConstantOrPathSpec", generate
+def build_param_paths(params: ptypes.ParamSpec, time_base: Array, interp_type: str = "linear") -> PyTree[diffrax.AbstractPath]:
+    """Given a user-specified params specification that is a PyTree of "ConstantOrPathSpec", generate
     a new PyTree of "AbstractPath" on the given time_base. Leaves are handeled as follows:
         1) If the leaf is a dictionary with float keys, it is assumed to be a PathSpec and is interpolated onto "time_base".
         2) If the leaf is an instance of AbstractPath, we re-map to "time_base" and interpolate again.
@@ -135,12 +135,12 @@ def build_config_paths(config: ptypes.ConfigSpec, time_base: Array, interp_type:
     specifying a params as a constant to trajectory, the function will not need to be re-compiled.
 
     Args:
-        config (ptypes.ConfigSpec): A user-specified configuration.
+        params (ptypes.ParamSpec): A user-specified param specification.
         interp_type (str): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
         time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
     Returns:
-        PyTree[diffrax.AbstractPath]: A configuration where all instances of "PathSpec" have been interpolated.
+        PyTree[diffrax.AbstractPath]: A tree where all instances of "PathSpec" have been interpolated.
     """
 
     def is_path_spec(x):
@@ -192,23 +192,23 @@ def build_config_paths(config: ptypes.ConfigSpec, time_base: Array, interp_type:
             vals = jnp.array([x for _ in time_base])
             return pinterp.interp(time_base, vals, interp_type=interp_type)
 
-    return jax.tree_map(interp_onto_timebase, config, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
+    return jax.tree_map(interp_onto_timebase, params, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
-def check_config(config: ptypes.ConfigSpec) -> None:
-    """Check the config for validity.
+def check_params(params: ptypes.ParamSpec) -> None:
+    """Check the params for validity.
     The rules are:
-        1) config can only contain instances of CombinatorialCases or MultiCases and not both.
+        1) params can only contain instances of CombinatorialCases or MultiCases and not both.
 
     Args:
-        config (ptypes.ConfigSpec): The configuration to check.
+        params (ptypes.ParamSpec): The params spec to check.
     """
 
-    combinatorial_cases = get_cases(config, CombinatorialCases)
-    multi_cases = get_cases(config, MultiCases)
+    combinatorial_cases = get_cases(params, CombinatorialCases)
+    multi_cases = get_cases(params, MultiCases)
 
     if combinatorial_cases and multi_cases:
-        raise ValueError("config can only contain instances of CombinatorialCases or MultiCases and not both.")
+        raise ValueError("params can only contain instances of CombinatorialCases or MultiCases and not both.")
     if multi_cases:
         # All cases must have the same length
         lengths = [len(x.cases) for x in multi_cases]
@@ -222,15 +222,15 @@ def check_config(config: ptypes.ConfigSpec) -> None:
     return out
 
 
-def build_configs(
-    config: ptypes.ConfigSpec, time_base: Array, interp_type: str = "linear"
+def build_params(
+    params: ptypes.ParamSpec, time_base: Array, interp_type: str = "linear"
 ) -> typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]:
-    """Given a config PyTree, generate simulation-ready configurations. This involves two steps:
+    """Given a params specification, generate simulation-ready params trees. This involves two steps:
         1) Interpolating all instances of PathSpec for all CombinatorialCases and MultiCases.
         2) Resolving all instances of CombinatorialCases and MultiCases.
 
     Args:
-        config (ptypes.ConfigSpec): configuration tree.
+        params (ptypes.ParamSpec): param specification.
         time_base (Array): time base to interpolate everything to.
 
     Returns:
@@ -238,8 +238,8 @@ def build_configs(
             a list of PyTrees where all instances of CombinatorialCases and MultiCases have been resolved, or
             a single PyTree where paths have been interpolated.
     """
-    out = check_config(config)
-    interped = build_config_paths(config, time_base, interp_type)
+    out = check_params(params)
+    interped = build_param_paths(params, time_base, interp_type)
 
     if out["combinatorial_cases"]:
         # Generate all combinations of CombinatorialCases
@@ -253,21 +253,20 @@ def build_configs(
         return interped
 
 
-def build_vectorized_configs(
-    configs: typing.Union[ptypes.ConfigSpec, typing.Sequence[ptypes.ConfigSpec]],
+def build_vectorized_params(
+    params: typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]],
     time_base: Array,
     interp_type: str = "linear",
 ) -> tuple[PyTree[diffrax.AbstractPath], bool]:
-    """Given a configuration (or a list of configurations), build the vectorized configurations
-    s.t. jax.vmap can be performed on the configurations.
+    """Given a param specification (or a list of them), build the vectorized params PyTree. s.t. jax.vmap can be used.
 
     Args:
-        configs (typing.Union[ptypes.ConfigSpec, typing.Sequence[ptypes.ConfigSpec]]): configuration tree or list of configuration trees.
+        params (typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]]): param specification or list of param specifications.
         time_base (Array): time base to interpolate everything to.
         interp_type (str, optional): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
 
     Returns:
-        tuple[PyTree[diffrax.AbstractPath], bool]: A vectorized configuration and a bool indicating if the configuration is multi-simulation.
+        tuple[PyTree[diffrax.AbstractPath], bool]: A vectorized params tree and a bool indicating if the tree is multi-simulation.
     """
 
     def unpack_lists(inp):
@@ -279,8 +278,8 @@ def build_vectorized_configs(
                 unpacked_list.append(item)
         return unpacked_list
 
-    # First build the parameter configurations.
-    params = [build_configs(p, time_base, interp_type) for p in configs]
+    # First build the parameters.
+    params = [build_params(p, time_base, interp_type) for p in params]
     params = unpack_lists(params)
 
     # We need to perform a tree-transpose to vectorize the parameters.

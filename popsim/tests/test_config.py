@@ -10,11 +10,11 @@ import popsim.interp as pinterp
 from popsim.param_utils import (
     CombinatorialCases,
     MultiCases,
-    build_config_paths,
-    check_config,
+    build_param_paths,
+    check_params,
     generate_combinatorial_cases,
     generate_multi_cases,
-    build_configs,
+    build_params,
     make_time_base
 )
 
@@ -72,14 +72,14 @@ def test_generate_multi_cases():
 
 # Note: cubic case currently breaks as extrapolation of the time dictionary is not handeled as expected.
 @pytest.mark.parametrize("interp_type", ["linear"])
-def test_build_config_paths(interp_type):
+def test_build_param_paths(interp_type):
     @chex.dataclass
     class Params:
         a: float
         nested_b: dict[str, ArrayLike]
         imps: dict[penums.Impurity, float]
 
-    config = Params(
+    params = Params(
         a=1.0,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={
@@ -92,9 +92,9 @@ def test_build_config_paths(interp_type):
     #
     # Should return interps that are constant. Spot check at start and end.
     #
-    new_config = build_config_paths(config, time_base, interp_type)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config, time_base[0]), config)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config, time_base[-1]), config)
+    new_params = build_param_paths(params, time_base, interp_type)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params, time_base[0]), params)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params, time_base[-1]), params)
 
     #
     # Now have the user specify a time-dependent impurity sequence.
@@ -113,72 +113,72 @@ def test_build_config_paths(interp_type):
             penums.Impurity.Neon: 7.0,
         },
     }
-    config.imps = time_dep_imps
-    new_config2 = build_config_paths(config, time_base, interp_type)
+    params.imps = time_dep_imps
+    new_params2 = build_param_paths(params, time_base, interp_type)
     interped_imps = pinterp.interp_time_dic(time_dep_imps, interp_type)
-    expected_config_begin = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[0.0])
-    expected_config_t25 = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[2.5])
+    expected_params_begin = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[0.0])
+    expected_params_t25 = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[2.5])
 
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config2, 0.0), expected_config_begin)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config2, 2.5), expected_config_t25)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params2, 0.0), expected_params_begin)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params2, 2.5), expected_params_t25)
 
 
     #
     # Now have the user specify a time-dependent impurity sequence but only for Tungsten.
     #
-    config.imps = {
+    params.imps = {
         penums.Impurity.Tungsten: {0.0: 4.0, 1.0: 5.0, 2.5: 6.0},
         penums.Impurity.Neon: 5.0,
     }
-    new_config3 = build_config_paths(config, time_base, interp_type)
-    expected_config3_begin = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0})
-    expected_config_3_t25 = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 6.0, penums.Impurity.Neon: 5.0})
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config3, 0.0), expected_config3_begin)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config3, 2.5), expected_config_3_t25)
+    new_params3 = build_param_paths(params, time_base, interp_type)
+    expected_params3_begin = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0})
+    expected_params_3_t25 = Params(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 6.0, penums.Impurity.Neon: 5.0})
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params3, 0.0), expected_params3_begin)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params3, 2.5), expected_params_3_t25)
 
     #
     # Test that this works with MultiCases.
     #
     time_dep_tungsten0, time_dep_tungsten1 = {0.0: 4.0, 1.0: 5.0}, {0.0: 4.0, 1.0: 6.0, 2.5: 7.0}
     interp_tungsten0, interp_tungsten1 = pinterp.interp_time_dic(time_dep_tungsten0, interp_type), pinterp.interp_time_dic(time_dep_tungsten1, interp_type)
-    config.imps = {
+    params.imps = {
         penums.Impurity.Tungsten: MultiCases(cases=[time_dep_tungsten0, time_dep_tungsten1]),
         penums.Impurity.Neon: MultiCases(cases=[5.0, 6.0]),
     }
-    new_config4 = build_config_paths(config, time_base, interp_type)
-    expected_config_4_t1 = Params(
+    new_params4 = build_param_paths(params, time_base, interp_type)
+    expected_params_4_t1 = Params(
         a=1.0,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={penums.Impurity.Tungsten: MultiCases(cases=[5.0, 6.0]), penums.Impurity.Neon: MultiCases(cases=[5.0, 6.0])}
     )
-    expected_config4_t25 = Params(
+    expected_params4_t25 = Params(
         a=1.0,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={penums.Impurity.Tungsten: MultiCases(cases=[5.0, 7.0]), penums.Impurity.Neon: MultiCases(cases=[5.0, 6.0])}
     )
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config4, 1.0), expected_config_4_t1)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config4, 2.5), expected_config4_t25)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params4, 1.0), expected_params_4_t1)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params4, 2.5), expected_params4_t25)
 
     #
     # Test that this works with CombinatorialCases.
     #
-    config.imps = {
+    params.imps = {
         penums.Impurity.Tungsten: CombinatorialCases(cases=[time_dep_tungsten0, time_dep_tungsten1]),
         penums.Impurity.Neon: CombinatorialCases(cases=[5.0, 6.0]),
     }
-    new_config5 = build_config_paths(config, time_base, interp_type)
+    new_params5 = build_param_paths(params, time_base, interp_type)
 
-    assert len(new_config5.imps[penums.Impurity.Tungsten].cases) == 2
-    assert len(new_config5.imps[penums.Impurity.Neon].cases) == 2
+    assert len(new_params5.imps[penums.Impurity.Tungsten].cases) == 2
+    assert len(new_params5.imps[penums.Impurity.Neon].cases) == 2
 
-    expected_config5_t25 = Params(
+    expected_params5_t25 = Params(
         a=1.0,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={penums.Impurity.Tungsten: CombinatorialCases(cases=[5.0, 7.0]), penums.Impurity.Neon: CombinatorialCases(cases=[5.0, 6.0])}
     )
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_config5, 2.5), expected_config5_t25)
+    chex.assert_trees_all_equal(pinterp.resolve_paths(new_params5, 2.5), expected_params5_t25)
 
-@pytest.mark.parametrize("config, should_raise", [
+@pytest.mark.parametrize("params, should_raise", [
     # Neither CombinatorialCases nor MultiCases, should not raise an exception
     ({"example": SimpleParams(a=1.0, b=2.0, c=3.0)}, False),
 
@@ -194,20 +194,20 @@ def test_build_config_paths(interp_type):
     # Only MultiCases, but lengths are not the same, should raise an exception.
     ({"example": SimpleParams(a=MultiCases(cases=[1.0, 2.0]), b=2.0, c=MultiCases(cases=[3.0, 4.0, 5.0]))}, True),
 ])
-def test_check_config(config, should_raise):
+def test_check_params(params, should_raise):
     if should_raise:
         with pytest.raises(ValueError):
-            check_config(config)
+            check_params(params)
     else:
-        # This block attempts to run check_config and will fail the test if an exception is raised
-        check_config(config)
+        # This block attempts to run check_params and will fail the test if an exception is raised
+        check_params(params)
 
 @pytest.mark.parametrize("interp_type", ["linear", "cubic"])
-def test_build_config(interp_type):
+def test_build_params(interp_type):
     """
-    Test the user-facing API for building configurations.
+    Test the user-facing API for building params.
     We want to cover:
-        1) The identity case (output config should be exact same).
+        1) The identity case (output params should be exact same).
         2) Interpolation in the linear and cubic cases and with both MultiCases and CombinatorialCases.
         3) Complex data structures
     """
@@ -221,7 +221,7 @@ def test_build_config(interp_type):
     #
     # Check the identity case.
     #
-    config = Params(
+    params = Params(
         a=1.0,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={
@@ -229,9 +229,9 @@ def test_build_config(interp_type):
             penums.Impurity.Neon: 5.0,
         },
     )
-    new = build_configs(config, time_base, interp_type)
+    new = build_params(params, time_base, interp_type)
     def check_for_time(t):
-        chex.assert_trees_all_equal(pinterp.resolve_paths(new, t), config)
+        chex.assert_trees_all_equal(pinterp.resolve_paths(new, t), params)
     check_for_time(0.0)
     check_for_time(5.0)
     check_for_time(10.0)
@@ -245,16 +245,16 @@ def test_build_config(interp_type):
         2.5: 6.0,
         10.0: 6.0
     }
-    config.imps[penums.Impurity.Tungsten] = time_dep_tungsten
+    params.imps[penums.Impurity.Tungsten] = time_dep_tungsten
     interped_tungsten = pinterp.interp_time_dic(time_dep_tungsten, interp_type)
-    def expected_config_for_time(t):
-        expected_config = dataclasses.replace(config, imps={penums.Impurity.Tungsten: time_dep_tungsten[t], penums.Impurity.Neon: 5.0})
-        return expected_config
-    built_config = build_configs(config, time_base, interp_type)
+    def expected_params_for_time(t):
+        expected_params = dataclasses.replace(params, imps={penums.Impurity.Tungsten: time_dep_tungsten[t], penums.Impurity.Neon: 5.0})
+        return expected_params
+    built_params = build_params(params, time_base, interp_type)
 
-    chex.assert_trees_all_equal(pinterp.resolve_paths(built_config, 0.0), expected_config_for_time(0.0))
-    chex.assert_trees_all_equal(pinterp.resolve_paths(built_config, 1.0), expected_config_for_time(1.0))
-    chex.assert_trees_all_equal(pinterp.resolve_paths(built_config, 2.5), expected_config_for_time(2.5))
+    chex.assert_trees_all_equal(pinterp.resolve_paths(built_params, 0.0), expected_params_for_time(0.0))
+    chex.assert_trees_all_equal(pinterp.resolve_paths(built_params, 1.0), expected_params_for_time(1.0))
+    chex.assert_trees_all_equal(pinterp.resolve_paths(built_params, 2.5), expected_params_for_time(2.5))
 
     #
     # Now use MultiCases to generate the following cases:
@@ -268,11 +268,11 @@ def test_build_config(interp_type):
         2.5: 7.0,
     }
     interped_neon = pinterp.interp_time_dic(time_dep_neon, interp_type)
-    config.imps = {
+    params.imps = {
         penums.Impurity.Tungsten: MultiCases(cases=[time_dep_tungsten, 4.0, time_dep_tungsten]),
         penums.Impurity.Neon: MultiCases(cases=[5.0, time_dep_neon, time_dep_neon]),
     }
-    cases = build_configs(config, time_base, interp_type)
+    cases = build_params(params, time_base, interp_type)
 
     assert len(cases) == 3
 
@@ -291,7 +291,7 @@ def test_build_config(interp_type):
     #
     b0_cases = CombinatorialCases(cases=[1.0, (2.0, 3.0)])
     tungsten_cases = CombinatorialCases(cases=[time_dep_tungsten, 4.0])
-    config = Params(
+    params = Params(
         a=1.0,
         nested_b={"b0": b0_cases, "b1": [3.0, -3.0]},
         imps={
@@ -299,7 +299,7 @@ def test_build_config(interp_type):
             penums.Impurity.Neon: 5.0,
         },
     )
-    cases = build_configs(config, time_base, interp_type)
+    cases = build_params(params, time_base, interp_type)
     assert len(cases) == len(b0_cases.cases) * len(tungsten_cases.cases)
 
     ref_case = cases[0] # All cases should look like case[0] expect where we will replace things.
@@ -330,10 +330,10 @@ def test_build_config(interp_type):
         chex.assert_trees_all_equal(resolved_case, expected_case_resolved)
     
     #
-    # Check the case where a config is an interp.
+    # Check the case where a params is an interp.
     #
     interped_a = pinterp.interp(time_base, time_base, interp_type=interp_type)
-    config = Params(
+    params = Params(
         a=interped_a,
         nested_b={"b0": 2.0, "b1": [3.0, -3.0]},
         imps={
@@ -341,11 +341,11 @@ def test_build_config(interp_type):
             penums.Impurity.Neon: 5.0,
         },
     )
-    new = build_configs(config, time_base, interp_type)
+    new = build_params(params, time_base, interp_type)
 
-    expected_t0 = dataclasses.replace(config, a=0.0)
-    expected_t15 = dataclasses.replace(config, a=1.5)
-    expected_t812 = dataclasses.replace(config, a=8.12)
+    expected_t0 = dataclasses.replace(params, a=0.0)
+    expected_t15 = dataclasses.replace(params, a=1.5)
+    expected_t812 = dataclasses.replace(params, a=8.12)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 0.0), expected_t0)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 1.5), expected_t15)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 8.12), expected_t812)

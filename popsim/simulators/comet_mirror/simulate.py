@@ -8,7 +8,7 @@ from jaxtyping import Array
 
 import popsim.simulators.comet_mirror.model as cm
 from popsim.interp import resolve_paths
-from popsim.param_utils import build_vectorized_configs
+from popsim.param_utils import build_vectorized_params
 from popsim.xarray_utils import solution_to_xarray
 
 
@@ -27,8 +27,8 @@ def simulate(
     else:
         raise ValueError("params must be either a single Params instance or a sequence of Params instances.")
 
-    # Build the configurations.
-    params_vectorized, multi_sim = build_vectorized_configs(params, time_base, interp_type)
+    # Build the params.
+    params_vectorized, multi_sim = build_vectorized_params(params, time_base, interp_type)
 
     # Perform the simulation.
     sol = _vec_simulate(model, time_base, initial_state, params_vectorized)
