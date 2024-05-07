@@ -21,8 +21,11 @@ def keypath_to_string(keypath: tuple[ptypes.PyTreeKey]) -> str:
 
     def string_func(x: ptypes.PyTreeKey) -> str:
         key = ptu.get_key(x)
-        if isinstance(x, (Enum, IntEnum)):
-            return key.name
+        if isinstance(key, (Enum, IntEnum)):
+            # For enums, return the name of the class of the enum and the name of the enum value.
+            # For example, an instance of Impurity.Tungsten would return "Impurity.Tungsten".
+            type_name = key.__class__.__name__
+            return f"{type_name}.{key.name}"
         return str(key)
 
     strings = [string_func(x) for x in keypath]
