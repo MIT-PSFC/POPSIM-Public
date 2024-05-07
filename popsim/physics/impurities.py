@@ -1,10 +1,10 @@
 import typing
 
 import jax.numpy as jnp
+from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from jaxtyping import Array
 
 import popsim.modules.density as density_model
-from cfspopcon.jax_compatible import impurity_effects, radiated_power
 from popsim.enums import AtomicNumberMap, FuelSpecies, Impurity, Species
 from popsim.interfaces.atomic_data import RadasCurves, RadasCurvesForSpecies
 from popsim.tree_util import leaves_as_array

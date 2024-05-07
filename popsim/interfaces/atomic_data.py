@@ -7,8 +7,8 @@ import chex
 import interpax
 import jax.numpy as jnp
 import xarray as xr
-
 from cfspopcon import atomic_data
+
 from popsim.enums import Impurity
 
 
