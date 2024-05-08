@@ -1,6 +1,5 @@
 import chex
 import equinox as eqx
-import jax.numpy as jnp
 
 from popsim import ModuleBase
 
@@ -17,11 +16,13 @@ class IcrhZone(ModuleBase):
 
     @chex.dataclass
     class State:
+        """
         static: float = 1.0  # [-]
 
         @property
         def is_static(self):
             return jnp.bool_(self.static == 1.0)
+        """
 
     @chex.dataclass
     class Output:
@@ -42,7 +43,7 @@ class IcrhZone(ModuleBase):
 
     @eqx.filter_jit
     def __call__(self, state: State, params: Params) -> State | Output:
-        state_dot = IcrhZone.State(static=0.0)  # state_dot = 0.0
+        state_dot = IcrhZone.State()  # IcrhZone.State(static=0.0)  # state_dot = 0.0
         out = IcrhZone.Output(
             transmitted_power=(1.0 - self.config.reflected_power_ratio) * params.power_command,
             reflected_power=self.config.reflected_power_ratio * params.power_command,

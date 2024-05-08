@@ -2,6 +2,7 @@ import diffrax
 import jax.numpy as jnp
 from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.interp import resolve_paths
+from popsim.simulate import simulate
 
 def test_sim_and_clip():
     state = HmodeDynamics.State(hmode=0.0)
@@ -25,24 +26,9 @@ def test_sim_and_clip():
 
     hmode_module = HmodeDynamics(config=HmodeDynamics.Config())
 
-    def fun(t, y, args):
-        params_t = resolve_paths(args, t)
-        state, out = hmode_module(y, params_t)
-        return state
+    sol = simulate(hmode_module, times, state, params, return_xarray=False)
 
-
-    sol = diffrax.diffeqsolve(
-        terms=diffrax.ODETerm(fun),
-        solver=diffrax.Tsit5(),
-        t0=times[0],
-        t1=times[-1],
-        dt0=jnp.min(jnp.diff(times)),
-        y0=state,
-        args=params,
-        saveat=diffrax.SaveAt(ts=times),
-    )
-
-    in_hmodes = sol.ys.in_hmode
+    in_hmodes = sol.ys['state'].in_hmode
     
     assert in_hmodes[0] == False
     assert in_hmodes[1] == True

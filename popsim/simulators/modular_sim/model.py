@@ -4,6 +4,7 @@ import equinox as eqx
 # NOTE: We may need an add_enum command for the generator to know which of these are needed
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike, PyTree
 
 from popsim import ModuleBase
 from popsim.enums import (
@@ -57,8 +58,9 @@ class ModularModel(ModuleBase):
         power_balance: PowerBalance.Config
         density: Density.Config
 
+    @chex.dataclass
     class Output:
-        pass
+        locals: PyTree[ArrayLike]
 
     config: Config
     icrh_zone_module: IcrhZone
@@ -76,7 +78,7 @@ class ModularModel(ModuleBase):
         self.power_balance_module = PowerBalance(config=self.config.power_balance)
         self.density_module = Density(config=self.config.density)
 
-    def __call__(self, state: State, params: Params, return_aux: bool = False) -> State:
+    def __call__(self, state: State, params: Params, return_aux: bool = False) -> tuple[State, Output]:
         icrh_zone_params = IcrhZone.Params(
             frequency_command=120,
             power_command=params.P_aux_MW,
@@ -125,4 +127,5 @@ class ModularModel(ModuleBase):
         aux_data = eqx.filter(locals(), eqx.is_array_like)
         # Promote any scalar-like variables to arrays
         aux_data = jax.tree.map(jnp.asarray, aux_data)
-        return state_dot, aux_data
+        out = ModularModel.Output(locals=aux_data)
+        return state_dot, out
