@@ -3,10 +3,10 @@ from typing import Callable
 import chex
 import jax
 import jax.numpy as jnp
-
 from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.named_options import ConfinementScaling
+
 from popsim.enums import Species
 from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.physics.geometry import GeometryCFSPopcon
