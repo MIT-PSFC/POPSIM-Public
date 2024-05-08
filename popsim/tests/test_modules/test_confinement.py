@@ -1,11 +1,11 @@
 from popsim.modules.confinement import Confinement
 from popsim.physics.geometry import GeometryCFSPopcon
 import jax.numpy as jnp
-import jax
 import diffrax
 from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
 from popsim.interp import resolve_paths
 from popsim.xarray_utils import solution_to_xarray
+from popsim.simulate import simulate
 
 def test_dynamics():
     input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
@@ -72,32 +72,7 @@ def test_dynamics():
 )
 
 
-
-    def fun(t, y, args, return_aux: bool = False):
-        params_t = resolve_paths(args, t)
-        state_dot, out = confinement_module(y, params_t)
-        if return_aux:
-            return out
-        else:
-            return state_dot
-
-    # Function to save auxiliary information.
-    def saveat_fn(t, y, args):
-        out = {"state": y, "aux": fun(t, y, args, return_aux=True)}
-        return out
-
-    sol = diffrax.diffeqsolve(
-        terms=diffrax.ODETerm(fun),
-        solver=diffrax.Tsit5(),
-        t0=times[0],
-        t1=times[-1],
-        dt0=jnp.min(jnp.diff(times)),
-        y0=state,
-        args=params,
-        saveat=diffrax.SaveAt(ts=times, fn=saveat_fn),
-    )
-
-    dataset = solution_to_xarray(sol, multi_simulation=False)
+    dataset = simulate(confinement_module, times, state, params, return_xarray=True)
 
     assert jnp.isclose(float(dataset['aux.tau_E'][0]),0.1834906)
     assert jnp.isclose(float(dataset['aux.tau_E'][1]),0.67667817)
