@@ -1,5 +1,4 @@
 import chex
-import equinox as eqx
 
 from popsim import ModuleBase
 
@@ -37,7 +36,6 @@ class FinjInjector(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    @eqx.filter_jit
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         """Derivatives of the valve and pipe flow rates in response to flow rate commands"""
         valve_flow_rate_dot = (params.flow_rate_command - state.valve_flow_rate) / params.valve_flow_rate_tau

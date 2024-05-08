@@ -59,7 +59,6 @@ class Density:
     def __init__(self, config):
         self.config = config
 
-    @eqx.filter_jit
     def __call__(self, state: State, params: Params) -> State | Output:
         return multi_species_derivs(state, params), Density.Output()
 

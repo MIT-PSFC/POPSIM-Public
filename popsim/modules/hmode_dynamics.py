@@ -1,5 +1,4 @@
 import chex
-import equinox as eqx
 import jax.numpy as jnp
 
 from popsim import ModuleBase
@@ -44,7 +43,6 @@ class HmodeDynamics(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    @eqx.filter_jit
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         """Compute the time derivative of the H-mode state.
 

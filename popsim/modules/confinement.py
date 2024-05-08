@@ -1,13 +1,12 @@
 from typing import Callable
 
 import chex
-import equinox as eqx
 import jax
 import jax.numpy as jnp
+
 from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
 from cfspopcon.named_options import ConfinementScaling
-
 from popsim.enums import Species
 from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.physics.geometry import GeometryCFSPopcon
@@ -65,7 +64,6 @@ class Confinement:
         self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
         self.hmode_dynamics = HmodeDynamics(config=HmodeDynamics.Config())
 
-    @eqx.filter_jit
     def __call__(self, state: State, params: Params) -> State | Output:
         lh_threshold_MW = calc_LH_transition_threshold_power(
             plasma_current=1e-6 * params.plasma_current,
