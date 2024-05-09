@@ -1,15 +1,16 @@
 import diffrax
 import jax.numpy as jnp
-import popsim.physics.hmode_dynamics as hmode
+from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.interp import resolve_paths
+from popsim.simulate import simulate
 
 def test_sim_and_clip():
-    state = hmode.State(hmode=0.0)
+    state = HmodeDynamics.State(hmode=0.0)
     lh_threshold_MW = 10.0
     hl_threshold_MW = 7.0
 
     #
-    # Three phases:
+    # Four phases:
     #   1) Conducted power well above LH threshold.
     #   2) Conducted power above HL threshold but below LH threshold.
     #   3) Conducted power well below HL threshold.
@@ -21,25 +22,14 @@ def test_sim_and_clip():
     input_powers = jnp.array([15.0, 15.0, 15.0, 15.0, 15.0, 0.0, 0.0])
     input_powers_traj = diffrax.LinearInterpolation(ts=times, ys=input_powers)
 
-    params = hmode.Params(transition_characteristic_time=0.1, P_tau_MW=conducted_powers_traj, P_input_MW=input_powers_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
+    params = HmodeDynamics.Params(transition_characteristic_time=0.1, P_tau_MW=conducted_powers_traj, P_input_MW=input_powers_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
 
-    def fun(t, y, args):
-        params_t = resolve_paths(params, t)
-        return hmode.dynamics(y, params_t)
+    hmode_module = HmodeDynamics(config=HmodeDynamics.Config())
 
+    sol = simulate(hmode_module, times, state, params, return_xarray=False)
 
-    sol = diffrax.diffeqsolve(
-        terms=diffrax.ODETerm(fun),
-        solver=diffrax.Tsit5(),
-        t0=times[0],
-        t1=times[-1],
-        dt0=jnp.min(jnp.diff(times)),
-        y0=state,
-        args=params,
-        saveat=diffrax.SaveAt(ts=times),
-    )
-
-    in_hmodes = sol.ys.in_hmode
+    in_hmodes = sol.ys['state'].in_hmode
+    
     assert in_hmodes[0] == False
     assert in_hmodes[1] == True
     assert in_hmodes[2] == True

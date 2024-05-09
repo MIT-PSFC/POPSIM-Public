@@ -15,35 +15,52 @@ A multi-species density dynamics model that evolves volume-averaged ion densitie
 
 
 @chex.dataclass
-class State:
-    vol_avg_ion: dict[Species, float]  # 1e19/m^3
+class Density:
+    @chex.dataclass
+    class Config:
+        pass
 
-    @property
-    def total_volume_average_ion_density(self) -> float:
-        # Logic to make sure this works for both the scalar and array cases.
-        # See associated unit test.
-        leaves = jax.tree_util.tree_leaves(self.vol_avg_ion)
-        leaves = jax.tree_map(jnp.atleast_1d, leaves)  # Promote scalars.
-        n_t = leaves[0].size  # Number of time steps.
-        eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
-        if n_t > 1:
-            # Do a separate computation for each time step.
-            return jax.vmap(lambda x: jnp.sum(leaves_as_array(x)))(self.vol_avg_ion)
-        else:
-            # Do a single computation.
-            return jnp.sum(leaves_as_array(self.vol_avg_ion))
+    @chex.dataclass
+    class Output:
+        pass
 
-    @property
-    def species(self) -> Sequence[Species]:
-        return list(self.vol_avg_ion.keys())
+    @chex.dataclass
+    class State:
+        vol_avg_ion: dict[Species, float]  # 1e19/m^3
 
+        @property
+        def total_volume_average_ion_density(self) -> float:
+            # Logic to make sure this works for both the scalar and array cases.
+            # See associated unit test.
+            leaves = jax.tree_util.tree_leaves(self.vol_avg_ion)
+            leaves = jax.tree_map(jnp.atleast_1d, leaves)  # Promote scalars.
+            n_t = leaves[0].size  # Number of time steps.
+            eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
+            if n_t > 1:
+                # Do a separate computation for each time step.
+                return jax.vmap(lambda x: jnp.sum(leaves_as_array(x)))(self.vol_avg_ion)
+            else:
+                # Do a single computation.
+                return jnp.sum(leaves_as_array(self.vol_avg_ion))
 
-@chex.dataclass
-class Params:
-    sources_and_sinks: dict[Species, PyTree[float]]  # PyTree of net particle fluxes from various sources and sinks 1e19/s
-    species_confinement_time: dict[Species, float]  # species confinement time in seconds
-    volume_dot: float  # m^3/s
-    volume: float  # m^3
+        @property
+        def species(self) -> Sequence[Species]:
+            return list(self.vol_avg_ion.keys())
+
+    @chex.dataclass
+    class Params:
+        sources_and_sinks: dict[Species, PyTree[float]]  # PyTree of net particle fluxes from various sources and sinks 1e19/s
+        species_confinement_time: dict[Species, float]  # species confinement time in seconds
+        volume_dot: float  # m^3/s
+        volume: float  # m^3
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, state: State, params: Params) -> State | Output:
+        return multi_species_derivs(state, params), Density.Output()
 
 
 def single_species_derivs(
@@ -72,7 +89,7 @@ def single_species_derivs(
     return n_dot
 
 
-def multi_species_derivs(state: State, params: Params) -> State:
+def multi_species_derivs(state: Density.State, params: Density.Params) -> Density.State:
     """Compute the time derivative of the volume-averaged ion densities for all species.
 
     Args:
@@ -94,4 +111,4 @@ def multi_species_derivs(state: State, params: Params) -> State:
         return state_dot
 
     state_dot = {species: calc_single_species(species) for species in state.species}
-    return State(vol_avg_ion=state_dot)
+    return Density.State(vol_avg_ion=state_dot)

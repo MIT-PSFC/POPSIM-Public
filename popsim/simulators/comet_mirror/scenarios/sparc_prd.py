@@ -1,7 +1,7 @@
 import numpy as np
 
-import popsim.physics.density as density_model
-import popsim.physics.hmode_dynamics as hmode
+import popsim.modules.density as density_model
+import popsim.modules.hmode_dynamics as hmode
 import popsim.simulators.comet_mirror as cm
 from popsim.enums import FuelSpecies
 from popsim.physics.geometry import GeometryCFSPopcon
@@ -78,8 +78,8 @@ def build_comet_mirror_config():
 
     state = cm.model.State(
         stored_energy=additional_assumptions["stored_energy"],
-        density_state=density_model.State(vol_avg_ion=density_states),
-        hmode_state=hmode.State(hmode=1.0),
+        density_state=density_model.Density.State(vol_avg_ion=density_states),
+        hmode_state=hmode.HmodeDynamics.State(hmode=1.0),
     )
 
     return model, state, params
