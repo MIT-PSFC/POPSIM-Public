@@ -59,7 +59,7 @@ class Density:
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> State | Output:
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         return multi_species_derivs(state, params), Density.Output()
 
 
