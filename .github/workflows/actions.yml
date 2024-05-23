@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
     tag: "Manual run"
 
+env:
+  JAX_PLATFORMS: cpu
+
 jobs:
   radas:
     runs-on: ubuntu-22.04
