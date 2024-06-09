@@ -47,9 +47,9 @@ class DiscreteExample(ModuleBase):
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # Update the state
-        example_state = jnp.where(params["time"] > params["time_to_decel"], ExampleState.Decelerating, ExampleState.Rotating)
+        example_state = jnp.where(params.time > params.time_to_decel, ExampleState.Decelerating, ExampleState.Rotating)
 
-        example_state = jnp.where(params["time"] > params["time_to_lock"], ExampleState.Locked, example_state)
+        example_state = jnp.where(params.time > params.time_to_lock, ExampleState.Locked, example_state)
 
         state_new = DiscreteExample.State(example_state=example_state, example_cont=1.0)  # Hard coded for demonstration purposes.
         # Make an output.
