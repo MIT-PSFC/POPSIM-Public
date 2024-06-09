@@ -51,7 +51,7 @@ class DiscreteExample(ModuleBase):
 
         example_state = jnp.where(params.time > params.time_to_lock, ExampleState.Locked, example_state)
 
-        state_new = DiscreteExample.State(example_state=example_state, example_cont=1.0)  # Hard coded for demonstration purposes.
+        state_new = DiscreteExample.State(example_state=example_state, example_cont=-state.example_cont)
         # Make an output.
         out = DiscreteExample.Output()
         return state_new, out
