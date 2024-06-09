@@ -95,8 +95,19 @@ def euler_multi_step(nmax, model, t0, dt, state0, params):
         state, t = carry
         params_resolved = resolve_paths(params, t)
         t = t + dt
-        state_dot, out = model(state, params_resolved)
-        return (jax.tree.map(lambda x, y: x + y * dt, state, state_dot), t)
+        state_out, out = model(state, params_resolved)
+
+        # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else)
+        # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
+        state_dot, discrete_state_next = eqx.partition(state_out, eqx.is_inexact_array_like)
+
+        # Perofrm an Euler step on the continuous part
+        continuous_state_next = jax.tree_map(lambda x, y: x + y * dt, state, state_dot)
+
+        # Combine the next continuous state with the next discrete state
+        state_next = eqx.combine(continuous_state_next, discrete_state_next)
+
+        return (state_next, t)
 
     state, t = jax.lax.fori_loop(0, nmax, _euler_step, (state0, t0))
     return state, t
