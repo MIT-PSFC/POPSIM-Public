@@ -1,9 +1,11 @@
 import chex
-
+import os
 from popsim import ModuleBase
+from popsim import PACKAGE_ROOT
 from jaxtyping import Array
 import jax.numpy as jnp
 from popsim import interp
+import numpy as np
 
 """
 An example template to copy and paste when creating a new module.
@@ -45,7 +47,6 @@ class Tearing(ModuleBase):
     @chex.dataclass
     class Params:
         # Define the, possibly time dependent, parameters that will be passed to the module.
-        trigger_type: str 
         trigger_time: float 
         q2_rot_freq: float 
         rot_dur: float  
@@ -65,8 +66,10 @@ class Tearing(ModuleBase):
         self.config = config
         
         
-        fname = config.thincurr_file
-        out = jnp.loadtxt(fname, skiprows=1)
+        default_path = os.path.join(PACKAGE_ROOT, "data", config.thincurr_file)
+        out = np.loadtxt(default_path, skiprows=1)
+        
+        print(jnp.shape(out))
         
         freq = out[:,0]
         bppA = out[:,1] # Bp (poloidal field) per Amp of tearing mode current
