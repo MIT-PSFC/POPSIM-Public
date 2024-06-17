@@ -4,28 +4,28 @@ on:
   pull_request: []
   push:
     branches:
-      - 'main'
+      - "main"
   workflow_dispatch:
     tag: "Manual run"
 
 jobs:
   lint_and_format:
-    runs-on: ubuntu-22.04
+    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
 
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           token: ${{ secrets.POPSIM_PAT }}
 
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python - --version 1.5.1
 
-      - name: Set up Python 
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-          cache: 'poetry'
+          python-version: "3.10"
+          cache: "poetry"
 
       - name: Poetry install
         run: poetry install
