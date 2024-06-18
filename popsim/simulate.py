@@ -82,6 +82,7 @@ def _simulate(model, ts: Array, state0, params) -> diffrax.Solution:
         y0=state0,
         args=params,
         saveat=diffrax.SaveAt(ts=ts, fn=saveat_fn),
+        max_steps=100000,
     )
     return sol
 
