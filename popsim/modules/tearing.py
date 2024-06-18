@@ -1,11 +1,11 @@
-import typing
 from enum import IntEnum
 
 import chex
 import jax.numpy as jnp
-from jaxtyping import Array
+from jaxtyping import Array, ArrayLike
 
 from popsim import ModuleBase
+from popsim.logic_utils import select_w_tuples
 
 """
 An example template to copy and paste when creating a new module.
@@ -25,13 +25,7 @@ class IslandRotationPhase(IntEnum):
     LOCKED = 3
 
 
-def select_dict(conditions_to_choices: dict, default: typing.Any = 0.0):
-    conditions = jnp.array(list(conditions_to_choices.keys()))
-    choices = jnp.array(list(conditions_to_choices.values()))
-    return jnp.select(conditions, choices, default=default)
-
-
-def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> Array:
+def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> ArrayLike:
     """Calculate the tearing growth rate based on the disruption phase.
     This currently returns hard-coded values for the growth rate, but in the future
     this could be replaced with a more sophisticated model.
@@ -40,7 +34,7 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> Array:
         disruption_phase (DisruptionPhase): The phase of the disruption.
 
     Returns:
-        Array: The growth rate of the tearing mode.
+        ArrayLike: The growth rate of the tearing mode.
     """
     default_Wdot = jnp.array(4e-2 / 0.5)  # m/s
     TQ_Wdot = jnp.array(4e-2 / 0.002)  # m/s
@@ -48,17 +42,17 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> Array:
 
     # This is a somewhat annoying Jax construct: if-statements aren't always kosher.
     # In this case, we can use the numpy-like jnp.select to choose the appropriate array.
-    conditions_to_choices = {
-        DisruptionPhase.NONE == disruption_phase: default_Wdot,
-        DisruptionPhase.TQ == disruption_phase: TQ_Wdot,
-        DisruptionPhase.CQ == disruption_phase: CQ_Wdot,
-    }
+    conditions_to_choices = [
+        (disruption_phase == DisruptionPhase.NONE, default_Wdot),
+        (disruption_phase == DisruptionPhase.TQ, TQ_Wdot),
+        (disruption_phase == DisruptionPhase.CQ, CQ_Wdot),
+    ]
 
-    # Use jnp.select to choose the appropriate value.
-    return select_dict(conditions_to_choices, default=default_Wdot)
+    Wdot = select_w_tuples(conditions_to_choices, default=default_Wdot)
+    return Wdot
 
 
-def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: float, rot_dur: float, locking_dur: float) -> Array:
+def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: float, rot_dur: float, locking_dur: float) -> ArrayLike:
     """Calculate the time derivative of the rotation frequency based on the rotation phase.
 
     Args:
@@ -68,17 +62,17 @@ def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: flo
         locking_dur (float): TODO(sweeney)
 
     Returns:
-        Array: The time derivative of the rotation frequency.
+        ArrayLike: The time derivative of the rotation frequency.
     """
+    conditions_and_choices = [
+        (rotation_phase == IslandRotationPhase.NONE, 0.0),
+        (rotation_phase == IslandRotationPhase.ROTATING, -(q2_rot_freq / 2.0) / (rot_dur)),
+        (rotation_phase == IslandRotationPhase.DECELERATING, -(q2_rot_freq / 2.0) / (locking_dur)),
+        (rotation_phase == IslandRotationPhase.LOCKED, 0.0),
+    ]
 
-    conditions_to_choices = {
-        IslandRotationPhase.NONE == rotation_phase: 0.0,
-        IslandRotationPhase.ROTATING == rotation_phase: -(q2_rot_freq / 2.0) / (rot_dur),  # Hz/s
-        IslandRotationPhase.DECELERATING == rotation_phase: -(q2_rot_freq / 2.0) / (locking_dur),  # Hz/s
-        IslandRotationPhase.LOCKED == rotation_phase: 0.0,
-    }
-
-    return select_dict(conditions_to_choices, default=0.0)
+    Fdot = select_w_tuples(conditions_and_choices, default=0.0)
+    return Fdot
 
 
 @chex.dataclass
