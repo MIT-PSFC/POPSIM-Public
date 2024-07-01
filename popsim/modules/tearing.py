@@ -20,29 +20,52 @@ class DisruptionPhase(IntEnum):
 
 class IslandRotationPhase(IntEnum):
     NONE = 0
-    ROTATING = 1
-    DECELERATING = 2
-    LOCKED = 3
+    SPAWN = 1 # Need to think about how we want to implement the initial 'kick' that starts and island
+    ROTATING = 2
+    DECELERATING = 3
+    LOCKED = 4
 
+class IslandModeNumber(IntEnum):
+    # Mode number is n/m, toroidal turns / poloidal turns 
+    THREE_TWO = 0
+    TWO_ONE = 1
+    THREE_ONE = 2
 
-def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> ArrayLike:
-    """Calculate the tearing growth rate based on the disruption phase.
+def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, mode_number: IslandModeNumber) -> ArrayLike:
+    """Calculate the tearing growth rate based on its rotation phase and the disruption phase.
     This currently returns hard-coded values for the growth rate, but in the future
     this could be replaced with a more sophisticated model.
 
     Args:
-        disruption_phase (DisruptionPhase): The phase of the disruption.
+        rotation_phase (IslandRotationPhase): The phase of the island rotation.
 
     Returns:
         ArrayLike: The growth rate of the tearing mode.
     """
-    default_Wdot = jnp.array(4e-2 / 0.5)  # m/s
-    TQ_Wdot = jnp.array(4e-2 / 0.002)  # m/s
-    CQ_Wdot = jnp.array(-4e-2 / 0.005)  # m/s
 
-    # This is a somewhat annoying Jax construct: if-statements aren't always kosher.
-    # In this case, we can use the numpy-like jnp.select to choose the appropriate array.
+    # Hard-coded values for the island growth rates
+    default_Wdot_dict = {
+        IslandModeNumber.THREE_TWO: 4e-2/0.5,  # m/s
+        IslandModeNumber.TWO_ONE: 10e-2/0.5,
+        IslandModeNumber.THREE_ONE: 3e-2/0.5
+    }
+    TQ_Wdot_dict = {
+        IslandModeNumber.THREE_TWO: 4e-2/0.002,  # m/s
+        IslandModeNumber.TWO_ONE: 10e-2/0.002,
+        IslandModeNumber.THREE_ONE: 3e-2/0.002
+    }
+    CQ_Wdot_dict = {
+        IslandModeNumber.THREE_TWO: -4e-2/0.005,  # m/s
+        IslandModeNumber.TWO_ONE: -10e-2/0.005,
+        IslandModeNumber.THREE_ONE: -3e-2/0.005
+    }
+
+    default_Wdot = default_Wdot_dict[mode_number]
+    TQ_Wdot = TQ_Wdot_dict[mode_number]
+    CQ_Wdot = CQ_Wdot_dict[mode_number]
+
     conditions_to_choices = [
+        (rotation_phase == IslandRotationPhase.NONE, 0.0),
         (disruption_phase == DisruptionPhase.NONE, default_Wdot),
         (disruption_phase == DisruptionPhase.TQ, TQ_Wdot),
         (disruption_phase == DisruptionPhase.CQ, CQ_Wdot),
@@ -51,8 +74,7 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase) -> ArrayLik
     Wdot = select_w_tuples(conditions_to_choices, default=default_Wdot)
     return Wdot
 
-
-def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: float, rot_dur: float, locking_dur: float) -> ArrayLike:
+def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: float, rot_dur: float, locking_dur: float, mode_number: IslandModeNumber) -> ArrayLike:
     """Calculate the time derivative of the rotation frequency based on the rotation phase.
 
     Args:
@@ -64,10 +86,20 @@ def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: flo
     Returns:
         ArrayLike: The time derivative of the rotation frequency.
     """
+
+    # Hard-coded values for the initial rotation frequency of the island
+    initial_rot_freq_dict = {
+        IslandModeNumber.THREE_TWO: q2_rot_freq*1.5,
+        IslandModeNumber.TWO_ONE: q2_rot_freq,
+        IslandModeNumber.THREE_ONE: q2_rot_freq*0.67,
+    }
+
+    initial_rot_freq = initial_rot_freq_dict[mode_number]
+
     conditions_and_choices = [
         (rotation_phase == IslandRotationPhase.NONE, 0.0),
-        (rotation_phase == IslandRotationPhase.ROTATING, -(q2_rot_freq / 2.0) / (rot_dur)),
-        (rotation_phase == IslandRotationPhase.DECELERATING, -(q2_rot_freq / 2.0) / (locking_dur)),
+        (rotation_phase == IslandRotationPhase.ROTATING, -(initial_rot_freq / 2.0) / (rot_dur)),
+        (rotation_phase == IslandRotationPhase.DECELERATING, -(initial_rot_freq / 2.0) / (locking_dur)),
         (rotation_phase == IslandRotationPhase.LOCKED, 0.0),
     ]
 
@@ -89,8 +121,8 @@ class Tearing(ModuleBase):
     class State:
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
-        W: float  # m, Nxm
-        F: float  # Hz
+        W: dict[IslandModeNumber, float]  # m, Nxm
+        F: dict[IslandModeNumber, float]  # Hz
 
     @chex.dataclass
     class Params:
@@ -117,10 +149,12 @@ class Tearing(ModuleBase):
         disruption_phase = round(params.disruption_phase)
         island_rotation_phase = round(params.island_rotation_phase)
 
-        Wdot = calculate_tearing_growth_rate(disruption_phase)
-        Fdot = calculate_rotation_dot(island_rotation_phase, params.q2_rot_freq, params.rot_dur, params.locking_dur)
+        Wdot = {mode: calculate_tearing_growth_rate(disruption_phase, island_rotation_phase, mode) for mode in IslandModeNumber}
+        Fdot = {mode: calculate_rotation_dot(island_rotation_phase, params.q2_rot_freq, params.rot_dur, params.locking_dur, mode) for mode in IslandModeNumber}
+
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot)
         # Make an output.
         out = Tearing.Output(state_dot=state_dot, params=params)
         return state_dot, out
+    
