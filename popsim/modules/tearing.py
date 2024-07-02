@@ -32,6 +32,30 @@ class IslandModeNumber(IntEnum):
     TWO_ONE = 1
     THREE_ONE = 2
 
+# Hard-coded values for the island growth rates
+default_Wdot_dict = {
+    IslandModeNumber.THREE_TWO: 4e-2/0.5,  # m/s
+    IslandModeNumber.TWO_ONE: 10e-2/0.5,
+    IslandModeNumber.THREE_ONE: 3e-2/0.5
+}
+TQ_Wdot_dict = {
+    IslandModeNumber.THREE_TWO: 4e-2/0.002,  # m/s
+    IslandModeNumber.TWO_ONE: 10e-2/0.002,
+    IslandModeNumber.THREE_ONE: 3e-2/0.002
+}
+CQ_Wdot_dict = {
+    IslandModeNumber.THREE_TWO: -4e-2/0.005,  # m/s
+    IslandModeNumber.TWO_ONE: -10e-2/0.005,
+    IslandModeNumber.THREE_ONE: -3e-2/0.005
+}
+
+# Hard-coded values for the initial rotation frequency of the island
+initial_rot_freq_dict = {
+    IslandModeNumber.THREE_TWO: 7e3*1.5,
+    IslandModeNumber.TWO_ONE: 7e3,
+    IslandModeNumber.THREE_ONE: 7e3*0.67,
+}
+
 def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, mode_number: IslandModeNumber) -> ArrayLike:
     """Calculate the tearing growth rate based on its rotation phase and the disruption phase.
     This currently returns hard-coded values for the growth rate, but in the future
@@ -43,23 +67,6 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_ph
     Returns:
         ArrayLike: The growth rate of the tearing mode.
     """
-
-    # Hard-coded values for the island growth rates
-    default_Wdot_dict = {
-        IslandModeNumber.THREE_TWO: 4e-2/0.5,  # m/s
-        IslandModeNumber.TWO_ONE: 10e-2/0.5,
-        IslandModeNumber.THREE_ONE: 3e-2/0.5
-    }
-    TQ_Wdot_dict = {
-        IslandModeNumber.THREE_TWO: 4e-2/0.002,  # m/s
-        IslandModeNumber.TWO_ONE: 10e-2/0.002,
-        IslandModeNumber.THREE_ONE: 3e-2/0.002
-    }
-    CQ_Wdot_dict = {
-        IslandModeNumber.THREE_TWO: -4e-2/0.005,  # m/s
-        IslandModeNumber.TWO_ONE: -10e-2/0.005,
-        IslandModeNumber.THREE_ONE: -3e-2/0.005
-    }
 
     default_Wdot = default_Wdot_dict[mode_number]
     TQ_Wdot = TQ_Wdot_dict[mode_number]
@@ -87,13 +94,6 @@ def calculate_rotation_dot(rotation_phase: IslandRotationPhase, q2_rot_freq: flo
     Returns:
         ArrayLike: The time derivative of the rotation frequency.
     """
-
-    # Hard-coded values for the initial rotation frequency of the island
-    initial_rot_freq_dict = {
-        IslandModeNumber.THREE_TWO: q2_rot_freq*1.5,
-        IslandModeNumber.TWO_ONE: q2_rot_freq,
-        IslandModeNumber.THREE_ONE: q2_rot_freq*0.67,
-    }
 
     initial_rot_freq = initial_rot_freq_dict[mode_number]
 
@@ -157,10 +157,13 @@ class Tearing(ModuleBase):
         Fdot = {mode: calculate_rotation_dot(island_rotation_phase, params.q2_rot_freq, params.rot_dur, params.locking_dur, mode) for mode in IslandModeNumber}
         wave_phase_dot = {mode: state.F[mode]*2*jnp.pi for mode in IslandModeNumber}
 
-        # Force W to stay positive
         for mode in IslandModeNumber:
-            operand = state.W[mode]
-            state.W[mode] = lax.cond(operand > 0, lambda x: x, lambda x: 0.0, operand)
+            # Force W to stay positive
+            width_operand = state.W[mode]
+            state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
+            # If mode is born, set F to initial value
+            state_operand = island_rotation_phase
+            state.F[mode] = lax.cond(state_operand == IslandRotationPhase.SPAWN, lambda x: initial_rot_freq_dict[mode], lambda x: state.F[mode], state_operand)
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, wave_phase=wave_phase_dot)
