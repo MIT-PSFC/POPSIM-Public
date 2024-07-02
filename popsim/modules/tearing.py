@@ -3,6 +3,7 @@ from enum import IntEnum
 import chex
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
+from jax import lax
 
 from popsim import ModuleBase
 from popsim.logic_utils import select_w_tuples
@@ -123,6 +124,7 @@ class Tearing(ModuleBase):
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
         W: dict[IslandModeNumber, float]  # m, Nxm
         F: dict[IslandModeNumber, float]  # Hz
+        wave_phase: dict[IslandModeNumber, float]  # rad
 
     @chex.dataclass
     class Params:
@@ -137,6 +139,8 @@ class Tearing(ModuleBase):
     class Output:
         state_dot: "State"  # noqa: F821
         params: "Params"  # noqa: F821
+        #probe_signals: Array  # Tesla, signals from the poloidal probes
+        #sensor_signals: Array # Tesla, signals from the radial sensors
 
     config: Config
     phi_probes: Array  # deg, toroidal locations of probes
@@ -151,9 +155,15 @@ class Tearing(ModuleBase):
 
         Wdot = {mode: calculate_tearing_growth_rate(disruption_phase, island_rotation_phase, mode) for mode in IslandModeNumber}
         Fdot = {mode: calculate_rotation_dot(island_rotation_phase, params.q2_rot_freq, params.rot_dur, params.locking_dur, mode) for mode in IslandModeNumber}
+        wave_phase_dot = {mode: state.F[mode]*2*jnp.pi for mode in IslandModeNumber}
+
+        # Force W to stay positive
+        for mode in IslandModeNumber:
+            operand = state.W[mode]
+            state.W[mode] = lax.cond(operand > 0, lambda x: x, lambda x: 0.0, operand)
 
         # Make a state_dot.
-        state_dot = Tearing.State(W=Wdot, F=Fdot)
+        state_dot = Tearing.State(W=Wdot, F=Fdot, wave_phase=wave_phase_dot)
         # Make an output.
         out = Tearing.Output(state_dot=state_dot, params=params)
         return state_dot, out
