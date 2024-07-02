@@ -139,8 +139,6 @@ class Tearing(ModuleBase):
     class Output:
         state_dot: "State"  # noqa: F821
         params: "Params"  # noqa: F821
-        #probe_signals: Array  # Tesla, signals from the poloidal probes
-        #sensor_signals: Array # Tesla, signals from the radial sensors
 
     config: Config
     phi_probes: Array  # deg, toroidal locations of probes
