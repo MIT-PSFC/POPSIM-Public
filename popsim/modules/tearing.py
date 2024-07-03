@@ -26,12 +26,6 @@ class IslandRotationPhase(IntEnum):
     DECELERATING = 3
     LOCKED = 4
 
-# class IslandModeNumber(IntEnum):
-#     # Mode number is n/m, toroidal turns / poloidal turns 
-#     TWO_ONE = 0
-#     THREE_ONE = 1
-#     THREE_TWO = 2
-
 class Island:
 
     def __init__(self, m, n, default_Wdot=None, TQ_Wdot=None, CQ_Wdot=None, initial_rot_freq=None):
@@ -65,6 +59,18 @@ class Island:
 
     def __str__(self) -> str:
         return f"Island({self.m},{self.n})"
+
+    def __eq__(self, other) -> bool:
+        return (self.m, self.n) == (other.m, other.n)
+    
+    def __gt__(self, other) -> bool:
+        return (self.m, self.n) > (other.m, other.n)
+    
+    def __lt__(self, other) -> bool:
+        return (self.m, self.n) < (other.m, other.n)
+    
+    def __hash__(self) -> int:
+        return hash((self.m, self.n))
         
     # Hard-coded values for the island growth rates
     default_Wdot_dict = {
@@ -151,12 +157,11 @@ class Tearing(ModuleBase):
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
         W: dict[Island, float]  # m, Nxm
         F: dict[Island, float]  # Hz
-        wave_phase: dict[Island, float]  # rad
+        mode_phase: dict[Island, float]  # rad
 
     @chex.dataclass
     class Params:
         # Define the, possibly time dependent, parameters that will be passed to the module.
-        q2_rot_freq: float
         rot_dur: float
         locking_dur: float
         disruption_phase: DisruptionPhase
@@ -166,11 +171,13 @@ class Tearing(ModuleBase):
     class Output:
         state_dot: "State"  # noqa: F821
         params: "Params"  # noqa: F821
+        mode_current: dict[Island, float]  # A
+        mode_phase: dict[Island, float]  # rad
+        mode_freq: dict[Island, float]  # Hz
+
 
     config: Config
     islands: list[Island]
-    #phi_probes: Array  # deg, toroidal locations of probes # TODO, move magnetic measurement to its own module
-    #phi_sens: Array  # deg, toroidal locations of sensors
 
     def __init__(self, config, islands: list[Island]):
         self.config = config
@@ -182,19 +189,30 @@ class Tearing(ModuleBase):
 
         Wdot = {island: calculate_tearing_growth_rate(disruption_phase, island_rotation_phase, island) for island in self.islands}
         Fdot = {island: calculate_rotation_dot(island_rotation_phase, params.rot_dur, params.locking_dur, island) for island in self.islands}
-        wave_phase_dot = {island: state.F[island]*2*jnp.pi for island in self.islands}
+        mode_phase_dot = {island: state.F[island]*2*jnp.pi for island in self.islands}
+
+        curPerW = 1e3/1e-2 # 1 kA/cm <- a guess for now
 
         for mode in self.islands:
             # Force W to stay positive
             width_operand = state.W[mode]
             state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
+
             # If mode is born, set F to initial value
             state_operand = island_rotation_phase
             state.F[mode] = lax.cond(state_operand == IslandRotationPhase.SPAWN, lambda x: mode.initial_rot_freq, lambda x: state.F[mode], state_operand)
 
+            # Calculate perturbed current (just a guess for now)
+            perturbed_current = {island: state.W[island]*curPerW for island in self.islands}
+
         # Make a state_dot.
-        state_dot = Tearing.State(W=Wdot, F=Fdot, wave_phase=wave_phase_dot)
+        state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
         # Make an output.
-        out = Tearing.Output(state_dot=state_dot, params=params)
+        out = Tearing.Output(
+            state_dot=state_dot, 
+            params=params, 
+            mode_current=perturbed_current,
+            mode_phase=state.mode_phase,
+            mode_freq=state.F)
         return state_dot, out
     
