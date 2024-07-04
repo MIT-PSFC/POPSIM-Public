@@ -148,8 +148,8 @@ class Tearing(ModuleBase):
         # Define the data that configures the module and will be static during the simulation.
 
         magx_time: Array  # deg, a time array on which to output the data
-        thincurr_file: str  # path and filename of txt file defining the ThinCurr transfer functions
-        ods_file: str  # path to the ODS object
+        #thincurr_file: str  # path and filename of txt file defining the ThinCurr transfer functions
+        #ods_file: str  # path to the ODS object
 
     @chex.dataclass
     class State:
