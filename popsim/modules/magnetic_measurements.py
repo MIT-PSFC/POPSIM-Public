@@ -83,6 +83,7 @@ class LowNArray(ModuleBase):
         # Define the output variables that will be returned by the module.
         tearing_output: Tearing.Output
         reconstructed_magnitudes: dict[int, float]  # T
+        filtered_signals: dict[Island, float]  # T
 
     @chex.dataclass
     class Params:
@@ -101,8 +102,12 @@ class LowNArray(ModuleBase):
         self.func_Bp_per_A = func_Bp_per_A
 
         # Make the matrix for reconstructing tearing mode magnitudes from probe measurements
-        mode_numbers = jnp.array([island.n for island in tearing_module.islands])
-        self.unique_mode_numbers = jnp.unique(mode_numbers)
+        original_mode_numbers = jnp.array([island.n for island in tearing_module.islands])
+        # Fill in mode numbers from 1 to the maximum 
+        # TODO: this appears to be a requirement of JAX, where the dictionary sorting does not necessarily
+        # line up with the created arrays, so instead we just include all n=1 to n=max_n
+        # and create the dictionary using the indices as keys
+        self.unique_mode_numbers = jnp.arange(1, jnp.max(original_mode_numbers)+1)
         design_matrix = build_design_matrix(self.config.probe_connections, self.unique_mode_numbers)
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)  # Needs to be jnp array for JAX
 
@@ -127,7 +132,7 @@ class LowNArray(ModuleBase):
         reconstructed_magnitudes = {}
         for i in range(len(self.unique_mode_numbers)):
             magnitude = jnp.sqrt(reconstructed_components[2*i]**2 + reconstructed_components[2*i+1]**2)
-            reconstructed_magnitudes[i] = magnitude
+            reconstructed_magnitudes[i+1] = magnitude
 
         # # this works
         # reconstructed_magnitudes = {}
@@ -146,5 +151,6 @@ class LowNArray(ModuleBase):
         out = LowNArray.Output(
             tearing_output=tearing_out,
             reconstructed_magnitudes=reconstructed_magnitudes,
+            filtered_signals=filtered_signals,
         )
         return state_dot, out
