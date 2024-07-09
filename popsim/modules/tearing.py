@@ -191,8 +191,6 @@ class Tearing(ModuleBase):
         Fdot = {island: calculate_rotation_dot(island_rotation_phase, params.rot_dur, params.locking_dur, island) for island in self.islands}
         mode_phase_dot = {island: state.F[island]*2*jnp.pi for island in self.islands}
 
-        curPerW = 1e3/1e-2 # 1 kA/cm <- a guess for now
-
         for mode in self.islands:
             # Force W to stay positive
             width_operand = state.W[mode]
@@ -202,8 +200,9 @@ class Tearing(ModuleBase):
             state_operand = island_rotation_phase
             state.F[mode] = lax.cond(state_operand == IslandRotationPhase.SPAWN, lambda x: mode.initial_rot_freq, lambda x: state.F[mode], state_operand)
 
-            # Calculate perturbed current (just a guess for now)
-            perturbed_current = {island: state.W[island]*curPerW for island in self.islands}
+        # Calculate perturbed current
+        curPerW = 1e3/1e-2 # 1 kA/cm <- a guess for now
+        perturbed_current = {island: state.W[island]*curPerW for island in self.islands}
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
