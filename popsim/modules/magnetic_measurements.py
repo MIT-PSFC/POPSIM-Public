@@ -41,6 +41,9 @@ def build_design_matrix(
 
     design_matrix = jnp.array(design_matrix)
 
+    #jax.debug.print("Unique mode numbers: {x}", x=unique_mode_numbers)
+    #jax.debug.print("Design Matrix: {x}", x=design_matrix)
+
     return design_matrix
 
 
@@ -63,22 +66,23 @@ def get_differenced_signals(
         jnp.ndarray: The differenced signals.
     """
 
-    differenced_signals = [0 for connection in probe_connections]
+    differenced_signals = jnp.zeros((len(islands), len(probe_connections)))
 
-    for island in islands:
+    for i, island in enumerate(islands):
         island_mag = filtered_mags[island]
         island_phase = mode_phases[island]
         island_mode = island.n
-        for i, (probe1_angle, probe2_angle) in enumerate(probe_connections):
+        for j, (probe1_angle, probe2_angle) in enumerate(probe_connections):
             probe_signal_1 = island_mag * jnp.cos(
-                probe1_angle - (island_mode * island_phase)
+                island_mode * (probe1_angle - island_phase)
             )
             probe_signal_2 = island_mag * jnp.cos(
-                probe2_angle - (island_mode * island_phase)
+                island_mode * (probe2_angle - island_phase)
             )
-            differenced_signals[i] += probe_signal_1 - probe_signal_2
-
-    differenced_signals = jnp.array(differenced_signals)
+            differenced_signals = differenced_signals.at[i, j].set(probe_signal_1 - probe_signal_2)
+    
+    # Sum the differenced signals for each island
+    differenced_signals = jnp.sum(differenced_signals, axis=0)
 
     return differenced_signals
 
@@ -113,7 +117,7 @@ class LowNArray(ModuleBase):
     config: Config
     tearing_module: Tearing
     pseudoinverse_matrix: jnp.ndarray
-    func_Bp_per_A: Interpolator1D  # TODO: figure out how to make this work in JIT
+    func_Bp_per_A: Interpolator1D
     unique_mode_numbers: jnp.ndarray
 
     def __init__(self, config, tearing_module: Tearing, func_Bp_per_A: Interpolator1D):
@@ -164,14 +168,15 @@ class LowNArray(ModuleBase):
 
         reconstructed_components = self.pseudoinverse_matrix @ differenced_signals
 
-        # # Reconstruct the magnitudes of the tearing modes
+        # Reconstruct the magnitudes of the tearing modes
         reconstructed_magnitudes = {}
         for i in range(len(self.unique_mode_numbers)):
-            magnitude = jnp.sqrt(
+            reconstructed_magnitudes[i + 1] = jnp.sqrt(
                 reconstructed_components[2 * i] ** 2
                 + reconstructed_components[2 * i + 1] ** 2
             )
-            reconstructed_magnitudes[i + 1] = magnitude
+
+        #jax.debug.print("Reconstructed Components: {x}", x=reconstructed_components)
 
         # Make a state_dot.
         state_dot = LowNArray.State(
