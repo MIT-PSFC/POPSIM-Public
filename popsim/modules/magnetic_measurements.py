@@ -1,11 +1,9 @@
 import chex
-import equinox as eqx
 
 import numpy as np
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike, PyTree
 
 from interpax import Interpolator1D
 
@@ -21,7 +19,7 @@ def build_design_matrix(
     probe_connections: list[tuple[float, float]], unique_mode_numbers: jnp.ndarray
 ) -> jnp.ndarray:
     """Build the design matrix that encodes the connections between probes and the mode numbers of the tearing modes being measured.
-    TODO: This assumes that we are measuring modes n=1 up to the maximum mode number.
+    This assumes that we are measuring modes n=1 up to the maximum mode number.
 
     Args:
         probe_connections (list[tuple[float, float]]): A list of tuples representing the connections between probes.
@@ -36,21 +34,25 @@ def build_design_matrix(
 
     for i, (probe1_angle, probe2_angle) in enumerate(probe_connections):
         for j, mode_number in enumerate(unique_mode_numbers):
-            design_matrix[i, 2 * j] = np.cos(mode_number * probe1_angle) - np.cos(mode_number * probe2_angle)
-            design_matrix[i, 2 * j + 1] = np.sin(mode_number * probe1_angle) - np.sin(mode_number * probe2_angle)
+            design_matrix[i, 2 * j] = np.cos(mode_number * probe1_angle) - np.cos(
+                mode_number * probe2_angle
+            )
+            design_matrix[i, 2 * j + 1] = np.sin(mode_number * probe1_angle) - np.sin(
+                mode_number * probe2_angle
+            )
 
     design_matrix = jnp.array(design_matrix)
 
-    #jax.debug.print("Unique mode numbers: {x}", x=unique_mode_numbers)
-    #jax.debug.print("Design Matrix: {x}", x=design_matrix)
+    # jax.debug.print("Unique mode numbers: {x}", x=unique_mode_numbers)
+    # jax.debug.print("Design Matrix: {x}", x=design_matrix)
 
     return design_matrix
 
 
 def get_differenced_signals(
     probe_connections: list[tuple[float, float]],
-    filtered_mags: dict[float, float],
-    mode_phases,
+    filtered_mags: dict[Island, float],
+    mode_phases: dict[Island, float],
     islands: list[Island],
 ) -> jnp.ndarray:
     """The Low-N array has digitizers that record the differences between probes to isolate
@@ -79,8 +81,10 @@ def get_differenced_signals(
             probe_signal_2 = island_mag * jnp.cos(
                 island_mode * (probe2_angle - island_phase)
             )
-            differenced_signals = differenced_signals.at[i, j].set(probe_signal_1 - probe_signal_2)
-    
+            differenced_signals = differenced_signals.at[i, j].set(
+                probe_signal_1 - probe_signal_2
+            )
+
     # Sum the differenced signals for each island
     differenced_signals = jnp.sum(differenced_signals, axis=0)
 
@@ -92,9 +96,11 @@ class LowNArray(ModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
-        # phi_probes: list[float]  # I don't think this is needed, information is captured in connections
+
+        # The connections between the probes
         probe_connections: list[tuple[float, float]]
-        reconstructed_modes: list[int]  # The mode numbers to reconstruct. Maximum is len(probe_connections) / 2
+        # The mode numbers to reconstruct. Maximum should be len(probe_connections) / 2
+        reconstructed_modes: list[int]
 
     @chex.dataclass
     class State:
@@ -128,16 +134,15 @@ class LowNArray(ModuleBase):
 
         # Make the matrix for reconstructing tearing mode magnitudes from probe measurements
         # Fill in mode numbers from 1 to the maximum
-        # TODO: this appears to be a requirement of JAX, where the dictionary sorting does not necessarily
+        # This appears to be a requirement of JAX, where the dictionary sorting does not necessarily
         # line up with the created arrays, so instead we just include all n=1 to n=max_n
         # and create the dictionary using the indices as keys
         self.unique_mode_numbers = jnp.arange(1, max(config.reconstructed_modes) + 1)
         design_matrix = build_design_matrix(
             self.config.probe_connections, self.unique_mode_numbers
         )
-        self.pseudoinverse_matrix = jnp.linalg.pinv(
-            design_matrix
-        )  # Needs to be jnp array for JAX
+        # Needs to be jnp array for JAX
+        self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
 
@@ -174,17 +179,16 @@ class LowNArray(ModuleBase):
                 + reconstructed_components[2 * i + 1] ** 2
             )
 
-        #jax.debug.print("Reconstructed Components: {x}", x=reconstructed_components)
+        # jax.debug.print("Reconstructed Components: {x}", x=reconstructed_components)
 
-        # Make a state_dot.
         state_dot = LowNArray.State(
             tearing_state=tearing_dot,
         )
-        # Make an output.
         out = LowNArray.Output(
             tearing_output=tearing_out,
             reconstructed_magnitudes=reconstructed_magnitudes,
             filtered_signals=filtered_signals,
             differenced_signals=differenced_signals,
         )
+
         return state_dot, out
