@@ -9,7 +9,7 @@ from popsim import ModuleBase
 from popsim.logic_utils import select_w_tuples
 
 """
-An example template to copy and paste when creating a new module.
+Models the growth of tearing modes in a tokamak plasma.
 """
 
 
@@ -29,15 +29,15 @@ class IslandRotationPhase(IntEnum):
 class Island:
 
     def __init__(self, m, n, default_Wdot=None, TQ_Wdot=None, CQ_Wdot=None, initial_rot_freq=None):
-        """ Initialize an Island object with the given mode number.
+        """ Initialize an Island object with a given poloidal and toroidal mode number.
 
         Args:
             m (int): The poloidal mode number.
             n (int): The toroidal mode number.
-            initial_rot_freq (float, optional): The initial rotation frequency of the island. Defaults to hardcoded value.
             default_Wdot (float, optional): The default growth rate of the island. Defaults to hardcoded value.
             TQ_Wdot (float, optional): The growth rate of the island during a TQ disruption. Defaults to hardcoded value.
             CQ_Wdot (float, optional): The growth rate of the island during a CQ disruption. Defaults to hardcoded value.
+            initial_rot_freq (float, optional): The initial rotation frequency of the island. Defaults to hardcoded value.
         """
 
         self.m = m
@@ -98,11 +98,13 @@ class Island:
 
 def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, island: Island) -> ArrayLike:
     """Calculate the tearing growth rate based on its rotation phase and the disruption phase.
-    This currently returns hard-coded values for the growth rate, but in the future
+    This presently returns hard-coded values for the growth rate, but in the future
     this could be replaced with a more sophisticated model.
 
     Args:
+        disruption_phase (DisruptionPhase): The phase of the disruption.
         rotation_phase (IslandRotationPhase): The phase of the island rotation.
+        island (Island): The island for which to calculate the growth rate.
 
     Returns:
         ArrayLike: The growth rate of the tearing mode.
@@ -123,8 +125,9 @@ def calculate_rotation_dot(rotation_phase: IslandRotationPhase, rot_dur: float, 
 
     Args:
         rotation_phase (IslandRotationPhase): The phase of the island rotation.
-        rot_dur (float): TODO(sweeney)
-        locking_dur (float): TODO(sweeney)
+        rot_dur (float): How long the island rotates before beginning deceleration.
+        locking_dur (float): How long the island decelerates before locking.
+        island (Island): The island for which to calculate the rotation frequency time derivative.
 
     Returns:
         ArrayLike: The time derivative of the rotation frequency.
@@ -146,10 +149,7 @@ class Tearing(ModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
-
         magx_time: Array  # deg, a time array on which to output the data
-        #thincurr_file: str  # path and filename of txt file defining the ThinCurr transfer functions
-        #ods_file: str  # path to the ODS object
 
     @chex.dataclass
     class State:
@@ -174,7 +174,6 @@ class Tearing(ModuleBase):
         mode_current: dict[Island, float]  # A
         mode_phase: dict[Island, float]  # rad
         mode_freq: dict[Island, float]  # Hz
-
 
     config: Config
     islands: list[Island]
@@ -214,4 +213,3 @@ class Tearing(ModuleBase):
             mode_phase=state.mode_phase,
             mode_freq=state.F)
         return state_dot, out
-    

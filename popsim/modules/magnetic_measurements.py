@@ -94,6 +94,7 @@ class LowNArray(ModuleBase):
         # Define the data that configures the module and will be static during the simulation.
         # phi_probes: list[float]  # I don't think this is needed, information is captured in connections
         probe_connections: list[tuple[float, float]]
+        reconstructed_modes: list[int]  # The mode numbers to reconstruct. Maximum is len(probe_connections) / 2
 
     @chex.dataclass
     class State:
@@ -126,14 +127,11 @@ class LowNArray(ModuleBase):
         self.func_Bp_per_A = func_Bp_per_A
 
         # Make the matrix for reconstructing tearing mode magnitudes from probe measurements
-        original_mode_numbers = jnp.array(
-            [island.n for island in tearing_module.islands]
-        )
         # Fill in mode numbers from 1 to the maximum
         # TODO: this appears to be a requirement of JAX, where the dictionary sorting does not necessarily
         # line up with the created arrays, so instead we just include all n=1 to n=max_n
         # and create the dictionary using the indices as keys
-        self.unique_mode_numbers = jnp.arange(1, jnp.max(original_mode_numbers) + 1)
+        self.unique_mode_numbers = jnp.arange(1, max(config.reconstructed_modes) + 1)
         design_matrix = build_design_matrix(
             self.config.probe_connections, self.unique_mode_numbers
         )
