@@ -1,23 +1,17 @@
 import chex
-
-import numpy as np
-
-import jax
 import jax.numpy as jnp
-
+import numpy as np
 from interpax import Interpolator1D
 
 from popsim import ModuleBase
-from popsim.modules.tearing import Tearing, Island
+from popsim.modules.tearing import Island, Tearing
 
 """
 Classes for making magnetic measurments.
 """
 
 
-def build_design_matrix(
-    probe_connections: list[tuple[float, float]], unique_mode_numbers: jnp.ndarray
-) -> jnp.ndarray:
+def build_design_matrix(probe_connections: list[tuple[float, float]], unique_mode_numbers: jnp.ndarray) -> jnp.ndarray:
     """Build the design matrix that encodes the connections between probes and the mode numbers of the tearing modes being measured.
     This assumes that we are measuring modes n=1 up to the maximum mode number.
 
@@ -34,17 +28,10 @@ def build_design_matrix(
 
     for i, (probe1_angle, probe2_angle) in enumerate(probe_connections):
         for j, mode_number in enumerate(unique_mode_numbers):
-            design_matrix[i, 2 * j] = np.cos(mode_number * probe1_angle) - np.cos(
-                mode_number * probe2_angle
-            )
-            design_matrix[i, 2 * j + 1] = np.sin(mode_number * probe1_angle) - np.sin(
-                mode_number * probe2_angle
-            )
+            design_matrix[i, 2 * j] = np.cos(mode_number * probe1_angle) - np.cos(mode_number * probe2_angle)
+            design_matrix[i, 2 * j + 1] = np.sin(mode_number * probe1_angle) - np.sin(mode_number * probe2_angle)
 
     design_matrix = jnp.array(design_matrix)
-
-    # jax.debug.print("Unique mode numbers: {x}", x=unique_mode_numbers)
-    # jax.debug.print("Design Matrix: {x}", x=design_matrix)
 
     return design_matrix
 
@@ -75,15 +62,9 @@ def get_differenced_signals(
         island_phase = mode_phases[island]
         island_mode = island.n
         for j, (probe1_angle, probe2_angle) in enumerate(probe_connections):
-            probe_signal_1 = island_mag * jnp.cos(
-                island_mode * (probe1_angle - island_phase)
-            )
-            probe_signal_2 = island_mag * jnp.cos(
-                island_mode * (probe2_angle - island_phase)
-            )
-            differenced_signals = differenced_signals.at[i, j].set(
-                probe_signal_1 - probe_signal_2
-            )
+            probe_signal_1 = island_mag * jnp.cos(island_mode * (probe1_angle - island_phase))
+            probe_signal_2 = island_mag * jnp.cos(island_mode * (probe2_angle - island_phase))
+            differenced_signals = differenced_signals.at[i, j].set(probe_signal_1 - probe_signal_2)
 
     # Sum the differenced signals for each island
     differenced_signals = jnp.sum(differenced_signals, axis=0)
@@ -138,17 +119,12 @@ class LowNArray(ModuleBase):
         # line up with the created arrays, so instead we just include all n=1 to n=max_n
         # and create the dictionary using the indices as keys
         self.unique_mode_numbers = jnp.arange(1, max(config.reconstructed_modes) + 1)
-        design_matrix = build_design_matrix(
-            self.config.probe_connections, self.unique_mode_numbers
-        )
+        design_matrix = build_design_matrix(self.config.probe_connections, self.unique_mode_numbers)
         # Needs to be jnp array for JAX
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-
-        tearing_dot, tearing_out = self.tearing_module(
-            state.tearing_state, params.tearing_params
-        )
+        tearing_dot, tearing_out = self.tearing_module(state.tearing_state, params.tearing_params)
 
         # Get the perturbed current, phase, and frequency of each tearing mode
         mode_currents = tearing_out.mode_current
@@ -157,8 +133,7 @@ class LowNArray(ModuleBase):
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
         filtered_signals = {
-            island: mode_currents[island] * self.func_Bp_per_A(mode_freqs[island])
-            for island in self.tearing_module.islands
+            island: mode_currents[island] * self.func_Bp_per_A(mode_freqs[island]) for island in self.tearing_module.islands
         }
 
         # Get the differenced signals between each pair of probes
@@ -174,12 +149,7 @@ class LowNArray(ModuleBase):
         # Reconstruct the magnitudes of the tearing modes
         reconstructed_magnitudes = {}
         for i in range(len(self.unique_mode_numbers)):
-            reconstructed_magnitudes[i + 1] = jnp.sqrt(
-                reconstructed_components[2 * i] ** 2
-                + reconstructed_components[2 * i + 1] ** 2
-            )
-
-        # jax.debug.print("Reconstructed Components: {x}", x=reconstructed_components)
+            reconstructed_magnitudes[i + 1] = jnp.sqrt(reconstructed_components[2 * i] ** 2 + reconstructed_components[2 * i + 1] ** 2)
 
         state_dot = LowNArray.State(
             tearing_state=tearing_dot,

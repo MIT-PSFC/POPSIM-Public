@@ -1,9 +1,11 @@
 from enum import IntEnum
+from types import MappingProxyType
+from typing import Optional
 
 import chex
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
 from jax import lax
+from jaxtyping import Array, ArrayLike
 
 from popsim import ModuleBase
 from popsim.logic_utils import select_w_tuples
@@ -21,15 +23,55 @@ class DisruptionPhase(IntEnum):
 
 class IslandRotationPhase(IntEnum):
     NONE = 0
-    SPAWN = 1 # Need to think about how we want to implement the initial 'kick' that starts and island
+    SPAWN = 1  # Need to think about how we want to implement the initial 'kick' that starts and island
     ROTATING = 2
     DECELERATING = 3
     LOCKED = 4
 
-class Island:
 
-    def __init__(self, m, n, default_Wdot=None, TQ_Wdot=None, CQ_Wdot=None, initial_rot_freq=None):
-        """ Initialize an Island object with a given poloidal and toroidal mode number.
+class Island:
+    # Hard-coded values for the island growth rates
+    _DEFAULT_WDOT_DICT = MappingProxyType(
+        {
+            (3, 2): 4e-2 / 0.5,  # m/s
+            (2, 1): 10e-2 / 0.5,
+            (3, 1): 3e-2 / 0.5,
+        }
+    )
+    _TQ_WDOT_DICT = MappingProxyType(
+        {
+            (3, 2): 4e-2 / 0.002,  # m/s
+            (2, 1): 10e-2 / 0.002,
+            (3, 1): 3e-2 / 0.002,
+        }
+    )
+    _CQ_WDOT_DICT = MappingProxyType(
+        {
+            (3, 2): -4e-2 / 0.005,  # m/s
+            (2, 1): -10e-2 / 0.005,
+            (3, 1): -3e-2 / 0.005,
+        }
+    )
+
+    # Hard-coded values for the initial rotation frequency of the island
+    _INITIAL_ROT_FREQ_DICT = MappingProxyType(
+        {
+            (3, 2): 7e3 * 1.5,
+            (2, 1): 7e3,
+            (3, 1): 7e3 * 0.67,
+        }
+    )
+
+    def __init__(
+        self,
+        m: int,
+        n: int,
+        default_Wdot: Optional[float] = None,
+        TQ_Wdot: Optional[float] = None,
+        CQ_Wdot: Optional[float] = None,
+        initial_rot_freq: Optional[float] = None,
+    ):
+        """Initialize an Island object with a given poloidal and toroidal mode number.
 
         Args:
             m (int): The poloidal mode number.
@@ -49,52 +91,29 @@ class Island:
         self.initial_rot_freq = initial_rot_freq
 
         if initial_rot_freq is None:
-            self.initial_rot_freq = self.initial_rot_freq_dict[(m, n)]
+            self.initial_rot_freq = self._INITIAL_ROT_FREQ_DICT[(m, n)]
         if default_Wdot is None:
-            self.default_Wdot = self.default_Wdot_dict[(m, n)]
+            self.default_Wdot = self._DEFAULT_WDOT_DICT[(m, n)]
         if TQ_Wdot is None:
-            self.TQ_Wdot = self.TQ_Wdot_dict[(m, n)]
+            self.TQ_Wdot = self._TQ_WDOT_DICT[(m, n)]
         if CQ_Wdot is None:
-            self.CQ_Wdot = self.CQ_Wdot_dict[(m, n)]
+            self.CQ_Wdot = self._TQ_WDOT_DICT[(m, n)]
 
     def __str__(self) -> str:
         return f"Island({self.m},{self.n})"
 
     def __eq__(self, other) -> bool:
         return (self.m, self.n) == (other.m, other.n)
-    
+
     def __gt__(self, other) -> bool:
         return (self.m, self.n) > (other.m, other.n)
-    
+
     def __lt__(self, other) -> bool:
         return (self.m, self.n) < (other.m, other.n)
-    
+
     def __hash__(self) -> int:
         return hash((self.m, self.n))
-        
-    # Hard-coded values for the island growth rates
-    default_Wdot_dict = {
-        (3,2): 4e-2/0.5,  # m/s
-        (2,1): 10e-2/0.5,
-        (3,1): 3e-2/0.5
-    }
-    TQ_Wdot_dict = {
-        (3,2): 4e-2/0.002,  # m/s
-        (2,1): 10e-2/0.002,
-        (3,1): 3e-2/0.002
-    }
-    CQ_Wdot_dict = {
-        (3,2): -4e-2/0.005,  # m/s
-        (2,1): -10e-2/0.005,
-        (3,1): -3e-2/0.005
-    }
 
-    # Hard-coded values for the initial rotation frequency of the island
-    initial_rot_freq_dict = {
-        (3,2): 7e3*1.5,
-        (2,1): 7e3,
-        (3,1): 7e3*0.67,
-    }
 
 def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, island: Island) -> ArrayLike:
     """Calculate the tearing growth rate based on its rotation phase and the disruption phase.
@@ -119,6 +138,7 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_ph
 
     Wdot = select_w_tuples(conditions_to_choices, default=island.default_Wdot)
     return Wdot
+
 
 def calculate_rotation_dot(rotation_phase: IslandRotationPhase, rot_dur: float, locking_dur: float, island: Island) -> ArrayLike:
     """Calculate the time derivative of the rotation frequency based on the rotation phase.
@@ -187,8 +207,10 @@ class Tearing(ModuleBase):
         island_rotation_phase = round(params.island_rotation_phase)
 
         Wdot = {island: calculate_tearing_growth_rate(disruption_phase, island_rotation_phase, island) for island in self.islands}
-        Fdot = {island: calculate_rotation_dot(island_rotation_phase, params.rot_dur, params.locking_dur, island) for island in self.islands}
-        mode_phase_dot = {island: state.F[island]*2*jnp.pi for island in self.islands}
+        Fdot = {
+            island: calculate_rotation_dot(island_rotation_phase, params.rot_dur, params.locking_dur, island) for island in self.islands
+        }
+        mode_phase_dot = {island: state.F[island] * 2 * jnp.pi for island in self.islands}
 
         for mode in self.islands:
             # Force W to stay positive
@@ -197,19 +219,18 @@ class Tearing(ModuleBase):
 
             # If mode is born, set F to initial value
             state_operand = island_rotation_phase
-            state.F[mode] = lax.cond(state_operand == IslandRotationPhase.SPAWN, lambda x: mode.initial_rot_freq, lambda x: state.F[mode], state_operand)
+            state.F[mode] = lax.cond(
+                state_operand == IslandRotationPhase.SPAWN, lambda x: mode.initial_rot_freq, lambda x: state.F[mode], state_operand
+            )
 
         # Calculate perturbed current
-        curPerW = 1e3/1e-2 # 1 kA/cm <- a guess for now
-        perturbed_current = {island: state.W[island]*curPerW for island in self.islands}
+        curPerW = 1e3 / 1e-2  # 1 kA/cm <- a guess for now
+        perturbed_current = {island: state.W[island] * curPerW for island in self.islands}
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
         # Make an output.
         out = Tearing.Output(
-            state_dot=state_dot, 
-            params=params, 
-            mode_current=perturbed_current,
-            mode_phase=state.mode_phase,
-            mode_freq=state.F)
+            state_dot=state_dot, params=params, mode_current=perturbed_current, mode_phase=state.mode_phase, mode_freq=state.F
+        )
         return state_dot, out
