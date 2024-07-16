@@ -11,7 +11,7 @@ Classes for making magnetic measurments.
 """
 
 
-def build_design_matrix(probe_connections: list[tuple[float, float]], unique_mode_numbers: jnp.ndarray) -> jnp.ndarray:
+def build_design_matrix(probe_connections: list[tuple[float, float]], unique_mode_numbers: jnp.ndarray) -> np.ndarray:
     """Build the design matrix that encodes the connections between probes and the mode numbers of the tearing modes being measured.
     This assumes that we are measuring modes n=1 up to the maximum mode number.
 
@@ -30,8 +30,6 @@ def build_design_matrix(probe_connections: list[tuple[float, float]], unique_mod
         for j, mode_number in enumerate(unique_mode_numbers):
             design_matrix[i, 2 * j] = np.cos(mode_number * probe1_angle) - np.cos(mode_number * probe2_angle)
             design_matrix[i, 2 * j + 1] = np.sin(mode_number * probe1_angle) - np.sin(mode_number * probe2_angle)
-
-    design_matrix = jnp.array(design_matrix)
 
     return design_matrix
 

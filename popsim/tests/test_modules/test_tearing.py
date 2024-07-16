@@ -72,3 +72,4 @@ def test_mode_growth_rate():
         F_dot = sol_xarray[f"aux.state_dot.F.{str(island)}"]
         assert F_dot.sel(time=0) == 0.0
         assert F_dot.sel(time=trigger_time) < 0.0
+        assert F_dot.sel(time=trigger_time+rot_dur+locking_dur) == 0.0
