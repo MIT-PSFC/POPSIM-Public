@@ -23,7 +23,7 @@ class DisruptionPhase(IntEnum):
 
 class IslandRotationPhase(IntEnum):
     NONE = 0
-    SPAWN = 1  # Need to think about how we want to implement the initial 'kick' that starts and island
+    SPAWN = 1  # TODO(ZanderKeith) Need to think about how we want to implement the initial 'kick' that starts and island
     ROTATING = 2
     DECELERATING = 3
     LOCKED = 4
@@ -103,16 +103,13 @@ class Island:
         return f"Island({self.m},{self.n})"
 
     def __eq__(self, other) -> bool:
-        return (self.m, self.n) == (other.m, other.n)
+        return self.m == other.m and self.n == other.n
 
     def __gt__(self, other) -> bool:
-        return (self.m, self.n) > (other.m, other.n)
+        return (self.m/self.n) > (other.m/other.n)
 
     def __lt__(self, other) -> bool:
-        return (self.m, self.n) < (other.m, other.n)
-
-    def __hash__(self) -> int:
-        return hash((self.m, self.n))
+        return (self.m/self.n) < (other.m/other.n)
 
 
 def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, island: Island) -> ArrayLike:
