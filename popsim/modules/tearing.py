@@ -4,6 +4,7 @@ from typing import Optional
 
 import chex
 import jax.numpy as jnp
+import numpy as np
 from jax import lax
 from jaxtyping import Array, ArrayLike
 
@@ -110,6 +111,52 @@ class Island:
 
     def __lt__(self, other) -> bool:
         return (self.m/self.n) < (other.m/other.n)
+
+    def __hash__(self) -> int:
+        return hash((self.m, self.n))
+
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
+
+def generate_disruption_phase_trajectory(trigger_time: float, tq_to_cq_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3) -> dict[float, DisruptionPhase]:
+    # TODO(allenw): we want a rectilinear interpolation scheme.
+    disrupt_phase_dict = {
+        0.0: DisruptionPhase.NONE,
+        trigger_time - dt: DisruptionPhase.NONE,
+        trigger_time: DisruptionPhase.TQ,
+        trigger_time + tq_to_cq_dur - dt: DisruptionPhase.TQ,
+        trigger_time + tq_to_cq_dur: DisruptionPhase.CQ,
+    }
+
+    # Round the times to the nearest time step in the time base.
+    disrupt_phase_dict = {
+        find_nearest(time_base, time): phase
+        for time, phase in disrupt_phase_dict.items()
+    }
+    return disrupt_phase_dict
+
+def generate_island_rotation_phase_trajectory(
+    trigger_time: float, rot_dur: float, locking_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
+):
+    # TODO(allenw): we want a rectilinear interpolation scheme.
+    rot_phase_dict = {
+        0.0: IslandRotationPhase.NONE,
+        trigger_time - dt: IslandRotationPhase.NONE,
+        trigger_time: IslandRotationPhase.SPAWN,
+        trigger_time + dt: IslandRotationPhase.ROTATING,
+        trigger_time + rot_dur - dt: IslandRotationPhase.ROTATING,
+        trigger_time + rot_dur: IslandRotationPhase.DECELERATING,
+        trigger_time + rot_dur + locking_dur - dt: IslandRotationPhase.DECELERATING,
+        trigger_time + rot_dur + locking_dur: IslandRotationPhase.LOCKED,
+    }
+
+    # Round the times to the nearest time step in the time base.
+    rot_phase_dict = {
+        find_nearest(time_base, time): phase for time, phase in rot_phase_dict.items()
+    }
+    return rot_phase_dict
 
 
 def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, island: Island) -> ArrayLike:
