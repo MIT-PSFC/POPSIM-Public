@@ -230,6 +230,7 @@ class Tearing(ModuleBase):
         locking_dur: float
         disruption_phase: DisruptionPhase
         island_rotation_phase: IslandRotationPhase
+        cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
     @chex.dataclass
     class Output:
@@ -267,8 +268,7 @@ class Tearing(ModuleBase):
             state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.LOCKED, 0.0, state.F[mode])
 
         # Calculate perturbed current
-        curPerW = 1e3 / 1e-2  # 1 kA/cm <- a guess for now
-        perturbed_current = {island: state.W[island] * curPerW for island in self.islands}
+        perturbed_current = {island: state.W[island] * params.cur_per_W for island in self.islands}
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
