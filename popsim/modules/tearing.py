@@ -262,9 +262,8 @@ class Tearing(ModuleBase):
             state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
 
             # If mode is born, set F to initial value
-            state_operand = island_rotation_phase
-            state.F[mode] = lax.cond(
-                state_operand == IslandRotationPhase.SPAWN, lambda x: mode.initial_rot_freq, lambda x: state.F[mode], state_operand
+            state.F[mode] = jnp.where(
+                island_rotation_phase == IslandRotationPhase.SPAWN, mode.initial_rot_freq, state.F[mode]
             )
 
         # Calculate perturbed current
