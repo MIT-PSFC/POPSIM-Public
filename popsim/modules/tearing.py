@@ -107,20 +107,24 @@ class Island:
         return self.m == other.m and self.n == other.n
 
     def __gt__(self, other) -> bool:
-        return (self.m/self.n) > (other.m/other.n)
+        return (self.m / self.n) > (other.m / other.n)
 
     def __lt__(self, other) -> bool:
-        return (self.m/self.n) < (other.m/other.n)
+        return (self.m / self.n) < (other.m / other.n)
 
     def __hash__(self) -> int:
         return hash((self.m, self.n))
+
 
 def find_nearest(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return array[idx]
 
-def generate_disruption_phase_trajectory(trigger_time: float, tq_to_cq_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3) -> dict[float, DisruptionPhase]:
+
+def generate_disruption_phase_trajectory(
+    trigger_time: float, tq_to_cq_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
+) -> dict[float, DisruptionPhase]:
     # TODO(allenw): we want a rectilinear interpolation scheme.
     disrupt_phase_dict = {
         0.0: DisruptionPhase.NONE,
@@ -131,11 +135,9 @@ def generate_disruption_phase_trajectory(trigger_time: float, tq_to_cq_dur: floa
     }
 
     # Round the times to the nearest time step in the time base.
-    disrupt_phase_dict = {
-        find_nearest(time_base, time): phase
-        for time, phase in disrupt_phase_dict.items()
-    }
+    disrupt_phase_dict = {find_nearest(time_base, time): phase for time, phase in disrupt_phase_dict.items()}
     return disrupt_phase_dict
+
 
 def generate_island_rotation_phase_trajectory(
     trigger_time: float, rot_dur: float, locking_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
@@ -153,9 +155,7 @@ def generate_island_rotation_phase_trajectory(
     }
 
     # Round the times to the nearest time step in the time base.
-    rot_phase_dict = {
-        find_nearest(time_base, time): phase for time, phase in rot_phase_dict.items()
-    }
+    rot_phase_dict = {find_nearest(time_base, time): phase for time, phase in rot_phase_dict.items()}
     return rot_phase_dict
 
 
@@ -262,9 +262,7 @@ class Tearing(ModuleBase):
             state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
 
             # If mode is born, set F to initial value
-            state.F[mode] = jnp.where(
-                island_rotation_phase == IslandRotationPhase.SPAWN, mode.initial_rot_freq, state.F[mode]
-            )
+            state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.SPAWN, mode.initial_rot_freq, state.F[mode])
 
         # Calculate perturbed current
         curPerW = 1e3 / 1e-2  # 1 kA/cm <- a guess for now
