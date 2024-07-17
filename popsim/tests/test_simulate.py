@@ -75,36 +75,52 @@ def hybrid_time_module():
 
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
-def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, stepper_type):
+@pytest.mark.parametrize("multi_sim", [True, False])
+def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, stepper_type, multi_sim):
     ContinuousTimeModule, initial_state = pure_continuous_time_module
 
     module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
-    params = ContinuousTimeModule.Params()
+
+    if multi_sim:
+        params = [ContinuousTimeModule.Params(z=0.0), ContinuousTimeModule.Params(z=1.0)]
+    else:
+        params = ContinuousTimeModule.Params(z=0.0)
+
     ts = jnp.linspace(0.0, 10.0, 100)
     sol = simulate.simulate(module, ts, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
-            sol = time_and_pytree_to_xarray(ts, sol, multi_simulation=False)
+            sol = time_and_pytree_to_xarray(ts, sol, multi_simulation=multi_sim)
         elif stepper_type == simulate.StepperType.DIFFRAX:
-            sol = solution_to_xarray(sol, multi_simulation=False)
+            sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
     
+    
     # After 10 seconds, expect a significant amount of exponential decay of the state.
-    assert jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.x)
+    assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.x)).all()
 
     # Expect that y is the absolute value of x.
     assert jnp.allclose(sol["aux.y"].values, jnp.abs(sol["state.x"].values))
 
+    # If multi_sim, check that there is a simulation dimension.
+    if multi_sim:
+        assert "simulation" in sol.dims
+
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
-def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type):
+@pytest.mark.parametrize("multi_sim", [True, False])
+def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type, multi_sim):
     HybridTimeModule, initial_state = hybrid_time_module
 
     module = HybridTimeModule(config=HybridTimeModule.Config())
-    params = HybridTimeModule.Params()
+
+    if multi_sim:
+        params = [HybridTimeModule.Params(a=0.0), HybridTimeModule.Params(a=1.0)]
+    else:
+        params = HybridTimeModule.Params()
     ts = jnp.linspace(0.0, 10.0, 100)
 
     # Expect an error if the stepper type is Diffrax.
@@ -118,17 +134,22 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type)
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
-            sol = time_and_pytree_to_xarray(ts, sol, multi_simulation=False)
+            sol = time_and_pytree_to_xarray(ts, sol, multi_simulation=multi_sim)
         elif stepper_type == simulate.StepperType.DIFFRAX:
-            sol = solution_to_xarray(sol, multi_simulation=False)
+            sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
     
     # After 10 seconds, expect a significant amount of exponential decay of the state.
-    assert jnp.abs(sol["state.y"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.y)
+    assert (jnp.abs(sol["state.y"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.y)).all()
 
     # Expect that z is the absolute value of y.
     assert jnp.allclose(sol["aux.z"].values, jnp.abs(sol["state.y"].values))
 
     # Expect x to be incremented by 1 at each time step.
     assert jnp.allclose(sol["state.x"].values, jnp.arange(0, len(ts)))
+
+
+    # If multi_sim, check that there is a simulation dimension.
+    if multi_sim:
+        assert "simulation" in sol.dims
