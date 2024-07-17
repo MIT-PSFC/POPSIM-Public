@@ -1,12 +1,11 @@
 import copy
 from dataclasses import field, fields, is_dataclass
-from typing import Any
 
 import chex
 import equinox as eqx
 
 
-def discrete_time_field(default: Any = None, **kwargs) -> field:
+def discrete_time_field(**kwargs) -> field:
     """Helper to construct a field with the metadata that it is a discrete time state.
 
     Args:
@@ -17,7 +16,7 @@ def discrete_time_field(default: Any = None, **kwargs) -> field:
     """
     metadata = kwargs.pop("metadata", {})
     metadata["discrete_state"] = True
-    return field(default=default, metadata=metadata, **kwargs)
+    return field(metadata=metadata, **kwargs)
 
 
 def is_discrete_time(f: field) -> bool:
