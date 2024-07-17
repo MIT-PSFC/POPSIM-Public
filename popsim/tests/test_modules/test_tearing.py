@@ -25,8 +25,8 @@ def test_island_hash():
     assert hash(island1) == hash(island2)
     assert hash(island1) != hash(island3)
 
-def test_mode_growth_rate():
-    """Ensure the simulated disruption and tearing phases match what was input"""
+def test_mode_growth_and_freq():
+    """Ensure the simulated mode growth and rotation frequency match the hard-coded values"""
     dt = 1e-4 / 3  # s
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
@@ -47,6 +47,9 @@ def test_mode_growth_rate():
     survival_time = 0.3
     disrupt_time = trigger_time + rot_dur + locking_dur + survival_time
     dur_tq_to_spike = 1e-3
+
+    lock_time = trigger_time + rot_dur + locking_dur
+    cq_time = disrupt_time + dur_tq_to_spike
     
     params = Tearing.Params(
         rot_dur=rot_dur,  # s
@@ -65,11 +68,27 @@ def test_mode_growth_rate():
     sol_xarray = simulate(tearing_module, time_base, initial_state, params)
 
     for island in islands:
+        island_tuple = (island.m, island.n)
+
         W_dot = sol_xarray[f"aux.state_dot.W.{str(island)}"]
-        assert W_dot.sel(time=0) == 0.0
-        assert W_dot.sel(time=trigger_time) > 0.0
+        assert W_dot.sel(time=0, method="nearest") == 0.0
+        assert W_dot.sel(time=trigger_time, method="nearest") == Island._DEFAULT_WDOT_DICT[island_tuple]
+        assert W_dot.sel(time=trigger_time+rot_dur, method="nearest") == Island._DEFAULT_WDOT_DICT[island_tuple]
+        assert W_dot.sel(time=lock_time, method="nearest") == Island._DEFAULT_WDOT_DICT[island_tuple]
+        assert W_dot.sel(time=disrupt_time, method="nearest") == Island._TQ_WDOT_DICT[island_tuple]
+        assert W_dot.sel(time=cq_time, method="nearest") == Island._CQ_WDOT_DICT[island_tuple]
+
+        current = sol_xarray[f"aux.mode_current.{str(island)}"]
+        assert current.sel(time=0, method="nearest") == 0.0
+        assert current.sel(time=trigger_time, method="nearest") > 0.0
+        assert current.sel(time=cq_time+1e3*dt, method="nearest") == 0.0
 
         F_dot = sol_xarray[f"aux.state_dot.F.{str(island)}"]
-        assert F_dot.sel(time=0) == 0.0
-        assert F_dot.sel(time=trigger_time) < 0.0
-        assert F_dot.sel(time=trigger_time+rot_dur+locking_dur) == 0.0
+        assert F_dot.sel(time=0, method="nearest") == 0.0
+        assert F_dot.sel(time=trigger_time+dt, method="nearest") < 0.0
+        assert F_dot.sel(time=lock_time, method="nearest") == 0.0
+
+        F = sol_xarray[f"aux.mode_freq.{str(island)}"]
+        assert F.sel(time=0, method="nearest") == 0.0
+        assert F.sel(time=trigger_time, method="nearest") == Island._INITIAL_ROT_FREQ_DICT[island_tuple]
+        assert F.sel(time=lock_time, method="nearest") == 0.0

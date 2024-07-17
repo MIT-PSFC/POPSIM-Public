@@ -98,7 +98,7 @@ class Island:
         if TQ_Wdot is None:
             self.TQ_Wdot = self._TQ_WDOT_DICT[(m, n)]
         if CQ_Wdot is None:
-            self.CQ_Wdot = self._TQ_WDOT_DICT[(m, n)]
+            self.CQ_Wdot = self._CQ_WDOT_DICT[(m, n)]
 
     def __str__(self) -> str:
         return f"Island({self.m},{self.n})"
@@ -263,6 +263,8 @@ class Tearing(ModuleBase):
 
             # If mode is born, set F to initial value
             state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.SPAWN, mode.initial_rot_freq, state.F[mode])
+            # If mode is locked, set F to 0
+            state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.LOCKED, 0.0, state.F[mode])
 
         # Calculate perturbed current
         curPerW = 1e3 / 1e-2  # 1 kA/cm <- a guess for now
