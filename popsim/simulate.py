@@ -8,6 +8,7 @@ import xarray as xr
 from jaxtyping import Array, PyTree
 
 from popsim import ModuleBase
+from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import resolve_paths
 from popsim.param_utils import build_vectorized_params
 from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
@@ -20,7 +21,7 @@ def simulate(
     params: typing.Union[typing.Sequence[PyTree], PyTree],
     interp_type: str = "linear",
     return_xarray: bool = True,
-    use_simple_euler: bool = False,
+    use_simple_euler: bool = True,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Simulate a module.
     Args:
@@ -108,7 +109,7 @@ def euler_multi_step(model, ts: Array, state0, params):
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
         # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
-        state_dot, discrete_state_next = eqx.partition(state_out, eqx.is_inexact_array_like)
+        discrete_state_next, state_dot = partition_discrete_cont(state_out)
 
         def step_fn(x, xdot):
             return x + xdot * dt if xdot is not None else None
@@ -117,7 +118,7 @@ def euler_multi_step(model, ts: Array, state0, params):
         continuous_state_next = jax.tree_map(step_fn, state, state_dot)
 
         # Combine the next continuous state with the next discrete state
-        state_next = eqx.combine(continuous_state_next, discrete_state_next)
+        state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
         return state_next, state_next
 

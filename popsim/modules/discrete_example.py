@@ -3,7 +3,7 @@ from enum import IntEnum
 import chex
 import jax.numpy as jnp
 
-from popsim import ModuleBase
+from popsim import ModuleBase, discrete_time_field
 
 """
 An example discrete module.
@@ -26,7 +26,7 @@ class DiscreteExample(ModuleBase):
 
     @chex.dataclass
     class State:
-        example_state: ExampleState
+        example_state: ExampleState = discrete_time_field(default=ExampleState.Rotating)
         example_cont: float = 0.0
 
     @chex.dataclass
