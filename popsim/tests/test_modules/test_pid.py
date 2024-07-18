@@ -1,0 +1,42 @@
+from popsim.modules.pid import PIDController
+import jax.numpy as jnp
+from popsim.simulate import simulate
+from popsim.interp import interp
+
+def test_pid_controller():
+    # Initialize the PID controller
+    config = PIDController.Config(Kp=1.0, Ki=0.1, Kd=0.05, dt=0.1, output_min=-10, output_max=10)
+    pid = PIDController(config=config)
+
+    # Create initial state with empty error history
+    initial_state = PIDController.State(error_history=jnp.zeros(10), previous_error=0.0)
+    params = PIDController.Params(setpoint=5.0, measurement=0.0)
+
+    # Run the PID controller once.
+    next_state, output = pid(initial_state, params)
+
+    assert isinstance(next_state, PIDController.State)
+    assert isinstance(output, PIDController.Output)
+
+    # Expect the control output to be the proportional term only for this first iteration.
+    expected_control = config.Kp * 5.0
+    assert jnp.isclose(output.control, expected_control, atol=1e-6)
+
+    # Test PID states are updated as expected.
+    assert next_state.error_history[0] == 5.0
+    assert jnp.all(next_state.error_history[1:] == 0.0)
+    assert jnp.isclose(next_state.previous_error, 5.0, atol=1e-6)
+
+    # Test output limiting
+    params_max = PIDController.Params(setpoint=100.0, measurement=0.0)
+    _, output_max = pid(initial_state, params_max)
+    assert output_max.control == config.output_max
+
+    params_min = PIDController.Params(setpoint=-100.0, measurement=0.0)
+    _, output_min = pid(initial_state, params_min)
+    assert output_min.control == config.output_min
+
+    # Test that we can run "simulate" with time varying setpoint and measurement.
+    ts = 0.1 * jnp.arange(100)
+    params = PIDController.Params(setpoint=interp(ts, jnp.sin(ts)), measurement=interp(ts, jnp.cos(ts)))
+    _ = simulate(pid, ts, initial_state, params, return_xarray=False)
