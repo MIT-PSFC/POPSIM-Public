@@ -66,7 +66,7 @@ def simulate(
     # Perform the simulation.
     sol = _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun)
 
-    sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
+    sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
 
     if stepper_type == StepperType.SIMPLE_EULER:
         return time_and_pytree_to_xarray(time_base, sol, multi_sim) if return_xarray else sol
@@ -78,7 +78,7 @@ def simulate(
 
 @eqx.filter_jit
 def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
-    params_axes = jax.tree_map(lambda x: 0, params_vectorized)
+    params_axes = jax.tree.map(lambda x: 0, params_vectorized)
 
     # Perform a vectorized simulation.
     sol = jax.vmap(
@@ -138,7 +138,7 @@ def _simple_euler_simulate(module, ts: Array, state0, params):
             return x + xdot * dt if xdot is not None else None
 
         # Perform an Euler step on the continuous part
-        continuous_state_next = jax.tree_map(step_fn, state, state_dot)
+        continuous_state_next = jax.tree.map(step_fn, state, state_dot)
 
         # Combine the next continuous state with the next discrete state
         state_next = eqx.combine(discrete_state_next, continuous_state_next)

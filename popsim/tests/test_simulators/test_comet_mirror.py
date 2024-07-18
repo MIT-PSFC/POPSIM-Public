@@ -13,7 +13,7 @@ def generate_sim_and_checks(only_return_final: bool = True):
     sol = simulate(model, ts, state, params, return_xarray=False)
 
     if only_return_final:
-        out = jax.tree_map(lambda x: x[-1], sol.ys)
+        out = jax.tree.map(lambda x: x[-1], sol.ys)
     else:
         out = sol.ys
     out_state, out_aux = out["state"], out["aux"]

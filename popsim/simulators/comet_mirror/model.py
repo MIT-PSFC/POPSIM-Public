@@ -289,7 +289,7 @@ class CometMirror:
 
         density_params = density_model.Density.Params(
             sources_and_sinks=sources_and_sinks,
-            species_confinement_time=jax.tree_map(lambda k: k * tau_E, params.particle_confinement_scalar),
+            species_confinement_time=jax.tree.map(lambda k: k * tau_E, params.particle_confinement_scalar),
             volume_dot=0.0,  # TODO(allenw): add with time-varying geometry.
             volume=params.geometry.plasma_volume,
         )
@@ -327,7 +327,7 @@ class CometMirror:
             # Filter out any non-array-like variables
             aux_data = eqx.filter(locals(), eqx.is_array_like)
             # Promote any scalar-like variables to arrays
-            aux_data = jax.tree_map(jnp.asarray, aux_data)
+            aux_data = jax.tree.map(jnp.asarray, aux_data)
             return aux_data
         else:
             return state_dot

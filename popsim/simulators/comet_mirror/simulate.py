@@ -33,14 +33,14 @@ def simulate(
     # Perform the simulation.
     sol = _vec_simulate(model, time_base, initial_state, params_vectorized)
 
-    sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
+    sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
 
     return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
 
 
 @eqx.filter_jit
 def _vec_simulate(model, ts, state0, params_vectorized):
-    params_axes = jax.tree_map(lambda x: 0, params_vectorized)
+    params_axes = jax.tree.map(lambda x: 0, params_vectorized)
 
     # Perform a vectorized simulation.
     sol = jax.vmap(

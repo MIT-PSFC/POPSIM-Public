@@ -80,7 +80,7 @@ def interp_tree_seq(
             raise ValueError(f"Unknown interp_type: {interp_type}")
 
     trees_transposed = tree_transpose(trees)
-    return jax.tree_map(interp_f, trees_transposed)
+    return jax.tree.map(interp_f, trees_transposed)
 
 
 def resolve_paths(tree: PyTree[typing.Union[ArrayLike, diffrax.AbstractPath]], t0: float, *args) -> PyTree[ArrayLike]:
@@ -93,7 +93,7 @@ def resolve_paths(tree: PyTree[typing.Union[ArrayLike, diffrax.AbstractPath]], t
     Returns:
         PyTree[ArrayLike]: A PyTree of ArrayLike with all AbstractPath objects resolved to their values at time t0.
     """
-    tree_resolved = jax.tree_map(
+    tree_resolved = jax.tree.map(
         lambda leaf: leaf.evaluate(t0, *args) if isinstance(leaf, diffrax.AbstractPath) else leaf,
         tree,
         is_leaf=lambda x: isinstance(x, diffrax.AbstractPath),

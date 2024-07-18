@@ -6,9 +6,9 @@ from jaxtyping import ArrayLike, PyTree
 
 def generate_shapes_and_dtypes(y0: PyTree[ArrayLike]) -> PyTree[jax.ShapeDtypeStruct]:
     # Promote y0.
-    y0 = jax.tree_map(jnp.asarray, y0)
+    y0 = jax.tree.map(jnp.asarray, y0)
     # Generate the shape and dtype structure of y0.
-    return jax.tree_map(lambda leaf: jax.ShapeDtypeStruct(leaf.shape, leaf.dtype), y0)
+    return jax.tree.map(lambda leaf: jax.ShapeDtypeStruct(leaf.shape, leaf.dtype), y0)
 
 
 def _generate_random_walks(key, n_samps, ts, y0, drift, diffusion):
@@ -43,7 +43,7 @@ def generate_random_walks(
     # Assert y0 and diffusion_mags have the same structure.
     assert jax.tree.structure(y0) == jax.tree.structure(diffusion_mags)
 
-    drift_struct = jax.tree_map(lambda leaf: jnp.zeros_like(leaf), y0)
+    drift_struct = jax.tree.map(lambda leaf: jnp.zeros_like(leaf), y0)
 
     def drift(t, y, args):
         return drift_struct
@@ -53,4 +53,4 @@ def generate_random_walks(
 
     sol = _generate_random_walks(key, n_samps, ts, y0, drift, diffusion)
 
-    return [diffrax.LinearInterpolation(ts=sol.ts[i], ys=jax.tree_map(lambda x, i=i: x[i], sol.ys)) for i in range(n_samps)]
+    return [diffrax.LinearInterpolation(ts=sol.ts[i], ys=jax.tree.map(lambda x, i=i: x[i], sol.ys)) for i in range(n_samps)]

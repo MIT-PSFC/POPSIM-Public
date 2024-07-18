@@ -92,7 +92,7 @@ class Confinement:
             calc_with_scaling_law_fun(self.hmode_tau_e_and_P, state, params),
             calc_with_scaling_law_fun(self.lmode_tau_e_and_P, state, params),
         )
-        species_confinement_time = jax.tree_map(lambda k: k * tau_E, params.particle_confinement_scalar)
+        species_confinement_time = jax.tree.map(lambda k: k * tau_E, params.particle_confinement_scalar)
 
         return Confinement.State(hmode_state=hmode_dot), Confinement.Output(
             tau_E=tau_E, species_confinement_time=species_confinement_time, in_hmode=in_hmode

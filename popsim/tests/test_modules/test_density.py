@@ -64,7 +64,7 @@ def test_dynamics():
     # Set params
     params = Density.Params(
         sources_and_sinks=sources_and_sinks,
-        species_confinement_time=jax.tree_map(lambda k: k * tau_E, particle_confinement_scalars),
+        species_confinement_time=jax.tree.map(lambda k: k * tau_E, particle_confinement_scalars),
         volume_dot=0.0,
         volume=13,
     )
@@ -83,7 +83,7 @@ def test_dynamics():
     # Set params
     params = Density.Params(
         sources_and_sinks=sources_and_sinks,
-        species_confinement_time=jax.tree_map(lambda k: k * tau_E, particle_confinement_scalars),
+        species_confinement_time=jax.tree.map(lambda k: k * tau_E, particle_confinement_scalars),
         volume_dot=13.0,
         volume=13,
     )

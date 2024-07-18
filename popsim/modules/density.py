@@ -33,7 +33,7 @@ class Density:
             # Logic to make sure this works for both the scalar and array cases.
             # See associated unit test.
             leaves = jax.tree_util.tree_leaves(self.vol_avg_ion)
-            leaves = jax.tree_map(jnp.atleast_1d, leaves)  # Promote scalars.
+            leaves = jax.tree.map(jnp.atleast_1d, leaves)  # Promote scalars.
             n_t = leaves[0].size  # Number of time steps.
             eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
             if n_t > 1:

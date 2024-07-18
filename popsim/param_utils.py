@@ -174,7 +174,7 @@ def build_param_paths(params: ptypes.ParamSpec, time_base: Array, interp_type: s
 
         # Perform an interpolation to map the PathSpec to the time base.
         intermediate_interp = pinterp.interp_time_dic(path_spec, interp_type=interp_type)
-        vals_on_time_base = jax.tree_map(
+        vals_on_time_base = jax.tree.map(
             lambda x: x.evaluate(time_base), intermediate_interp, is_leaf=lambda x: isinstance(x, diffrax.AbstractPath)
         )
 
@@ -192,7 +192,7 @@ def build_param_paths(params: ptypes.ParamSpec, time_base: Array, interp_type: s
             vals = jnp.array([x for _ in time_base])
             return pinterp.interp(time_base, vals, interp_type=interp_type)
 
-    return jax.tree_map(interp_onto_timebase, params, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
+    return jax.tree.map(interp_onto_timebase, params, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
 def check_params(params: ptypes.ParamSpec) -> None:
