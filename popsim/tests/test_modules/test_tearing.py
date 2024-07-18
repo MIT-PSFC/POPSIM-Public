@@ -5,7 +5,7 @@ from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.simulate import simulate
 
 import popsim.param_utils as param_utils
-from popsim.modules.tearing import Island, Tearing, generate_disruption_phase_trajectory, generate_island_rotation_phase_trajectory
+from popsim.modules.tearing import Island, Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory
 from popsim.simulate import simulate
 
 def test_island_comparison():
@@ -57,7 +57,7 @@ def test_mode_growth_and_freq():
         disruption_phase=generate_disruption_phase_trajectory(
             disrupt_time, dur_tq_to_spike, time_base, dt
         ),
-        island_rotation_phase=generate_island_rotation_phase_trajectory(
+        tearing_phase=generate_tearing_phase_trajectory(
             trigger_time, rot_dur, locking_dur, time_base, dt
         ),
     )

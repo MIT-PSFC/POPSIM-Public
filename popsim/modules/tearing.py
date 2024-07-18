@@ -22,9 +22,9 @@ class DisruptionPhase(IntEnum):
     CQ = 2
 
 
-class IslandRotationPhase(IntEnum):
+class TearingPhase(IntEnum):
     NONE = 0
-    SPAWN = 1  # TODO(ZanderKeith) Need to think about how we want to implement the initial 'kick' that starts and island
+    SPAWN = 1
     ROTATING = 2
     DECELERATING = 3
     LOCKED = 4
@@ -139,19 +139,19 @@ def generate_disruption_phase_trajectory(
     return disrupt_phase_dict
 
 
-def generate_island_rotation_phase_trajectory(
+def generate_tearing_phase_trajectory(
     trigger_time: float, rot_dur: float, locking_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
 ):
     # TODO(allenw): we want a rectilinear interpolation scheme.
     rot_phase_dict = {
-        0.0: IslandRotationPhase.NONE,
-        trigger_time - dt: IslandRotationPhase.NONE,
-        trigger_time: IslandRotationPhase.SPAWN,
-        trigger_time + dt: IslandRotationPhase.ROTATING,
-        trigger_time + rot_dur - dt: IslandRotationPhase.ROTATING,
-        trigger_time + rot_dur: IslandRotationPhase.DECELERATING,
-        trigger_time + rot_dur + locking_dur - dt: IslandRotationPhase.DECELERATING,
-        trigger_time + rot_dur + locking_dur: IslandRotationPhase.LOCKED,
+        0.0: TearingPhase.NONE,
+        trigger_time - dt: TearingPhase.NONE,
+        trigger_time: TearingPhase.SPAWN,
+        trigger_time + dt: TearingPhase.ROTATING,
+        trigger_time + rot_dur - dt: TearingPhase.ROTATING,
+        trigger_time + rot_dur: TearingPhase.DECELERATING,
+        trigger_time + rot_dur + locking_dur - dt: TearingPhase.DECELERATING,
+        trigger_time + rot_dur + locking_dur: TearingPhase.LOCKED,
     }
 
     # Round the times to the nearest time step in the time base.
@@ -159,14 +159,14 @@ def generate_island_rotation_phase_trajectory(
     return rot_phase_dict
 
 
-def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: IslandRotationPhase, island: Island) -> ArrayLike:
+def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_phase: TearingPhase, island: Island) -> ArrayLike:
     """Calculate the tearing growth rate based on its rotation phase and the disruption phase.
     This presently returns hard-coded values for the growth rate, but in the future
     this could be replaced with a more sophisticated model.
 
     Args:
         disruption_phase (DisruptionPhase): The phase of the disruption.
-        rotation_phase (IslandRotationPhase): The phase of the island rotation.
+        rotation_phase (TearingPhase): The phase of the island rotation.
         island (Island): The island for which to calculate the growth rate.
 
     Returns:
@@ -174,7 +174,7 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_ph
     """
 
     conditions_to_choices = [
-        (rotation_phase == IslandRotationPhase.NONE, 0.0),
+        (rotation_phase == TearingPhase.NONE, 0.0),
         (disruption_phase == DisruptionPhase.NONE, island.default_Wdot),
         (disruption_phase == DisruptionPhase.TQ, island.TQ_Wdot),
         (disruption_phase == DisruptionPhase.CQ, island.CQ_Wdot),
@@ -184,11 +184,11 @@ def calculate_tearing_growth_rate(disruption_phase: DisruptionPhase, rotation_ph
     return Wdot
 
 
-def calculate_rotation_dot(rotation_phase: IslandRotationPhase, rot_dur: float, locking_dur: float, island: Island) -> ArrayLike:
+def calculate_rotation_dot(rotation_phase: TearingPhase, rot_dur: float, locking_dur: float, island: Island) -> ArrayLike:
     """Calculate the time derivative of the rotation frequency based on the rotation phase.
 
     Args:
-        rotation_phase (IslandRotationPhase): The phase of the island rotation.
+        rotation_phase (TearingPhase): The phase of the island rotation.
         rot_dur (float): How long the island rotates before beginning deceleration.
         locking_dur (float): How long the island decelerates before locking.
         island (Island): The island for which to calculate the rotation frequency time derivative.
@@ -198,10 +198,10 @@ def calculate_rotation_dot(rotation_phase: IslandRotationPhase, rot_dur: float, 
     """
 
     conditions_and_choices = [
-        (rotation_phase == IslandRotationPhase.NONE, 0.0),
-        (rotation_phase == IslandRotationPhase.ROTATING, -(island.initial_rot_freq / 2.0) / (rot_dur)),
-        (rotation_phase == IslandRotationPhase.DECELERATING, -(island.initial_rot_freq / 2.0) / (locking_dur)),
-        (rotation_phase == IslandRotationPhase.LOCKED, 0.0),
+        (rotation_phase == TearingPhase.NONE, 0.0),
+        (rotation_phase == TearingPhase.ROTATING, -(island.initial_rot_freq / 2.0) / (rot_dur)),
+        (rotation_phase == TearingPhase.DECELERATING, -(island.initial_rot_freq / 2.0) / (locking_dur)),
+        (rotation_phase == TearingPhase.LOCKED, 0.0),
     ]
 
     Fdot = select_w_tuples(conditions_and_choices, default=0.0)
@@ -214,6 +214,7 @@ class Tearing(ModuleBase):
     class Config:
         # Define the data that configures the module and will be static during the simulation.
         magx_time: Array  # deg, a time array on which to output the data
+        islands: list[Island]
 
     @chex.dataclass
     class State:
@@ -229,7 +230,7 @@ class Tearing(ModuleBase):
         rot_dur: float
         locking_dur: float
         disruption_phase: DisruptionPhase
-        island_rotation_phase: IslandRotationPhase
+        tearing_phase: TearingPhase
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
     @chex.dataclass
@@ -241,20 +242,17 @@ class Tearing(ModuleBase):
         mode_freq: dict[Island, float]  # Hz
 
     config: Config
-    islands: list[Island]
 
-    def __init__(self, config, islands: list[Island]):
+    def __init__(self, config):
         self.config = config
         self.islands = islands
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         disruption_phase = round(params.disruption_phase)
-        island_rotation_phase = round(params.island_rotation_phase)
+        tearing_phase = round(params.tearing_phase)
 
-        Wdot = {island: calculate_tearing_growth_rate(disruption_phase, island_rotation_phase, island) for island in self.islands}
-        Fdot = {
-            island: calculate_rotation_dot(island_rotation_phase, params.rot_dur, params.locking_dur, island) for island in self.islands
-        }
+        Wdot = {island: calculate_tearing_growth_rate(disruption_phase, tearing_phase, island) for island in self.islands}
+        Fdot = {island: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, island) for island in self.islands}
         mode_phase_dot = {island: state.F[island] * 2 * jnp.pi for island in self.islands}
 
         for mode in self.islands:
@@ -263,9 +261,9 @@ class Tearing(ModuleBase):
             state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
 
             # If mode is born, set F to initial value
-            state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.SPAWN, mode.initial_rot_freq, state.F[mode])
+            state.F[mode] = jnp.where(tearing_phase == TearingPhase.SPAWN, mode.initial_rot_freq, state.F[mode])
             # If mode is locked, set F to 0
-            state.F[mode] = jnp.where(island_rotation_phase == IslandRotationPhase.LOCKED, 0.0, state.F[mode])
+            state.F[mode] = jnp.where(tearing_phase == TearingPhase.LOCKED, 0.0, state.F[mode])
 
         # Calculate perturbed current
         perturbed_current = {island: state.W[island] * params.cur_per_W for island in self.islands}
