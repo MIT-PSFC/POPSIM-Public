@@ -7,12 +7,12 @@ import jax
 def state_classes():
     @chex.dataclass
     class SubState:
-        discrete_foo: int = hybrid_state.discrete_time_field(0)
+        discrete_foo: int = hybrid_state.discrete_time_field(default=0)
         cont_bar: float = 2.0
 
     @chex.dataclass
     class State:
-        example_state: int = hybrid_state.discrete_time_field(0)
+        example_state: int = hybrid_state.discrete_time_field(default=0)
         example_cont: float = 0.0
         sub_state: SubState = SubState()
 
