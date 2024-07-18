@@ -30,7 +30,9 @@ class TearingPhase(IntEnum):
     LOCKED = 4
 
 
-class Island:
+class Island:  # TODO(ZanderKeith) This class should be removed.
+    # The island information can be encapsulated in a tuple, and the growth rates should really be parameters so
+    # they can have easily varied trajectories.
     # Hard-coded values for the island growth rates
     _DEFAULT_WDOT_DICT = MappingProxyType(
         {
@@ -245,17 +247,16 @@ class Tearing(ModuleBase):
 
     def __init__(self, config):
         self.config = config
-        self.islands = islands
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         disruption_phase = round(params.disruption_phase)
         tearing_phase = round(params.tearing_phase)
 
-        Wdot = {island: calculate_tearing_growth_rate(disruption_phase, tearing_phase, island) for island in self.islands}
-        Fdot = {island: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, island) for island in self.islands}
-        mode_phase_dot = {island: state.F[island] * 2 * jnp.pi for island in self.islands}
+        Wdot = {island: calculate_tearing_growth_rate(disruption_phase, tearing_phase, island) for island in self.config.islands}
+        Fdot = {island: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, island) for island in self.config.islands}
+        mode_phase_dot = {island: state.F[island] * 2 * jnp.pi for island in self.config.islands}
 
-        for mode in self.islands:
+        for mode in self.config.islands:
             # Force W to stay positive
             width_operand = state.W[mode]
             state.W[mode] = lax.cond(width_operand > 0, lambda x: x, lambda x: 0.0, width_operand)
@@ -266,7 +267,7 @@ class Tearing(ModuleBase):
             state.F[mode] = jnp.where(tearing_phase == TearingPhase.LOCKED, 0.0, state.F[mode])
 
         # Calculate perturbed current
-        perturbed_current = {island: state.W[island] * params.cur_per_W for island in self.islands}
+        perturbed_current = {island: state.W[island] * params.cur_per_W for island in self.config.islands}
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)

@@ -132,7 +132,7 @@ class LowNArray(ModuleBase):
         # This appears to be a requirement of JAX, where the dictionary sorting does not necessarily
         # line up with the created arrays, so instead we just include all n=1 to n=max_n
         # and create the dictionary using the indices as keys
-        self.measured_mode_numbers = jnp.arange(1, max(config.reconstructed_modes) + 1)
+        self.measured_mode_numbers = jnp.arange(1, max(self.config.reconstructed_modes) + 1)
         design_matrix = build_design_matrix(self.config.probe_connections, self.measured_mode_numbers)
         # Needs to be jnp array for JAX
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
@@ -146,7 +146,7 @@ class LowNArray(ModuleBase):
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
         filtered_signals = {
-            island: mode_currents[island] * self.func_Bp_per_A(mode_freqs[island]) for island in islands
+            island: mode_currents[island] * self.config.func_Bp_per_A(mode_freqs[island]) for island in islands
         }
 
         # Get the differenced signals between each pair of probes
