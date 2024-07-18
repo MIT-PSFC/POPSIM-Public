@@ -4,6 +4,9 @@ from jaxtyping import PyTree
 
 
 class ModuleBase(ABC):
+    state_dims = {}
+    output_dims = {}
+
     def __post_init__(self):
         # Derived classes must be registered as PyTrees.
         if not isinstance(self, PyTree):

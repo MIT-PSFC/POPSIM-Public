@@ -1,4 +1,7 @@
+import typing
+import warnings
 from enum import Enum, IntEnum
+from inspect import isclass
 
 import diffrax
 import jax
@@ -7,6 +10,9 @@ from jaxtyping import Array, PyTree
 
 import popsim.tree_util as ptu
 import popsim.types as ptypes
+
+Coords = tuple[str, Array]
+CoordSpec = typing.Union[list[Coords], Coords, None]
 
 
 def keypath_to_string(keypath: tuple[ptypes.PyTreeKey]) -> str:
@@ -45,69 +51,142 @@ def keypath_to_string(keypath: tuple[ptypes.PyTreeKey]) -> str:
     return ".".join(strings)
 
 
-def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool) -> xr.Dataset:
+def solution_to_xarray(sol: diffrax.Solution, coord_tree: PyTree = None, multi_simulation: bool = False) -> xr.Dataset:
     """Convert a diffrax.Solution to an xarray. Thin wrapper around time_and_pytree_to_xarray.
 
     Args:
         sol (diffrax.Solution): diffrax.Solution object.
+        coord_tree (PyTree[typing.Optional[list[Coords]]]): shadowing the tree, a PyTree of lists of tuples containing coordinate specifications.
+                                                            Note the ith element of the list corresponds to the ith dimension of the array.
+
         multi_simulation (bool): Whether the solution contains multiple simulations.
 
     Returns:
         xr.Dataset: An xarray dataset.
     """
-    return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
+    return time_and_pytree_to_xarray(sol.ts, sol.ys, coord_tree, multi_simulation)
 
 
-def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation: bool, rhogrid: Array = None) -> xr.Dataset:
-    """Convert a time and a PyTree of arrays to an xarray dataset.
+def convert_enums(coord_list: list[Coords]) -> list[Coords]:
+    """Convert enums to strings in a list of extra coords
+
+    Args:
+        coord_spec
+
+    Returns:
+        coord_spec with enums converted to list of strings
+    """
+    for i, coord in enumerate(coord_list):
+        coord_name, coord_labels = coord
+        if isclass(coord_labels):
+            if issubclass(coord_labels, Enum):
+                coord_list[i] = (coord_name, list(coord_labels.__members__.keys()))
+    return coord_list
+
+
+def tree_and_coords_to_xarray(tree: PyTree[Array], coord_tree: PyTree[typing.Optional[list[Coords]]]) -> xr.Dataset:
+    """Given a pytree of arrays and a corresponding pytree of coordinate specifications, convert to an xarray dataset.
+
+    Args:
+        tree (PyTree[Array]): PyTree of arrays containing data.
+        coord_tree (PyTree[typing.Optional[list[Coords]]]): shadowing the tree, a PyTree of lists of tuples containing coordinate specifications.
+                                                            Note the ith element of the list corresponds to the ith dimension of the array.
+
+    Returns:
+        xr.Dataset: dataset containing the data and coordinates.
+    """
+
+    def make_data_array(keypath: tuple[ptypes.PyTreeKey], array: Array, coord: list[Coords]) -> xr.DataArray:
+        if array.ndim == len(coord):
+            # If the array and the coord have the same number of dimensions, we can just make a DataArray.
+            return xr.DataArray(array, coords=convert_enums(coord))
+        else:
+            warnings.warn(
+                f"Skipping variable {keypath_to_string(keypath)} in construction of xr.Dataset. Array and coord have different number of dimensions. Array shape: {array.shape}, coord shape: {len(coord)}.",
+                stacklevel=2,
+            )
+            return None
+
+    # Construct a tree of DataArrays.
+    da_tree = jax.tree_util.tree_map_with_path(make_data_array, tree, coord_tree)
+
+    # Convert the tree of DataArrays to a dictionary of DataArrays.
+    # Use the keypath_to_string on the keypath to generate a unique name for each DataArray.
+    leaves_with_path = jax.tree_util.tree_leaves_with_path(da_tree)
+    dict_of_da = {keypath_to_string(keypath): leaf for keypath, leaf in leaves_with_path if leaf is not None}
+
+    # Convert to a Dataset.
+    ds = xr.Dataset(dict_of_da)
+    return ds
+
+
+def time_and_pytree_to_xarray(
+    time: Array, tree: PyTree[Array], extra_coord_tree: PyTree[CoordSpec] = None, multi_simulation: bool = False
+) -> xr.Dataset:
+    """Convert a time and a PyTree of arrays to an xarray dataset. In the multi-simulation case, assign numbered names to the simulations.
+
+    Assumptions:
+        - In the multi_simulation = False case, arrays are expected to have shape (time, ...).
+        - In the multi_simulation = True case, arrays are expected to have shape (simulation, time, ...).
+        - In the multi_simulation = True case, the time array is expected to be the same for all simulations.
 
     Args:
         time (Array): time array. In the multi-simulation case, expect (simulation, time). In the single-simulation case, expect (time).
         tree (PyTree[Array]): PyTree of arrays. In the multi-simulatoin case, expect (simulation, time, ...). In the single-simulation case, expect (time, ...).
+        extra_coord_tree (PyTree[CoordSpec]): PyTree of extra coordinates for the arrays.
         multi_simulation (bool): whether the time and tree are multi-simulation.
-        rhogrid (Array, optional): values of the rho grid. Defaults to None.
-
-    Raises:
-        ValueError: _description_
-        ValueError: _description_
 
     Returns:
         xr.Dataset: An xarray dataset.
     """
-    # Convert a solution to an xarray, supporting 2D arrays for "time" and "simulation".
-    leaves_with_path = jax.tree_util.tree_leaves_with_path(tree)
-
-    def convert_array(arr: Array) -> Array:
-        if multi_simulation:
-            if arr.ndim == 2:
-                return (["simulation", "time"], arr)
-            if arr.ndim == 3:
-                return (["simulation", "time", "rho"], arr)
-            else:
-                raise ValueError(f"Array has unexpected shape {arr.shape}.")
-        else:
-            if arr.ndim == 1:
-                return (["time"], arr)
-            if arr.ndim == 2:
-                return (["time", "rho"], arr)
-            else:
-                raise ValueError(f"Array has unexpected shape {arr.shape}.")
-
-    variables = {keypath_to_string(keypath): convert_array(leaf) for keypath, leaf in leaves_with_path}
-
-    # Expect time to be the same for all simulations.
-    if multi_simulation and time.ndim == 2:
-        assert (time == time[0]).all()
-
-    # Expect all leaves to have the same leading dimension.
-    first_leaf_data = leaves_with_path[0][1]
-    assert all(leaf.shape[0] == first_leaf_data.shape[0] for _, leaf in leaves_with_path)
-    coords = {"time": time[0]} if multi_simulation and time.ndim == 2 else {"time": time}
 
     if multi_simulation:
-        coords["simulation"] = list(range(first_leaf_data.shape[0]))
-    if rhogrid is not None:
-        coords["rho"] = rhogrid
+        assert time.ndim in (2, 1)
+        # If time is 1D, assume it applies to all simulations.
+        if time.ndim == 2:
+            # Currently we only support the case where the time array is the same for all simulations.
+            assert (time == time[0]).all()
 
-    dataset = xr.Dataset(data_vars=variables, coords=coords)
-    return dataset
+        # Check that every array has the same number of simulations.
+        nsims_tree = jax.tree.map(lambda x: x.shape[0], tree)
+        tree_leaves = jax.tree.leaves(nsims_tree)
+        if len(set(tree_leaves)) > 1:
+            raise ValueError("In multi-simulation mode, all arrays must have the same number of simulations.")
+        nsims = tree_leaves[0]
+    else:
+        nsims = 1
+
+    # Define the time base for all dataarray instances.
+    time_base = time[0] if multi_simulation and time.ndim == 2 else time
+    time_base = time_base.squeeze()
+
+    def make_coords_for_array(_, extra_coords):
+        # Why the dummy first argument?
+        # We don't need the array data to construct the coordinates, but
+        # performing a multi-map avoids the issue of tree.map treating
+        # tuples as tree nodes themselves. Thus, the multi-map maps the function
+        # to the depth of the leaves of the original array.
+        if extra_coords is None:
+            # Define as empty list so unpacking works down the line.
+            extra_coords = []
+        elif isinstance(extra_coords, tuple):
+            # Wrap the tuple in a list.
+            extra_coords = [extra_coords]
+        elif isinstance(extra_coords, list):
+            pass
+        else:
+            raise ValueError(f"extra_coords must be a tuple, list or None, got {type(extra_coords)}.")
+
+        if multi_simulation:
+            simulation_numbers = range(nsims)
+            return [("simulation", simulation_numbers), ("time", time_base), *extra_coords]
+        else:
+            return [("time", time_base), *extra_coords]
+
+    # Construct the coordnates tree.
+    extra_coord_tree = jax.tree.map(lambda _: None, tree) if extra_coord_tree is None else extra_coord_tree
+    coord_tree = jax.tree.map(make_coords_for_array, tree, extra_coord_tree)
+
+    # Construct the dataset.
+    ds = tree_and_coords_to_xarray(tree, coord_tree)
+    return ds

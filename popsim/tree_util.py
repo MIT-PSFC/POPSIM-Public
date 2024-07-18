@@ -32,7 +32,7 @@ def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLi
             PyTree[ArrayLike]: PyTree of arrays where the ith element of each array
                 corresponds to the ith element of the input sequence.
     """
-    return jax.tree.map(lambda *xs: jnp.array(xs), *seq_of_trees)
+    return jax.tree_map(lambda *xs: jnp.array(xs), *seq_of_trees)
 
 
 def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:

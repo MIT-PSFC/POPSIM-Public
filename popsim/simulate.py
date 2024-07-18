@@ -69,9 +69,9 @@ def simulate(
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
 
     if stepper_type == StepperType.SIMPLE_EULER:
-        return time_and_pytree_to_xarray(time_base, sol, multi_sim) if return_xarray else sol
+        return time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim) if return_xarray else sol
     elif stepper_type == StepperType.DIFFRAX:
-        return solution_to_xarray(sol, multi_sim) if return_xarray else sol
+        return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
     else:
         raise ValueError("Stepper type not recognized.")
 
