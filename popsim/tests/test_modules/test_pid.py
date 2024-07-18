@@ -9,7 +9,7 @@ def test_pid_controller():
     pid = PIDController(config=config)
 
     # Create initial state with empty error history
-    initial_state = PIDController.State(error_history=jnp.zeros(10), previous_error=0.0)
+    initial_state = PIDController.State(error_history=jnp.zeros(10))
     params = PIDController.Params(setpoint=5.0, measurement=0.0)
 
     # Run the PID controller once.
@@ -25,7 +25,6 @@ def test_pid_controller():
     # Test PID states are updated as expected.
     assert next_state.error_history[0] == 5.0
     assert jnp.all(next_state.error_history[1:] == 0.0)
-    assert jnp.isclose(next_state.previous_error, 5.0, atol=1e-6)
 
     # Test output limiting
     params_max = PIDController.Params(setpoint=100.0, measurement=0.0)

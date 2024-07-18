@@ -29,6 +29,7 @@ class PIDController(ModuleBase):
     class Params:
         setpoint: float
         measurement: float
+        feed_forward: float = 0.0
 
     config: Config
 
@@ -49,15 +50,15 @@ class PIDController(ModuleBase):
         D = jnp.where(previous_error == 0.0, 0.0, self.config.Kd * (error - previous_error) / self.config.dt)
 
         # Calculate control output
-        control = P + I + D
+        pid_act = P + I + D
 
         # Apply output limits
-        control = jnp.clip(control, self.config.output_min, self.config.output_max)
+        control = jnp.clip(pid_act + params.feed_forward, self.config.output_min, self.config.output_max)
 
         # Update state
         new_error_history = jnp.concatenate([jnp.array([error]), state.error_history[:-1]])
-        next_state = PIDController.State(error_history=new_error_history, previous_error=error)
+        next_state = PIDController.State(error_history=new_error_history)
 
-        output = PIDController.Output(control=control, aux_data={"P": P, "I": I, "D": D})
+        output = PIDController.Output(control=control, aux_data={"P": P, "I": I, "D": D, "PID_act": pid_act})
 
         return next_state, output

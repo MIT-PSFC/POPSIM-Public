@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 import popsim.simulators.comet_mirror.scenarios.sparc_prd as sparc_prd_cm
 from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData
-from popsim.simulators.comet_mirror.simulate import simulate
+from popsim.simulate import simulate
 
 
 def generate_sim_and_checks(only_return_final: bool = True):
@@ -13,9 +13,9 @@ def generate_sim_and_checks(only_return_final: bool = True):
     sol = simulate(model, ts, state, params, return_xarray=False)
 
     if only_return_final:
-        out = jax.tree.map(lambda x: x[-1], sol.ys)
+        out = jax.tree.map(lambda x: x[-1], sol)
     else:
-        out = sol.ys
+        out = sol
     out_state, out_aux = out["state"], out["aux"]
 
     # The checks take the form of (actual, expected, percent_tolerance).
