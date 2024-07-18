@@ -2,7 +2,7 @@ import diffrax
 import jax.numpy as jnp
 from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.interp import resolve_paths
-from popsim.simulate import simulate
+from popsim.simulate import simulate, StepperType
 
 def test_sim_and_clip():
     state = HmodeDynamics.State(hmode=0.0)
@@ -26,7 +26,7 @@ def test_sim_and_clip():
 
     hmode_module = HmodeDynamics(config=HmodeDynamics.Config())
 
-    sol = simulate(hmode_module, times, state, params, return_xarray=False)
+    sol = simulate(hmode_module, times, state, params, return_xarray=False, stepper_type=StepperType.DIFFRAX)
 
     in_hmodes = sol.ys['state'].in_hmode
     

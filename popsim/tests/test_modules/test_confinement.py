@@ -5,7 +5,7 @@ import diffrax
 from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
 from popsim.interp import resolve_paths
 from popsim.xarray_utils import solution_to_xarray
-from popsim.simulate import simulate
+from popsim.simulate import simulate, StepperType
 
 def test_dynamics():
     input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
@@ -72,7 +72,7 @@ def test_dynamics():
 )
 
 
-    dataset = simulate(confinement_module, times, state, params, return_xarray=True)
+    dataset = simulate(confinement_module, times, state, params, return_xarray=True, stepper_type=StepperType.DIFFRAX)
 
     assert jnp.isclose(float(dataset['aux.tau_E'][0]),0.1834906)
     assert jnp.isclose(float(dataset['aux.tau_E'][1]),0.67667817)
