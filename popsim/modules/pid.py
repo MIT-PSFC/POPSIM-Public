@@ -42,7 +42,7 @@ class PIDController(ModuleBase):
         P = self.config.Kp * error
 
         # Integral term (using finite time horizon)
-        I = self.config.Ki * sum(state.error_history) * self.config.dt  # noqa: E741
+        I = self.config.Ki * jnp.sum(state.error_history) * self.config.dt  # noqa: E741
 
         # Derivative term. If the previous error is zero, the derivative term is zero to handle the initialization case.
         previous_error = state.error_history[0]
