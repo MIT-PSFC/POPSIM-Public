@@ -2,24 +2,23 @@ import chex
 import jax.numpy as jnp
 from jaxtyping import Array
 
-from popsim import ModuleBase
+from popsim import ModuleBase, discrete_time_field
 
 
 @chex.dataclass
 class PIDController(ModuleBase):
     @chex.dataclass
     class Config:
-        Kp: float = 1.0
-        Ki: float = 0.1
-        Kd: float = 0.05
-        dt: float = 0.001
+        Kp: float
+        Ki: float
+        Kd: float
+        dt: float
         output_min: float = -float("inf")
         output_max: float = float("inf")
 
     @chex.dataclass
     class State:
-        error_history: Array
-        previous_error: float = 0.0
+        error_history: Array = discrete_time_field()
 
     @chex.dataclass
     class Output:
@@ -46,7 +45,8 @@ class PIDController(ModuleBase):
         I = self.config.Ki * sum(state.error_history) * self.config.dt  # noqa: E741
 
         # Derivative term. If the previous error is zero, the derivative term is zero to handle the initialization case.
-        D = jnp.where(state.previous_error == 0.0, 0.0, self.config.Kd * (error - state.previous_error) / self.config.dt)
+        previous_error = state.error_history[0]
+        D = jnp.where(previous_error == 0.0, 0.0, self.config.Kd * (error - previous_error) / self.config.dt)
 
         # Calculate control output
         control = P + I + D
