@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 from jaxtyping import PyTree
 
 
 class ModuleBase(ABC):
-    state_dims = {}
-    output_dims = {}
+    state_dims: ClassVar[PyTree] = {}
+    output_dims: ClassVar[PyTree] = {}
 
     def __post_init__(self):
         # Derived classes must be registered as PyTrees.
