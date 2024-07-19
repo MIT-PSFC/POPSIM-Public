@@ -17,7 +17,7 @@ def visualize_time_series(
     dataset: xr.Dataset,
     plot_spec: Optional[list[Union[str, Sequence[str]]]] = None,
     hlines: Optional[dict[str, float]] = None,
-    max_cols: int = 2,
+    max_cols: int = 3,
     fontsize: int = 10,
 ) -> pn.panel:
     """Visualize the time series of the variables in the dataset.
