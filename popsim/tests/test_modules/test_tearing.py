@@ -45,11 +45,9 @@ def test_mode_growth_and_freq():
         ),
     )
 
-    jax.config.update("jax_platforms", "cpu")
     tearing_module = Tearing(config=config)
 
     sol_xarray = simulate(tearing_module, time_base, initial_state, params)
-    import pdb; pdb.set_trace()
 
     for mode in modes:
         W_dot = sol_xarray[f"aux.state_dot.W.{str(mode)}"]

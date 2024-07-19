@@ -91,8 +91,7 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation
             if arr.ndim == 2:
                 return (["time", "rho"], arr)
             else:
-                # raise ValueError(f"Array has unexpected shape {arr.shape}.")
-                pass
+                raise ValueError(f"Array has unexpected shape {arr.shape}.")
 
     variables = {keypath_to_string(keypath): convert_array(leaf) for keypath, leaf in leaves_with_path}
 

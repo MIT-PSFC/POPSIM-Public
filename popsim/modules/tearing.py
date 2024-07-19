@@ -56,25 +56,6 @@ INITIAL_ROT_FREQ = {
     (3, 1): 7e3 * 0.67,
 }
 
-# Make an array of the default values
-# where the first index is poloidal mode number and the second index is toroidal mode number.
-# This is required for the parameters to work
-# DEFAULT_WDOT = np.zeros((4, 4))
-# TQ_WDOT = np.zeros((4, 4))
-# CQ_WDOT = np.zeros((4, 4))
-# INITIAL_ROT_FREQ = np.zeros((4, 4))
-
-# for m, n in zip(range(4), range(4)):
-#     DEFAULT_WDOT[m, n] = DEFAULT_WDOT_DICT.get((m, n), 0.0)
-#     TQ_WDOT[m, n] = TQ_WDOT_DICT.get((m, n), 0.0)
-#     CQ_WDOT[m, n] = CQ_WDOT_DICT.get((m, n), 0.0)
-#     INITIAL_ROT_FREQ[m, n] = INITIAL_ROT_FREQ_DICT.get((m, n), 0.0)
-
-# DEFAULT_WDOT = jnp.array(DEFAULT_WDOT)
-# TQ_WDOT = jnp.array(TQ_WDOT)
-# CQ_WDOT = jnp.array(CQ_WDOT)
-# INITIAL_ROT_FREQ = jnp.array(INITIAL_ROT_FREQ)
-
 
 def find_nearest(array, value):
     array = np.asarray(array)
@@ -256,6 +237,5 @@ class Tearing(ModuleBase):
             mode_current=perturbed_current,
             mode_phase=state.mode_phase,
             mode_freq=state.F,
-            aux_data=params,
         )
         return state_dot, out
