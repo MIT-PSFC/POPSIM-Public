@@ -4,7 +4,7 @@ import numpy as np
 from interpax import Interpolator1D
 
 from popsim import ModuleBase
-from popsim.modules.tearing import Island, Tearing
+from popsim.modules.tearing import Tearing
 
 """
 Classes which simulate magnetic diagnostics
@@ -57,9 +57,9 @@ def build_design_matrix(probe_connections: list[tuple[float, float]], measured_m
 
 def get_differenced_signals(
     probe_connections: list[tuple[float, float]],
-    filtered_mags: dict[Island, float],
-    mode_phases: dict[Island, float],
-    islands: list[Island],
+    filtered_mags: dict[tuple[int, int], float],
+    mode_phases: dict[tuple[int, int], float],
+    modes: list[tuple[int, int]],
 ) -> jnp.ndarray:
     """The Low-N array has digitizers that record the differences between probes to isolate
     the small tearing mode signal (~0.001 T) on top of the large background field (~10 T)
@@ -68,24 +68,24 @@ def get_differenced_signals(
         probe_connections (list[tuple[float, float]]): A list of tuples representing the connections between probes.
         filtered_mags (dict[float, float]): The magnitudes of the tearing modes after being filtered by the transfer function.
         mode_phases: The phases of the tearing modes.
-        islands: The tearing islands being measured.
+        modes: The tearing modes being measured.
 
     Returns:
         jnp.ndarray: The differenced signals.
     """
 
-    differenced_signals = jnp.zeros((len(islands), len(probe_connections)))
+    differenced_signals = jnp.zeros((len(modes), len(probe_connections)))
 
-    for i, island in enumerate(islands):
-        island_mag = filtered_mags[island]
-        island_phase = mode_phases[island]
-        island_mode = island.n
+    for i, mode in enumerate(modes):
+        mode_mag = filtered_mags[mode]
+        mode_phase = mode_phases[mode]
+        toroidal_mode_number = mode[1]
         for j, (probe1_angle, probe2_angle) in enumerate(probe_connections):
-            probe_signal_1 = island_mag * jnp.cos(island_mode * (probe1_angle - island_phase))
-            probe_signal_2 = island_mag * jnp.cos(island_mode * (probe2_angle - island_phase))
+            probe_signal_1 = mode_mag * jnp.cos(toroidal_mode_number * (probe1_angle - mode_phase))
+            probe_signal_2 = mode_mag * jnp.cos(toroidal_mode_number * (probe2_angle - mode_phase))
             differenced_signals = differenced_signals.at[i, j].set(probe_signal_1 - probe_signal_2)
 
-    # Sum the differenced signals for each island
+    # Sum the differenced signals for each mode
     differenced_signals = jnp.sum(differenced_signals, axis=0)
 
     return differenced_signals
@@ -114,7 +114,7 @@ class LowNArray(ModuleBase):
     class Output:
         # Define the output variables that will be returned by the module.
         reconstructed_magnitudes: dict[int, float]  # T
-        filtered_signals: dict[Island, float]  # T
+        filtered_signals: dict[tuple[int, int], float]  # T
         differenced_signals: jnp.ndarray  # T
 
     @chex.dataclass
@@ -139,21 +139,21 @@ class LowNArray(ModuleBase):
         # Needs to be jnp array for JAX
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
-    def __call__(self, tearing_out: Tearing.Output, islands: list[Island]) -> Output:
+    def __call__(self, tearing_out: Tearing.Output, modes: list[tuple[int, int]]) -> Output:
         # Get the perturbed current, phase, and frequency of each tearing mode
         mode_currents = tearing_out.mode_current
         mode_phases = tearing_out.mode_phase
         mode_freqs = tearing_out.mode_freq
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
-        filtered_signals = {island: mode_currents[island] * self.config.func_Bp_per_A(mode_freqs[island]) for island in islands}
+        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in modes}
 
         # Get the differenced signals between each pair of probes
         differenced_signals = get_differenced_signals(
             self.config.probe_connections,
             filtered_signals,
             mode_phases,
-            islands,
+            modes,
         )
 
         reconstructed_components = self.pseudoinverse_matrix @ differenced_signals

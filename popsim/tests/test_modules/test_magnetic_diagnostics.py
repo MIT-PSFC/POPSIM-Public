@@ -2,20 +2,20 @@ import jax
 import jax.numpy as jnp
 
 import popsim.param_utils as param_utils
-from popsim.modules.tearing import Island, Tearing, DisruptionPhase, TearingPhase
+from popsim.modules.tearing import Tearing, DisruptionPhase, TearingPhase
 from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
 
 def test_lown_array_same_amplitude_diff_phases():
     """Ensure the Low-N Array module returns the same amplitude for different phases of the same mode."""
     jax.config.update("jax_platforms", "cpu")
 
-    islands = [Island(2, 1), Island(3, 2)]
+    modes = [(2, 1), (3, 2)]
 
     dt = 1e-4 / 3  # s
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
         magx_time=time_base,
-        islands = islands
+        modes = modes
     )
 
     rot_dur = 1.0
@@ -44,35 +44,36 @@ def test_lown_array_same_amplitude_diff_phases():
     test_phases = jnp.linspace(0, 2*jnp.pi, 10)
 
     test_tearing_states = [
-        Tearing.State(W={island: 50.0 for island in islands},
-                      F={island: 1e3 for island in islands},
-                      mode_phase={island: phase for island in islands})
+        Tearing.State(W={mode: 50.0 for mode in modes},
+                      F={mode: 1e3 for mode in modes},
+                      mode_phase={mode: phase for mode in modes})
         for phase in test_phases
     ]
 
     resulting_magnitudes = []
     for tearing_state in test_tearing_states:
         _, tearing_output = tearing_module(tearing_state, tearing_params)
-        lown_array_out = lown_array_module(tearing_output, tearing_module.config.islands)
+        lown_array_out = lown_array_module(tearing_output, tearing_module.config.modes)
         reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
         resulting_magnitudes.append(reconstructed_magnitudes)
 
-    for island in islands:
-        island_magnitudes = jnp.asarray([all_magnitudes[island.n] for all_magnitudes in resulting_magnitudes])
-        assert jnp.allclose(island_magnitudes, jnp.ones_like(island_magnitudes) * island_magnitudes[0])
+    for mode in modes:
+        toroidal_mode_number = mode[1]
+        mode_magnitudes = jnp.asarray([all_magnitudes[toroidal_mode_number] for all_magnitudes in resulting_magnitudes])
+        assert jnp.allclose(mode_magnitudes, jnp.ones_like(mode_magnitudes) * mode_magnitudes[0])
 
 def test_lown_array_nonexistant_mode():
     """Ensure the measured amplitude of a nonexistant mode is very small."""
 
     jax.config.update("jax_platforms", "cpu")
 
-    islands = [Island(3, 2)]
+    modes = [(3, 2)]
 
     dt = 1e-4 / 3  # s
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
         magx_time=time_base,
-        islands = islands
+        modes = modes
     )
 
     rot_dur = 1.0
@@ -98,13 +99,13 @@ def test_lown_array_nonexistant_mode():
 
     lown_array_module = LowNArray(config=lown_array_config)
 
-    tearing_state = Tearing.State(W={island: 50.0 for island in islands},
-                      F={island: 1e3 for island in islands},
-                      mode_phase={island: 0.0 for island in islands})
+    tearing_state = Tearing.State(W={mode: 50.0 for mode in modes},
+                      F={mode: 1e3 for mode in modes},
+                      mode_phase={mode: 0.0 for mode in modes})
     
 
     _, tearing_output = tearing_module(tearing_state, tearing_params)
-    lown_array_out = lown_array_module(tearing_output, tearing_module.config.islands)
+    lown_array_out = lown_array_module(tearing_output, tearing_module.config.modes)
     reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
 
     assert reconstructed_magnitudes[1] < 1e-6*reconstructed_magnitudes[2]

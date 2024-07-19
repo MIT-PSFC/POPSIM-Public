@@ -1,4 +1,5 @@
 from enum import IntEnum
+from types import MappingProxyType
 from typing import Optional
 
 import chex
@@ -28,29 +29,37 @@ class TearingPhase(IntEnum):
     LOCKED = 4
 
 
-DEFAULT_WDOT = {
-    (3, 2): 4e-2 / 0.5,  # m/s
-    (2, 1): 10e-2 / 0.5,
-    (3, 1): 3e-2 / 0.5,
-}
+DEFAULT_WDOT = MappingProxyType(
+    {
+        (3, 2): 4e-2 / 0.5,  # m/s
+        (2, 1): 10e-2 / 0.5,
+        (3, 1): 3e-2 / 0.5,
+    }
+)
 
-TQ_WDOT = {
-    (3, 2): 4e-2 / 0.002,  # m/s
-    (2, 1): 10e-2 / 0.002,
-    (3, 1): 3e-2 / 0.002,
-}
+TQ_WDOT = MappingProxyType(
+    {
+        (3, 2): 4e-2 / 0.002,  # m/s
+        (2, 1): 10e-2 / 0.002,
+        (3, 1): 3e-2 / 0.002,
+    }
+)
 
-CQ_WDOT = {
-    (3, 2): -4e-2 / 0.005,  # m/s
-    (2, 1): -10e-2 / 0.005,
-    (3, 1): -3e-2 / 0.005,
-}
+CQ_WDOT = MappingProxyType(
+    {
+        (3, 2): -4e-2 / 0.005,  # m/s
+        (2, 1): -10e-2 / 0.005,
+        (3, 1): -3e-2 / 0.005,
+    }
+)
 
-INITIAL_ROT_FREQ = {
-    (3, 2): 7e3 * 1.5,  # Hz
-    (2, 1): 7e3,
-    (3, 1): 7e3 * 0.67,
-}
+INITIAL_ROT_FREQ = MappingProxyType(
+    {
+        (3, 2): 7e3 * 1.5,  # Hz
+        (2, 1): 7e3,
+        (3, 1): 7e3 * 0.67,
+    }
+)
 
 
 def find_nearest(array, value):
@@ -154,15 +163,15 @@ class Tearing(ModuleBase):
     class Config:
         # Define the data that configures the module and will be static during the simulation.
         magx_time: Array  # deg, a time array on which to output the data
-        modes: list[tuple]
+        modes: list[tuple[int, int]]
 
     @chex.dataclass
     class State:
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
-        W: dict[tuple, float]  # m, Nxm
-        F: dict[tuple, float]  # Hz
-        mode_phase: dict[tuple, float]  # rad
+        W: dict[tuple[int, int], float]  # m, Nxm
+        F: dict[tuple[int, int], float]  # Hz
+        mode_phase: dict[tuple[int, int], float]  # rad
 
     @chex.dataclass
     class Params:
@@ -172,18 +181,18 @@ class Tearing(ModuleBase):
         disruption_phase: DisruptionPhase
         tearing_phase: TearingPhase
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
-        default_wdot: dict[tuple, float] = DEFAULT_WDOT
-        tq_wdot: dict[tuple, float] = TQ_WDOT
-        cq_wdot: dict[tuple, float] = CQ_WDOT
-        initial_rot_freq: dict[tuple, float] = INITIAL_ROT_FREQ
+        default_wdot: dict[tuple[int, int], float] = DEFAULT_WDOT
+        tq_wdot: dict[tuple[int, int], float] = TQ_WDOT
+        cq_wdot: dict[tuple[int, int], float] = CQ_WDOT
+        initial_rot_freq: dict[tuple[int, int], float] = INITIAL_ROT_FREQ
 
     @chex.dataclass
     class Output:
         state_dot: "State"  # noqa: F821
         params: "Params"  # noqa: F821
-        mode_current: dict[tuple, float]  # A
-        mode_phase: dict[tuple, float]  # rad
-        mode_freq: dict[tuple, float]  # Hz
+        mode_current: dict[tuple[int, int], float]  # A
+        mode_phase: dict[tuple[int, int], float]  # rad
+        mode_freq: dict[tuple[int, int], float]  # Hz
 
     config: Config
 
