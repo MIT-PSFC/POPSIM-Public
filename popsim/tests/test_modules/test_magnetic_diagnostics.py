@@ -7,7 +7,6 @@ from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
 
 def test_lown_array_same_amplitude_diff_phases():
     """Ensure the Low-N Array module returns the same amplitude for different phases of the same mode."""
-    jax.config.update("jax_platforms", "cpu")
 
     modes = [(2, 1), (3, 2)]
 
@@ -64,8 +63,6 @@ def test_lown_array_same_amplitude_diff_phases():
 
 def test_lown_array_nonexistant_mode():
     """Ensure the measured amplitude of a nonexistant mode is very small."""
-
-    jax.config.update("jax_platforms", "cpu")
 
     modes = [(3, 2)]
 

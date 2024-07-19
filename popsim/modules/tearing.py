@@ -1,5 +1,5 @@
+import dataclasses
 from enum import IntEnum
-from types import MappingProxyType
 from typing import Optional
 
 import chex
@@ -29,37 +29,51 @@ class TearingPhase(IntEnum):
     LOCKED = 4
 
 
-DEFAULT_WDOT = MappingProxyType(
-    {
-        (3, 2): 4e-2 / 0.5,  # m/s
-        (2, 1): 10e-2 / 0.5,
-        (3, 1): 3e-2 / 0.5,
-    }
-)
+DEFAULT_WDOT = {
+    (3, 2): 4e-2 / 0.5,  # m/s
+    (2, 1): 10e-2 / 0.5,
+    (3, 1): 3e-2 / 0.5,
+}
 
-TQ_WDOT = MappingProxyType(
-    {
-        (3, 2): 4e-2 / 0.002,  # m/s
-        (2, 1): 10e-2 / 0.002,
-        (3, 1): 3e-2 / 0.002,
-    }
-)
 
-CQ_WDOT = MappingProxyType(
-    {
-        (3, 2): -4e-2 / 0.005,  # m/s
-        (2, 1): -10e-2 / 0.005,
-        (3, 1): -3e-2 / 0.005,
-    }
-)
+TQ_WDOT = {
+    (3, 2): 4e-2 / 0.002,  # m/s
+    (2, 1): 10e-2 / 0.002,
+    (3, 1): 3e-2 / 0.002,
+}
 
-INITIAL_ROT_FREQ = MappingProxyType(
-    {
-        (3, 2): 7e3 * 1.5,  # Hz
-        (2, 1): 7e3,
-        (3, 1): 7e3 * 0.67,
-    }
-)
+
+CQ_WDOT = {
+    (3, 2): -4e-2 / 0.005,  # m/s
+    (2, 1): -10e-2 / 0.005,
+    (3, 1): -3e-2 / 0.005,
+}
+
+
+INITIAL_ROT_FREQ = {
+    (3, 2): 7e3 * 1.5,  # Hz
+    (2, 1): 7e3,
+    (3, 1): 7e3 * 0.67,
+}
+
+# Make an array of the default values
+# where the first index is poloidal mode number and the second index is toroidal mode number.
+# This is required for the parameters to work
+# DEFAULT_WDOT = np.zeros((4, 4))
+# TQ_WDOT = np.zeros((4, 4))
+# CQ_WDOT = np.zeros((4, 4))
+# INITIAL_ROT_FREQ = np.zeros((4, 4))
+
+# for m, n in zip(range(4), range(4)):
+#     DEFAULT_WDOT[m, n] = DEFAULT_WDOT_DICT.get((m, n), 0.0)
+#     TQ_WDOT[m, n] = TQ_WDOT_DICT.get((m, n), 0.0)
+#     CQ_WDOT[m, n] = CQ_WDOT_DICT.get((m, n), 0.0)
+#     INITIAL_ROT_FREQ[m, n] = INITIAL_ROT_FREQ_DICT.get((m, n), 0.0)
+
+# DEFAULT_WDOT = jnp.array(DEFAULT_WDOT)
+# TQ_WDOT = jnp.array(TQ_WDOT)
+# CQ_WDOT = jnp.array(CQ_WDOT)
+# INITIAL_ROT_FREQ = jnp.array(INITIAL_ROT_FREQ)
 
 
 def find_nearest(array, value):
@@ -171,7 +185,7 @@ class Tearing(ModuleBase):
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
         W: dict[tuple[int, int], float]  # m, Nxm
         F: dict[tuple[int, int], float]  # Hz
-        mode_phase: dict[tuple[int, int], float]  # rad
+        mode_phase: dict[tuple[int, int], float]  # rad``
 
     @chex.dataclass
     class Params:
@@ -181,10 +195,10 @@ class Tearing(ModuleBase):
         disruption_phase: DisruptionPhase
         tearing_phase: TearingPhase
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
-        default_wdot: dict[tuple[int, int], float] = DEFAULT_WDOT
-        tq_wdot: dict[tuple[int, int], float] = TQ_WDOT
-        cq_wdot: dict[tuple[int, int], float] = CQ_WDOT
-        initial_rot_freq: dict[tuple[int, int], float] = INITIAL_ROT_FREQ
+        default_wdot: dict[tuple, float] = dataclasses.field(default_factory=lambda: DEFAULT_WDOT)
+        tq_wdot: dict[tuple, float] = dataclasses.field(default_factory=lambda: TQ_WDOT)
+        cq_wdot: dict[tuple, float] = dataclasses.field(default_factory=lambda: CQ_WDOT)
+        initial_rot_freq: dict[tuple, float] = dataclasses.field(default_factory=lambda: INITIAL_ROT_FREQ)
 
     @chex.dataclass
     class Output:
@@ -193,6 +207,7 @@ class Tearing(ModuleBase):
         mode_current: dict[tuple[int, int], float]  # A
         mode_phase: dict[tuple[int, int], float]  # rad
         mode_freq: dict[tuple[int, int], float]  # Hz
+        aux_data: dict = None
 
     config: Config
 
@@ -205,12 +220,16 @@ class Tearing(ModuleBase):
 
         Wdot = {
             mode: calculate_tearing_growth_rate(
-                disruption_phase, tearing_phase, params.default_wdot[mode], params.tq_wdot[mode], params.cq_wdot[mode]
+                disruption_phase,
+                tearing_phase,
+                params.default_wdot[mode[0], mode[1]],
+                params.tq_wdot[mode[0], mode[1]],
+                params.cq_wdot[mode[0], mode[1]],
             )
             for mode in self.config.modes
         }
         Fdot = {
-            mode: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, params.initial_rot_freq[mode])
+            mode: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, params.initial_rot_freq[mode[0], mode[1]])
             for mode in self.config.modes
         }
         mode_phase_dot = {mode: state.F[mode] * 2 * jnp.pi for mode in self.config.modes}
@@ -220,7 +239,7 @@ class Tearing(ModuleBase):
             state.W[mode] = jnp.where(state.W[mode] > 0, state.W[mode], 0.0)
 
             # If mode just spawned, set F to initial value
-            state.F[mode] = jnp.where(tearing_phase == TearingPhase.SPAWN, params.initial_rot_freq[mode], state.F[mode])
+            state.F[mode] = jnp.where(tearing_phase == TearingPhase.SPAWN, params.initial_rot_freq[mode[0], mode[1]], state.F[mode])
             # If mode is locked, set F to 0
             state.F[mode] = jnp.where(tearing_phase == TearingPhase.LOCKED, 0.0, state.F[mode])
 
@@ -229,8 +248,14 @@ class Tearing(ModuleBase):
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
+
         # Make an output.
         out = Tearing.Output(
-            state_dot=state_dot, params=params, mode_current=perturbed_current, mode_phase=state.mode_phase, mode_freq=state.F
+            state_dot=state_dot,
+            params=params,
+            mode_current=perturbed_current,
+            mode_phase=state.mode_phase,
+            mode_freq=state.F,
+            aux_data=params,
         )
         return state_dot, out
