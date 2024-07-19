@@ -40,7 +40,6 @@ class ExampleTemplate(ModuleBase):
     def __init__(self, config: Config, tearing_module: Tearing, low_n_array_module: LowNArray):
         self.config = config
 
-
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # Make a state_dot.
         state_dot = ExampleTemplate.State()

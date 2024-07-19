@@ -10,6 +10,7 @@ from popsim.modules.tearing import Island, Tearing
 Classes which simulate magnetic diagnostics
 """
 
+
 def load_lown_config(filepath: str):
     # Get sensor positions from lown_design.txt config file
     fname = "lown_design.txt"
@@ -21,14 +22,15 @@ def load_lown_config(filepath: str):
     fname = "21_mode_resp_data.txt"
     out = np.loadtxt(filepath + fname, skiprows=1)
 
-    freq = out[:,0]
-    Bp_per_A = out[:,1] # Bp (poloidal field) per Amp of tearing mode current
+    freq = out[:, 0]
+    Bp_per_A = out[:, 1]  # Bp (poloidal field) per Amp of tearing mode current
 
     # Make Jax-compatible interpolators to determine
     # measured field per Amp of tearing mode current at arbitrary rotation frequencies
     func_Bp_per_A = Interpolator1D(freq, Bp_per_A)
 
     return probe_connections, func_Bp_per_A
+
 
 def build_design_matrix(probe_connections: list[tuple[float, float]], measured_mode_numbers: jnp.ndarray) -> np.ndarray:
     """Build the design matrix that encodes the connections between probes and the mode numbers of the tearing modes being measured.
@@ -138,16 +140,13 @@ class LowNArray(ModuleBase):
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
     def __call__(self, tearing_out: Tearing.Output, islands: list[Island]) -> Output:
-
         # Get the perturbed current, phase, and frequency of each tearing mode
         mode_currents = tearing_out.mode_current
         mode_phases = tearing_out.mode_phase
         mode_freqs = tearing_out.mode_freq
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
-        filtered_signals = {
-            island: mode_currents[island] * self.config.func_Bp_per_A(mode_freqs[island]) for island in islands
-        }
+        filtered_signals = {island: mode_currents[island] * self.config.func_Bp_per_A(mode_freqs[island]) for island in islands}
 
         # Get the differenced signals between each pair of probes
         differenced_signals = get_differenced_signals(
