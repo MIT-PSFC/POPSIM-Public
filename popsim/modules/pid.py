@@ -9,27 +9,27 @@ from popsim import ModuleBase, discrete_time_field
 class PIDController(ModuleBase):
     @chex.dataclass
     class Config:
-        Kp: float
-        Ki: float
-        Kd: float
-        dt: float
-        output_min: float = -float("inf")
-        output_max: float = float("inf")
+        Kp: float  # Propotional gain [-]
+        Ki: float  # Integral gain [-]
+        Kd: float  # Derivative gain [-]
+        dt: float  # Time step between control updates [s]
+        output_min: float = -float("inf")  # Minimum control output
+        output_max: float = float("inf")  # Maximum control output
 
     @chex.dataclass
     class State:
-        error_history: Array = discrete_time_field()
+        error_history: Array = discrete_time_field()  # Array keeping track of errors from previous dts.
 
     @chex.dataclass
     class Output:
-        control: float
-        aux_data: dict
+        control: float  # Control output
+        aux_data: dict  # Auxiliary data for debugging and analysis.
 
     @chex.dataclass
     class Params:
-        setpoint: float
-        measurement: float
-        feed_forward: float = 0.0
+        setpoint: float  # Control setpoint to track
+        measurement: float  # Measured value to apply feedback with
+        feed_forward: float = 0.0  # Feed forward control signal that gets added to the PID output to deterimne Output.control.
 
     config: Config
 
