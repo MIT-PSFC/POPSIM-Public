@@ -2,10 +2,11 @@ import math
 import random
 
 import jax
+import pytest
 import jax.numpy as jnp
 
-from popsim.ml.split_utils import fracs_to_lengths, random_split
-
+from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_by_coords
+from popsim.tests.test_ml.fixtures import cmod_test_dataset
 
 def test_fracs_to_lengths():
     def generate_three_numbers_sum_to_one():
@@ -59,3 +60,23 @@ def test_random_split():
     assert len(idx_sets[0]) == lengths[0]
     assert len(idx_sets[1]) == lengths[1]
     assert len(idx_sets[2]) == lengths[2]
+
+def test_split_dataset_by_coords(cmod_test_dataset):
+    ds = cmod_test_dataset
+    split_fracs = [0.68, 0.21, 0.11]
+    split_datasets = split_dataset_by_coords(ds, split_fracs, "shot", jax.random.PRNGKey(42))
+    
+    assert len(split_datasets) == 3
+    # Check that the lengths of the splits are correct
+    n_shots = len(ds["shot"])
+    expected_lengths = [int(n_shots * frac) for frac in split_fracs]
+    for split, expected_length in zip(split_datasets, expected_lengths):
+        assert len(split["shot"]) == expected_length
+
+    # Check that the splits are disjoint
+    all_shots = jnp.unique(jnp.concatenate([split["shot"].values for split in split_datasets]))
+    assert len(all_shots) == n_shots
+
+    # Check that the function errors if the split fractions do not sum to 1
+    with pytest.raises(ValueError):
+        split_dataset_by_coords(ds, [0.5, 0.5, 0.01], "shot", jax.random.PRNGKey(42))
