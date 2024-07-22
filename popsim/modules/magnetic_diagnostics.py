@@ -140,6 +140,15 @@ class LowNArray(ModuleBase):
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
     def __call__(self, tearing_out: Tearing.Output, modes: list[tuple[int, int]]) -> Output:
+        """Reconstruct the magnitudes of the tearing modes from the signals measured by the probes in the Low-N array.
+
+        Args:
+            tearing_out (Tearing.Output): The output of the Tearing module.
+            modes (list[tuple[int, int]]): The tearing modes in the tearing module. The modes that will be reconstructed are separate, and are set in the config.
+
+        Returns:
+            Output: The output of the Low-N array module. Includes the reconstructed magnitudes of the tearing modes, the filtered signals for each probe, and the differenced signals for each connection.
+        """
         # Get the perturbed current, phase, and frequency of each tearing mode
         mode_currents = tearing_out.mode_current
         mode_phases = tearing_out.mode_phase
