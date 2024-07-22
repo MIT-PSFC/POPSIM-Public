@@ -61,8 +61,8 @@ def test_lown_array_same_amplitude_diff_phases():
         mode_magnitudes = jnp.asarray([all_magnitudes[toroidal_mode_number] for all_magnitudes in resulting_magnitudes])
         assert jnp.allclose(mode_magnitudes, jnp.ones_like(mode_magnitudes) * mode_magnitudes[0])
 
-def test_lown_array_nonexistant_mode():
-    """Ensure the measured amplitude of a nonexistant mode is very small."""
+def test_lown_array_nonexistent_mode():
+    """Ensure the measured amplitude of a nonexistent mode is very small."""
 
     modes = [(3, 2)]
 
