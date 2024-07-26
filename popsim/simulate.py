@@ -20,6 +20,7 @@ def simulate(
     params: typing.Union[typing.Sequence[PyTree], PyTree],
     interp_type: str = "linear",
     return_xarray: bool = True,
+    max_steps: int = 1000000,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Simulate a module.
     Args:
@@ -29,6 +30,7 @@ def simulate(
         params (typing.Union[typing.Sequence[PyTree], PyTree]): the parameters of the system. Should be DynamicsModule.Params or a sequence of DynamicsModule.Params.
         interp_type (str, optional): interpolation method for params over time. Defaults to "linear".
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
+        max_steps (int, optional): maximum number of steps for the simulation. Defaults to 1000000.
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
     """
@@ -39,7 +41,7 @@ def simulate(
     params_vectorized, multi_sim = build_vectorized_params(params, time_base, interp_type)
 
     # Perform the simulation.
-    sol = _vec_simulate(model, time_base, initial_state, params_vectorized)
+    sol = _vec_simulate(model, time_base, initial_state, params_vectorized, max_steps=max_steps)
 
     sol = jax.tree_map(lambda x: jnp.squeeze(x), sol)
 
@@ -47,19 +49,19 @@ def simulate(
 
 
 @eqx.filter_jit
-def _vec_simulate(model, ts, state0, params_vectorized):
+def _vec_simulate(model, ts, state0, params_vectorized, max_steps) -> diffrax.Solution:
     params_axes = jax.tree_map(lambda x: 0, params_vectorized)
 
     # Perform a vectorized simulation.
     sol = jax.vmap(
         _simulate,
-        in_axes=(None, None, None, params_axes),
-    )(model, ts, state0, params_vectorized)
+        in_axes=(None, None, None, params_axes, None),
+    )(model, ts, state0, params_vectorized, max_steps)
     return sol
 
 
 @eqx.filter_jit
-def _simulate(model, ts: Array, state0, params) -> diffrax.Solution:
+def _simulate(model, ts: Array, state0, params, max_steps) -> diffrax.Solution:
     def model_f(t, y, params, return_aux=False):
         params_resolved = resolve_paths(params, t)
         state_dot, out = model(y, params_resolved)
@@ -82,6 +84,7 @@ def _simulate(model, ts: Array, state0, params) -> diffrax.Solution:
         y0=state0,
         args=params,
         saveat=diffrax.SaveAt(ts=ts, fn=saveat_fn),
+        max_steps=max_steps,
     )
     return sol
 

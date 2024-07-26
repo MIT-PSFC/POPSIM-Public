@@ -349,3 +349,35 @@ def test_build_params(interp_type):
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 0.0), expected_t0)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 1.5), expected_t15)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 8.12), expected_t812)
+
+    #
+    # Check that we can specify a time-dependent subtree.
+    #
+
+    time_dep_b = {
+        0.0: {"b0": 2.0, "b1": [3.0, -3.0]},
+        1.0: {"b0": 3.0, "b1": [4.0, -4.0]},
+        2.5: {"b0": 4.0, "b1": [5.0, -5.0]},
+    }
+    time_dep_params = Params(
+        a=1.0,
+        nested_b=time_dep_b,
+        imps={
+            penums.Impurity.Tungsten: 4.0,
+            penums.Impurity.Neon: 5.0,
+        },
+    )
+    built_params = build_params(time_dep_params, time_base, interp_type)
+
+    b_at_zero = pinterp.resolve_paths(built_params.nested_b, 0.0)
+    b_at_point_five = pinterp.resolve_paths(built_params.nested_b, 0.5)
+    b_at_one = pinterp.resolve_paths(built_params.nested_b, 1.0)
+    b_at_25 = pinterp.resolve_paths(built_params.nested_b, 2.5)
+
+    if interp_type == "linear":
+        expected_at_point_five = {"b0": 2.5, "b1": [3.5, -3.5]}
+        chex.assert_trees_all_equal(b_at_point_five, expected_at_point_five)
+
+    chex.assert_trees_all_equal(b_at_zero, time_dep_b[0.0])
+    chex.assert_trees_all_equal(b_at_one, time_dep_b[1.0])
+    chex.assert_trees_all_equal(b_at_25, time_dep_b[2.5])
