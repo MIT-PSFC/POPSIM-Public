@@ -2,6 +2,7 @@ import pytest
 from popsim import hybrid_state
 import chex
 import jax
+from dataclasses import field
 
 @pytest.fixture
 def state_classes():
@@ -14,7 +15,7 @@ def state_classes():
     class State:
         example_state: int = hybrid_state.discrete_time_field(default=0)
         example_cont: float = 0.0
-        sub_state: SubState = SubState()
+        sub_state: SubState = field(default_factory=SubState)
 
     return State, SubState
 
