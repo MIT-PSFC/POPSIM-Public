@@ -30,7 +30,7 @@ def test_lown_array_same_amplitude_diff_phases():
     tearing_module = Tearing(config=config)
 
     # Create a LowNArray module
-    probe_connections, func_Bp_per_A = load_lown_config("popsim/data/tearing/")
+    probe_connections, func_Bp_per_A = load_lown_config()
 
     lown_array_config = LowNArray.Config(
         func_Bp_per_A=func_Bp_per_A,
@@ -86,7 +86,7 @@ def test_lown_array_nonexistent_mode():
     tearing_module = Tearing(config=config)
 
     # Create a LowNArray module
-    probe_connections, func_Bp_per_A = load_lown_config("popsim/data/tearing/")
+    probe_connections, func_Bp_per_A = load_lown_config()
 
     lown_array_config = LowNArray.Config(
         func_Bp_per_A=func_Bp_per_A,

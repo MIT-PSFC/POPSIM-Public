@@ -15,8 +15,8 @@ class TearingSim(ModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
-        tearing_config: Tearing.Config
-        lown_array_config: LowNArray.Config
+        tearing_module: Tearing
+        lown_array_module: LowNArray
 
     @chex.dataclass
     class State:
@@ -35,20 +35,16 @@ class TearingSim(ModuleBase):
         tearing_params: Tearing.Params
 
     config: Config
-    tearing_module: Tearing
-    lown_array_module: LowNArray
 
     def __init__(self, config: Config):
         self.config = config
-        self.tearing_module = Tearing(config=config.tearing_config)
-        self.lown_array_module = LowNArray(config=config.lown_array_config)
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # Compute the results of the Tearing module.
-        tearing_state_dot, tearing_out = self.tearing_module(state.tearing_state, params.tearing_params)
+        tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, params.tearing_params)
 
         # Make a state_dot.
         state_dot = TearingSim.State(tearing_state=tearing_state_dot)
         # Make an output.
-        out = TearingSim.Output(locals=self.lown_array_module(tearing_out, self.tearing_module.config.modes))
+        out = TearingSim.Output(locals=self.config.lown_array_module(tearing_out, self.config.tearing_module.config.modes))
         return state_dot, out

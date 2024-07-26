@@ -1,9 +1,11 @@
+import os
+
 import chex
 import jax.numpy as jnp
 import numpy as np
 from interpax import Interpolator1D
 
-from popsim import ModuleBase
+from popsim import PACKAGE_ROOT, ModuleBase
 from popsim.modules.tearing import Tearing
 
 """
@@ -11,16 +13,24 @@ Classes which simulate magnetic diagnostics
 """
 
 
-def load_lown_config(filepath: str):
+def load_lown_config():
+    """Load the configuration data for the Low-N array.
+    TODO(ZanderKeith): This is a temporary function that will be replaced with a more general
+    solution once we determine how to include device descriptions in the simulator.
+
+    Returns:
+        probe_connections: A list of tuples representing the connections between probes.
+        func_Bp_per_A: The transfer function from Bp to A for various frequencies.
+    """
     # Get sensor positions from lown_design.txt config file
-    fname = "lown_design.txt"
     # The text file has one tuple of (phi1, phi2) per line
-    with open(filepath + fname) as f:
+    lown_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/lown_design.txt")
+    with open(lown_fullpath) as f:
         probe_connections = [tuple(map(float, line.split(", "))) for line in f]
 
     # Get frequency responses
-    fname = "21_mode_resp_data.txt"
-    out = np.loadtxt(filepath + fname, skiprows=1)
+    resp_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/21_mode_resp_data.txt")
+    out = np.loadtxt(resp_fullpath, skiprows=1)
 
     freq = out[:, 0]
     Bp_per_A = out[:, 1]  # Bp (poloidal field) per Amp of tearing mode current
