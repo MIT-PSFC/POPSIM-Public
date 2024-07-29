@@ -24,7 +24,8 @@ POPSIM is not a single simulator, but rather a set of tools to allow you to defi
 
 ### Dev Install
 
-Install development related packages with `poetry install --with dev`
+- Install development related packages with `poetry install --with dev`
+- Run `poetry run pre-commit install` to install pre-commit hooks
 
 ### Branching
 Create a branch off `main` to commit your changes to. For those new to git workflows, [this tutorial](https://webtuu.com/blog/04/git-basics-branching-merging-push-to-github) may be helpful.
