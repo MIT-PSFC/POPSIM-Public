@@ -35,6 +35,7 @@ jupyter = "^1.0.0"
 pytest-cov = "^4.1.0"
 nbmake = "^1.4.6"
 pytest-xdist = "^3.6.1"
+mkdocs = "^1.6.0"
 
 [tool.poetry.group.gpu]
 optional = true
