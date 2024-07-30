@@ -21,9 +21,10 @@ theme:
              name: Switch to light mode
     icon:
         repo: fontawesome/brands/github  # GitHub logo in top right
+        logo: "material/sun-compass"
 
-site_name: POPSIM
-site_description: The documentation for the Equinox software library.
+site_name: "POPSIM: Plasma OPerational SIMulation"
+site_description: The documentation for POPSIM.
 site_author: The POPSIM Team.
 edit_uri: ""
 
@@ -44,11 +45,15 @@ markdown_extensions:
         permalink: "¤"  # Adds a clickable permalink to each section heading
         toc_depth: 4
 
+extra_javascript:
+    # Make mathjax work: https://squidfunk.github.io/mkdocs-material/reference/math/#mathjax-docsjavascriptsmathjaxjs
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
 plugins:
     - search  # default search plugin; needs manually re-enabling when using any other plugins
     - autorefs  # Cross-links to headings
-    - mkdocs-jupyter:
-          execute: true
+    - mknotebooks
 nav:
     - 'index.md'
     - 'demos/comet_mirror.ipynb'

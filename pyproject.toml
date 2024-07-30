@@ -40,7 +40,6 @@ pymdown-extensions = "^10.9"
 mkdocstrings = "^0.25.2"
 mknotebooks = "^0.8.0"
 mkdocs-material = "^9.5.30"
-mkdocs-jupyter = "^0.24.8"
 
 [tool.poetry.group.gpu]
 optional = true
