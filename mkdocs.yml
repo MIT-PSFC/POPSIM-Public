@@ -1,1 +1,54 @@
-site_name: My Docs
+# Based, in part, on the equinox mkdocs.yml file:
+# https://github.com/patrick-kidger/equinox/blob/main/mkdocs.yml
+theme:
+    name: material
+    features:
+        - navigation.sections
+        - toc.integrate
+        - header.autohide
+    palette:
+        - scheme: default
+          primary: deep orange
+          accent: amber
+          toggle:
+             icon: material/weather-night
+             name: Switch to dark mode
+        - scheme: slate
+          primary: deep purple
+          accent: indigo
+          toggle:
+             icon: material/weather-sunny
+             name: Switch to light mode
+    icon:
+        repo: fontawesome/brands/github  # GitHub logo in top right
+
+site_name: POPSIM
+site_description: The documentation for the Equinox software library.
+site_author: The POPSIM Team.
+edit_uri: ""
+
+repo_url: https://github.com/cfs-energy-internal/POPSIM
+repo_name: cfs-energy-internal/POPSIM
+
+strict: true  # Don't allow warnings during the build process
+
+markdown_extensions:
+    - pymdownx.arithmatex:  # Render LaTeX via MathJax
+        generic: true
+    - pymdownx.superfences  # Seems to enable syntax highlighting when used with the Material theme.
+    - pymdownx.details  # Allowing hidden expandable regions denoted by ???
+    - pymdownx.snippets:  # Include one Markdown file into another
+        base_path: docs
+    - admonition
+    - toc:
+        permalink: "¤"  # Adds a clickable permalink to each section heading
+        toc_depth: 4
+
+plugins:
+    - search  # default search plugin; needs manually re-enabling when using any other plugins
+    - autorefs  # Cross-links to headings
+    - mkdocs-jupyter:
+          execute: true
+nav:
+    - 'index.md'
+    - 'demos/comet_mirror.ipynb'

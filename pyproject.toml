@@ -36,6 +36,11 @@ pytest-cov = "^4.1.0"
 nbmake = "^1.4.6"
 pytest-xdist = "^3.6.1"
 mkdocs = "^1.6.0"
+pymdown-extensions = "^10.9"
+mkdocstrings = "^0.25.2"
+mknotebooks = "^0.8.0"
+mkdocs-material = "^9.5.30"
+mkdocs-jupyter = "^0.24.8"
 
 [tool.poetry.group.gpu]
 optional = true
@@ -49,6 +54,7 @@ optional = true
 
 [tool.poetry.group.torax.dependencies]
 torax = { git = "git@github.com:google-deepmind/torax.git", rev = "0fa2a592b3757886ba62e4156912d1eaac43e41e" }
+
 
 [[tool.poetry.source]]
 name = "PyPI"
