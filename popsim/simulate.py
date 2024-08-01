@@ -10,7 +10,7 @@ from jaxtyping import Array, PyTree
 
 from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
-from popsim.interp import resolve_paths
+from popsim.interp import InterpType, resolve_paths
 from popsim.param_utils import build_vectorized_params
 from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
 
@@ -25,9 +25,10 @@ def simulate(
     time_base: Array,
     initial_state: PyTree,
     params: typing.Union[typing.Sequence[PyTree], PyTree],
-    interp_type: str = "linear",
+    interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
+    prng_key: typing.Optional[jax.random.PRNGKey] = None,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Simulate a module.
     Args:
@@ -35,9 +36,10 @@ def simulate(
         time_base (Array): the time base for the simulation.
         initial_state (PyTree): the initial state of the system. Should be DynamicsModule.State.
         params (typing.Union[typing.Sequence[PyTree], PyTree]): the parameters of the system. Should be DynamicsModule.Params or a sequence of DynamicsModule.Params.
-        interp_type (str, optional): interpolation method for params over time. Defaults to "linear".
+        interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
+        prng_key (typing.Optional[jax.random.PRNGKey], optional): random key for random number generation. Defaults to None.
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
     """

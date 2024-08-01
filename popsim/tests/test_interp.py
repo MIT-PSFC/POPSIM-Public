@@ -2,9 +2,9 @@ import chex
 import pytest
 
 from popsim import interp
+import numpy as np
 
-
-@pytest.mark.parametrize("interp_type", ["linear", "cubic"])
+@pytest.mark.parametrize("interp_type", [interp.InterpType.LINEAR, interp.InterpType.CUBIC, interp.InterpType.RECTILINEAR])
 def test_linear_interp_time_dic(interp_type):
     tree0 = {
         "a": 1.0,
@@ -40,7 +40,7 @@ def test_linear_interp_time_dic(interp_type):
     }
     chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 0.0), expected0)
 
-    # Time t=1.0.
+    # Time t=0.5.
     expected1 = {
         "a": 1.5,
         "b": {
@@ -48,9 +48,15 @@ def test_linear_interp_time_dic(interp_type):
             "b1": [3.5, -3.5],
         }
     }
-    chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 0.5), expected1)
 
-    # Time t=2.0.
+    # In the linear and cubic cases, the interpolated value is the average of the values at t=0 and t=1.
+    # In the rectilinear case, the interpolated value is the value at t=0.
+    if interp_type in [interp.InterpType.LINEAR, interp.InterpType.CUBIC]:
+        chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 0.5), expected1)
+    elif interp_type == interp.InterpType.RECTILINEAR:
+        chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 0.5), expected0)
+
+    # Time t=1.0
     expected2 = {
         "a": 2.0,
         "b": {
@@ -58,4 +64,7 @@ def test_linear_interp_time_dic(interp_type):
             "b1": [4.0, -4.0],
         }
     }
-    chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 1.0), expected2)
+    if interp_type in [interp.InterpType.LINEAR, interp.InterpType.CUBIC]:
+        chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 1.0), expected2)
+    elif interp_type == interp.InterpType.RECTILINEAR:
+        chex.assert_trees_all_close(interp.resolve_paths(interpolated_tree, 1.0 + np.finfo(np.float32).eps), expected2)

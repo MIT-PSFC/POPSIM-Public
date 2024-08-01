@@ -71,7 +71,7 @@ def test_generate_multi_cases():
     chex.assert_trees_all_equal(params2, cases2)
 
 # Note: cubic case currently breaks as extrapolation of the time dictionary is not handeled as expected.
-@pytest.mark.parametrize("interp_type", ["linear"])
+@pytest.mark.parametrize("interp_type", [pinterp.InterpType.LINEAR])
 def test_build_param_paths(interp_type):
     @chex.dataclass
     class Params:
@@ -202,7 +202,7 @@ def test_check_params(params, should_raise):
         # This block attempts to run check_params and will fail the test if an exception is raised
         check_params(params)
 
-@pytest.mark.parametrize("interp_type", ["linear", "cubic"])
+@pytest.mark.parametrize("interp_type", [pinterp.InterpType.LINEAR, pinterp.InterpType.CUBIC])
 def test_build_params(interp_type):
     """
     Test the user-facing API for building params.

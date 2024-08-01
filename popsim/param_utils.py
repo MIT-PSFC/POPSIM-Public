@@ -124,7 +124,9 @@ def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, Combina
     return reconstructed_trees
 
 
-def build_param_paths(params: ptypes.ParamSpec, time_base: Array, interp_type: str = "linear") -> PyTree[diffrax.AbstractPath]:
+def build_param_paths(
+    params: ptypes.ParamSpec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
+) -> PyTree[diffrax.AbstractPath]:
     """Given a user-specified params specification that is a PyTree of "ConstantOrPathSpec", generate
     a new PyTree of "AbstractPath" on the given time_base. Leaves are handeled as follows:
         1) If the leaf is a dictionary with float keys, it is assumed to be a PathSpec and is interpolated onto "time_base".
@@ -136,7 +138,7 @@ def build_param_paths(params: ptypes.ParamSpec, time_base: Array, interp_type: s
 
     Args:
         params (ptypes.ParamSpec): A user-specified param specification.
-        interp_type (str): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
+        interp_type (pinterp.InterpType): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
         time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
     Returns:
@@ -223,7 +225,7 @@ def check_params(params: ptypes.ParamSpec) -> None:
 
 
 def build_params(
-    params: ptypes.ParamSpec, time_base: Array, interp_type: str = "linear"
+    params: ptypes.ParamSpec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
 ) -> typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]:
     """Given a params specification, generate simulation-ready params trees. This involves two steps:
         1) Interpolating all instances of PathSpec for all CombinatorialCases and MultiCases.
@@ -256,14 +258,15 @@ def build_params(
 def build_vectorized_params(
     params: typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]],
     time_base: Array,
-    interp_type: str = "linear",
+    interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR,
+    prng_key_seed: typing.Optional[int] = None,
 ) -> tuple[PyTree[diffrax.AbstractPath], bool]:
     """Given a param specification (or a list of them), build the vectorized params PyTree. s.t. jax.vmap can be used.
 
     Args:
         params (typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]]): param specification or list of param specifications.
         time_base (Array): time base to interpolate everything to.
-        interp_type (str, optional): The interpolation type. Can be "linear" or "cubic". Defaults to "linear".
+        interp_type (pinterp.InterpType, optional): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
 
     Returns:
         tuple[PyTree[diffrax.AbstractPath], bool]: A vectorized params tree and a bool indicating if the tree is multi-simulation.

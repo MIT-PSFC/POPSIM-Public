@@ -11,6 +11,7 @@ from jaxtyping import PyTree
 
 import popsim.xarray_utils as pxr
 from popsim import param_utils
+from popsim.interp import InterpType
 
 
 def visualize_time_series(
@@ -94,13 +95,15 @@ def add_hlines(plot: hv.Element, var: Union[str, Sequence[str]], hlines: dict[st
     return plot
 
 
-def visualize_params(params: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: str = "linear") -> pn.panel:
+def visualize_params(
+    params: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
+) -> pn.panel:
     """Visualize the params of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 
     Args:
         params (typing.Union[PyTree, typing.Sequence[PyTree]]): params tree.
         time_base (np.ndarray): Time base for the simulation.
-        interp_type (str): Interpolation type.
+        interp_type (InterpType): Interpolation type.
 
     Returns:
         pn.panel: panel showing the params as a time trace.

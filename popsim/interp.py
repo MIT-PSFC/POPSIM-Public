@@ -1,4 +1,5 @@
 import typing
+from enum import IntEnum
 
 import diffrax
 import jax
@@ -8,42 +9,51 @@ from jaxtyping import Array, ArrayLike, PyTree
 from popsim.tree_util import tree_transpose
 
 
+class InterpType(IntEnum):
+    LINEAR = 0
+    CUBIC = 1
+    RECTILINEAR = 2
+
+
 def interp(
-    times: Array, tree: PyTree[Array], interp_type: str = "linear"
+    times: Array, tree: PyTree[Array], interp_type: InterpType = InterpType.LINEAR
 ) -> typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]:
     """Thin wrapper around diffrax.LinearInterpolation and diffrax.CubicInterpolation.
 
     Args:
         times (Array): times of the data.
         tree (PyTree[Array]): tree of arrays where the first dimension is the same as times.
-        interp_type (str, optional): interpolation interp_type. Can be "linear" or "cubic". Defaults to "linear".
+        interp_type (InterpType, optional): interpolation interp_type.
 
     Raises:
-        ValueError: if interp_type is not "linear" or "cubic".
+        ValueError: invalid interp_type.
 
     Returns:
         typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]: interpolation object.
     """
 
-    if interp_type == "linear":
+    if interp_type == InterpType.LINEAR:
         return diffrax.LinearInterpolation(ts=times, ys=tree)
-    elif interp_type == "cubic":
+    elif interp_type == InterpType.CUBIC:
         return diffrax.CubicInterpolation(ts=times, coeffs=diffrax.backward_hermite_coefficients(times, tree))
+    elif interp_type == InterpType.RECTILINEAR:
+        ts2, ys2 = diffrax.rectilinear_interpolation(times, tree)
+        return diffrax.LinearInterpolation(ts2, ys2)
     else:
         raise ValueError(f"Unknown interp_type: {interp_type}")
 
 
 def interp_time_dic(
-    dic_trees: dict[float, PyTree[ArrayLike]], interp_type: str = "linear"
+    dic_trees: dict[float, PyTree[ArrayLike]], interp_type: InterpType
 ) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
     """Given a dictionary where keys are times and values are trees, interpolate the trees at the times.
 
     Args:
         dic_trees (dict[float, PyTree[ArrayLike]]): A dictionary where keys are times and values are trees.
-        interp_type (str, optional): interpolation interp_type. Can be "linear" or "cubic". Defaults to "linear".
+        interp_type (InterpType, optional): interpolation interp_type.
 
     Raises:
-        ValueError: if interp_type is not "linear" or "cubic".
+        ValueError: invalid interp_type.
 
     Returns:
         typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]: _description_
@@ -55,29 +65,24 @@ def interp_time_dic(
 
 
 def interp_tree_seq(
-    times: Array, trees: typing.Sequence[PyTree[ArrayLike]], interp_type: str = "linear"
+    times: Array, trees: typing.Sequence[PyTree[ArrayLike]], interp_type: InterpType
 ) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
     """Given a sequence of times and a list of trees, interpolate the trees at the times.
 
     Args:
         times (Array): A sequence of times.
         trees (typing.Sequence[dict[float, PyTree[ArrayLike]]]): A list of trees to interpolate.
-        interp_type (str, optional): interpolation interp_type. Can be "linear" or "cubic". Defaults to "linear".
+        interp_type (InterpType, optional): interpolation interp_type.
 
     Raises:
-        ValueError: if interp_type is not "linear" or "cubic".
+        ValueError: invalid interp_type.
 
     Returns:
         typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]: _description_
     """
 
-    def interp_f(arr: Array) -> typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]:
-        if interp_type == "linear":
-            return diffrax.LinearInterpolation(ts=times, ys=arr)
-        elif interp_type == "cubic":
-            return diffrax.CubicInterpolation(ts=times, coeffs=diffrax.backward_hermite_coefficients(times, arr))
-        else:
-            raise ValueError(f"Unknown interp_type: {interp_type}")
+    def interp_f(arr):
+        return interp(times, arr, interp_type)
 
     trees_transposed = tree_transpose(trees)
     return jax.tree.map(interp_f, trees_transposed)
