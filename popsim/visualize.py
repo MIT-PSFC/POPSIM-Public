@@ -108,6 +108,6 @@ def visualize_params(
     Returns:
         pn.panel: panel showing the params as a time trace.
     """
-    params_vec, multi_sim = param_utils.build_vectorized_params(params, time_base, interp_type)
-    dataset = pxr.time_and_pytree_to_xarray(time_base, params_vec, multi_simulation=multi_sim)
+    params_vec, nsims = param_utils.build_vectorized_params(params, time_base, interp_type)
+    dataset = pxr.time_and_pytree_to_xarray(time_base, params_vec, multi_simulation=nsims > 1)
     return visualize_time_series(dataset)

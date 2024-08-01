@@ -259,8 +259,7 @@ def build_vectorized_params(
     params: typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]],
     time_base: Array,
     interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR,
-    prng_key_seed: typing.Optional[int] = None,
-) -> tuple[PyTree[diffrax.AbstractPath], bool]:
+) -> tuple[PyTree[diffrax.AbstractPath], int]:
     """Given a param specification (or a list of them), build the vectorized params PyTree. s.t. jax.vmap can be used.
 
     Args:
@@ -269,7 +268,7 @@ def build_vectorized_params(
         interp_type (pinterp.InterpType, optional): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
 
     Returns:
-        tuple[PyTree[diffrax.AbstractPath], bool]: A vectorized params tree and a bool indicating if the tree is multi-simulation.
+        tuple[PyTree[diffrax.AbstractPath], int]: A vectorized params tree and an int indicating the number of simulations.
     """
 
     def unpack_lists(inp):
@@ -287,4 +286,5 @@ def build_vectorized_params(
 
     # We need to perform a tree-transpose to vectorize the parameters.
     params_vectorized = tree_transpose(params)
-    return params_vectorized, len(params) > 1
+    nsims = len(params)
+    return (params_vectorized, nsims)

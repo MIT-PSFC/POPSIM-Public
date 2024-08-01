@@ -78,7 +78,7 @@ class ModularModel(ModuleBase):
         self.power_balance_module = PowerBalance(config=self.config.power_balance)
         self.density_module = Density(config=self.config.density)
 
-    def __call__(self, state: State, params: Params, return_aux: bool = False) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
         icrh_zone_params = IcrhZone.Params(
             frequency_command=120,
             power_command=params.P_aux_MW,

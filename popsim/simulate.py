@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import Array, PyTree
 
+import popsim.interp as pinterp
 from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
@@ -20,6 +21,30 @@ class StepperType(IntEnum):
     DIFFRAX = 1
 
 
+def generate_prng_trajectory(prng_key_seed: jax.random.PRNGKey, n_samps: int, time_base: Array) -> diffrax.LinearInterpolation:
+    """Generate PRNG trajectories for all of the simulations.
+
+    Args:
+        prng_key_seed (jax.random.PRNGKey): seed used to randomly generate the PRNG trajectories.
+        n_samps (int): number of simulations.
+        time_base (Array): time base for the simulation.
+
+    Returns:
+        diffrax.LinearInterpolation: PRNG trajectories.
+    """
+    # If we have a seed, use it to generate a PRNG key for each simulation case and each time step.
+    prng_key = jax.random.randint(
+        prng_key_seed, (n_samps, time_base.size), minval=jnp.iinfo(jnp.int32).min, maxval=jnp.iinfo(jnp.int32).max
+    )
+
+    def interp_one_sim(key_for_one_sim):
+        return pinterp.interp(time_base, key_for_one_sim, interp_type=pinterp.InterpType.LINEAR)
+
+    prng_traj = jax.vmap(interp_one_sim)(prng_key)
+
+    return prng_traj
+
+
 def simulate(
     module: ModuleBase,
     time_base: Array,
@@ -28,7 +53,7 @@ def simulate(
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
-    prng_key: typing.Optional[jax.random.PRNGKey] = None,
+    prng_key_seed: typing.Optional[jax.random.PRNGKey] = None,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Simulate a module.
     Args:
@@ -39,7 +64,7 @@ def simulate(
         interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
-        prng_key (typing.Optional[jax.random.PRNGKey], optional): random key for random number generation. Defaults to None.
+        prng_key_seed (typing.Optional[jax.random.PRNGKey], optional): If a random number key is provided, then PRNGKey trajectories will be auto-generated for the module for all simulation cases. If provided value is 'None', then 'None' will be passed to all modules as the 'key' argument. Defaults to None.
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
     """
@@ -55,7 +80,11 @@ def simulate(
             raise ValueError("State must be completely continuous when using Diffrax for the simulation.")
 
     # Build the params.
-    params_vectorized, multi_sim = build_vectorized_params(params, time_base, interp_type)
+    params_vectorized, nsims = build_vectorized_params(params, time_base, interp_type)
+    multi_sim = nsims > 1
+
+    # Build the PRNG trajectory.
+    prng_traj = generate_prng_trajectory(prng_key_seed, nsims, time_base) if prng_key_seed is not None else None
 
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
@@ -66,7 +95,7 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
     # Perform the simulation.
-    sol = _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun)
+    sol = _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun, prng_traj=prng_traj)
 
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
 
@@ -79,22 +108,24 @@ def simulate(
 
 
 @eqx.filter_jit
-def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
+def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun, prng_traj):
     params_axes = jax.tree.map(lambda x: 0, params_vectorized)
+    prng_axes = jax.tree.map(lambda x: 0, prng_traj)
 
     # Perform a vectorized simulation.
     sol = jax.vmap(
         simulate_fun,
-        in_axes=(None, None, None, params_axes),
-    )(module, ts, state0, params_vectorized)
+        in_axes=(None, None, None, params_axes, prng_axes),
+    )(module, ts, state0, params_vectorized, prng_traj)
     return sol
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module, ts: Array, state0, params) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params, prng_traj) -> diffrax.Solution:
     def module_f(t, y, params, return_aux=False):
-        params_resolved = resolve_paths(params, t)
-        state_dot, out = module(y, params_resolved)
+        params_resolved, prng_resolved = resolve_paths((params, prng_traj), t)
+        prng_key = jax.random.PRNGKey(prng_resolved.astype(int)) if prng_resolved is not None else None
+        state_dot, out = module(y, params_resolved, key=prng_key)
         if return_aux:
             return out, params_resolved
         else:
@@ -121,7 +152,7 @@ def _diffrax_simulate(module, ts: Array, state0, params) -> diffrax.Solution:
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module, ts: Array, state0, params):
+def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params, prng_traj):
     dts = jnp.diff(ts)
     # Check dts are all equal.
     dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > 1e-10), "Time steps must be uniform.")
@@ -130,8 +161,9 @@ def _simple_euler_simulate(module, ts: Array, state0, params):
 
     def _euler_step(carry, t):
         state = carry
-        params_resolved = resolve_paths(params, t)
-        state_out, out = module(state, params_resolved)
+        params_resolved, prng_resolved = resolve_paths((params, prng_traj), t)
+        prng_key = jax.random.PRNGKey(prng_resolved.astype(int)) if prng_resolved is not None else None
+        state_out, out = module(state, params_resolved, key=prng_key)
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
         # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.

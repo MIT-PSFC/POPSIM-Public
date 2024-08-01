@@ -1,4 +1,5 @@
 import chex
+import jax
 import jax.numpy as jnp
 
 from popsim import ModuleBase
@@ -43,7 +44,7 @@ class HmodeDynamics(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
         """Compute the time derivative of the H-mode state.
 
         Args:

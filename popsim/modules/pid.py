@@ -1,4 +1,5 @@
 import chex
+import jax
 import jax.numpy as jnp
 
 from popsim import ModuleBase, discrete_time_field
@@ -37,7 +38,7 @@ class PIDController(ModuleBase):
     def __init__(self, config=None):
         self.config = config or self.Config()
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
         error = params.setpoint - params.measurement
 
         # Proportional term

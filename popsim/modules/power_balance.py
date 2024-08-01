@@ -1,4 +1,5 @@
 import chex
+import jax
 
 from popsim import ModuleBase
 
@@ -31,7 +32,7 @@ class PowerBalance(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
         stored_energy_dot = -state.stored_energy / params.confinement_time + params.P_aux
         return PowerBalance.State(stored_energy=stored_energy_dot), PowerBalance.Output(
             stored_energy=state.stored_energy,
