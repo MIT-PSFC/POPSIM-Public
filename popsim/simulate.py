@@ -105,7 +105,7 @@ def _diffrax_simulate(module, ts: Array, state0, params, max_steps: int = 100000
 
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),
-        solver=diffrax.Tsit5(),
+        solver=diffrax.Euler(),
         t0=ts[0],
         t1=ts[-1],
         dt0=jnp.min(jnp.diff(ts)),
