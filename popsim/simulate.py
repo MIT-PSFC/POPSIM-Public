@@ -89,7 +89,7 @@ def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module, ts: Array, state0, params, max_steps: int = 1000000) -> diffrax.Solution:
+def _diffrax_simulate(module, ts: Array, state0, params) -> diffrax.Solution:
     def module_f(t, y, params, return_aux=False):
         params_resolved = resolve_paths(params, t)
         state_dot, out = module(y, params_resolved)
@@ -112,7 +112,7 @@ def _diffrax_simulate(module, ts: Array, state0, params, max_steps: int = 100000
         y0=state0,
         args=params,
         saveat=diffrax.SaveAt(ts=ts, fn=saveat_fn),
-        max_steps=max_steps,
+        max_steps=None,  # Allows indefinite number of steps.
     )
     return sol
 
