@@ -11,7 +11,6 @@ def run_tearing_test_sim():
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     modes = [(2, 1), (3, 2)]
     config = Tearing.Config(
-        magx_time=time_base,
         modes = modes
     )
 

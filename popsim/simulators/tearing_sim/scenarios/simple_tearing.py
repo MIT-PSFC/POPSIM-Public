@@ -26,7 +26,6 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
 
     # Define the tearing modes.
     tearing_config = Tearing.Config(
-        magx_time=time_base,
         modes=simulated_modes,
     )
 

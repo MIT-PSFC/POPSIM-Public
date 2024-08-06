@@ -6,7 +6,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, ArrayLike
+from jaxtyping import ArrayLike
 
 from popsim import ModuleBase
 from popsim.logic_utils import select_w_tuples
@@ -158,7 +158,6 @@ class Tearing(ModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
-        magx_time: Array  # deg, a time array on which to output the data
         modes: list[tuple[int, int]]
 
     @chex.dataclass
@@ -172,8 +171,8 @@ class Tearing(ModuleBase):
     @chex.dataclass
     class Params:
         # Define the, possibly time dependent, parameters that will be passed to the module.
-        rot_dur: float
-        locking_dur: float
+        rot_dur: float  # Time from trigger to when the mode begins to slow down [s]
+        locking_dur: float  # Time from when the mode begins to slow down to when it locks [s]
         disruption_phase: DisruptionPhase
         tearing_phase: TearingPhase
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now

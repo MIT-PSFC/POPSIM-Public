@@ -12,7 +12,6 @@ def test_lown_array_same_amplitude_diff_phases():
     dt = 1e-4 / 3  # s
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
-        magx_time=time_base,
         modes = modes
     )
 
@@ -69,7 +68,6 @@ def test_lown_array_nonexistent_mode():
     dt = 1e-4 / 3  # s
     time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
-        magx_time=time_base,
         modes = modes
     )
 
