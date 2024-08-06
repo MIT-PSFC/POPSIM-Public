@@ -3,6 +3,7 @@ from enum import IntEnum
 from typing import Optional
 
 import chex
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike
@@ -195,7 +196,7 @@ class Tearing(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: Optional[jax.random.PRNGKey] = None) -> tuple[State, Output]:
         disruption_phase = round(params.disruption_phase)
         tearing_phase = round(params.tearing_phase)
 

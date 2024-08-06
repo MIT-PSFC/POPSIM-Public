@@ -1,4 +1,7 @@
+from typing import Optional
+
 import chex
+import jax
 from jaxtyping import ArrayLike, PyTree
 
 from popsim import ModuleBase
@@ -39,12 +42,16 @@ class TearingSim(ModuleBase):
     def __init__(self, config: Config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params, key: Optional[jax.random.PRNGKey] = None) -> tuple[State, Output]:
         # Compute the results of the Tearing module.
         tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, params.tearing_params)
 
         # Make a state_dot.
         state_dot = TearingSim.State(tearing_state=tearing_state_dot)
-        # Make an output.
-        out = TearingSim.Output(locals=self.config.lown_array_module(tearing_out, self.config.tearing_module.config.modes))
+
+        # Build the parameters for the LowNArray module.
+        lown_array_params = LowNArray.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
+
+        lown_array_out = self.config.lown_array_module(None, lown_array_params)
+        out = TearingSim.Output(locals=lown_array_out)
         return state_dot, out

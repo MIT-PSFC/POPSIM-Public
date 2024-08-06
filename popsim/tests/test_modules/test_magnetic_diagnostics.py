@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 
 import popsim.param_utils as param_utils
@@ -52,7 +51,8 @@ def test_lown_array_same_amplitude_diff_phases():
     resulting_magnitudes = []
     for tearing_state in test_tearing_states:
         _, tearing_output = tearing_module(tearing_state, tearing_params)
-        lown_array_out = lown_array_module(tearing_output, tearing_module.config.modes)
+        lown_array_params = LowNArray.Params(tearing_out=tearing_output, modes=tearing_module.config.modes)
+        lown_array_out = lown_array_module(None, lown_array_params)
         reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
         resulting_magnitudes.append(reconstructed_magnitudes)
 
@@ -102,7 +102,8 @@ def test_lown_array_nonexistent_mode():
     
 
     _, tearing_output = tearing_module(tearing_state, tearing_params)
-    lown_array_out = lown_array_module(tearing_output, tearing_module.config.modes)
+    lown_array_params = LowNArray.Params(tearing_out=tearing_output, modes=tearing_module.config.modes)
+    lown_array_out = lown_array_module(None, lown_array_params)
     reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
 
     assert reconstructed_magnitudes[1] < 1e-6*reconstructed_magnitudes[2]
