@@ -1,6 +1,5 @@
 import chex
 import jax.numpy as jnp
-from jaxtyping import Array
 
 from popsim import ModuleBase, discrete_time_field
 
@@ -18,7 +17,9 @@ class PIDController(ModuleBase):
 
     @chex.dataclass
     class State:
-        error_history: Array = discrete_time_field()  # Array keeping track of errors from previous dts.
+        integrated_error: float = 0.0  # Integral of the error over time
+        previous_error: float = discrete_time_field(default=0.0)  # Previous error value
+        uninitialized: bool = discrete_time_field(default=True)  # Flag to indicate if the controller has been initialized
 
     @chex.dataclass
     class Output:
@@ -43,11 +44,10 @@ class PIDController(ModuleBase):
         P = self.config.Kp * error
 
         # Integral term (using finite time horizon)
-        I = self.config.Ki * jnp.sum(state.error_history) * self.config.dt  # noqa: E741
+        I = self.config.Ki * state.integrated_error  # noqa: E741
 
         # Derivative term. If the previous error is zero, the derivative term is zero to handle the initialization case.
-        previous_error = state.error_history[0]
-        D = jnp.where(previous_error == 0.0, 0.0, self.config.Kd * (error - previous_error) / self.config.dt)
+        D = jnp.where(state.uninitialized, 0.0, self.config.Kd * (error - state.previous_error) / self.config.dt)
 
         # Calculate control output
         pid_act = P + I + D
@@ -55,10 +55,10 @@ class PIDController(ModuleBase):
         # Apply output limits
         control = jnp.clip(pid_act + params.feed_forward, self.config.output_min, self.config.output_max)
 
-        # Update state
-        new_error_history = jnp.concatenate([jnp.array([error]), state.error_history[:-1]])
-        next_state = PIDController.State(error_history=new_error_history)
+        # The time derivative of integrated error is just error.
+        integrated_error_dot = error
+        state_out = PIDController.State(integrated_error=integrated_error_dot, previous_error=error, uninitialized=False)
 
         output = PIDController.Output(control=control, aux_data={"P": P, "I": I, "D": D, "PID_act": pid_act})
 
-        return next_state, output
+        return state_out, output

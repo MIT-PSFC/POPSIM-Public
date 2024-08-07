@@ -9,22 +9,18 @@ def test_pid_controller():
     pid = PIDController(config=config)
 
     # Create initial state with empty error history
-    initial_state = PIDController.State(error_history=jnp.zeros(10))
+    initial_state = PIDController.State(integrated_error=0.0, previous_error=0.0)
     params = PIDController.Params(setpoint=5.0, measurement=0.0)
 
     # Run the PID controller once.
-    next_state, output = pid(initial_state, params)
+    state_out, output = pid(initial_state, params)
 
-    assert isinstance(next_state, PIDController.State)
+    assert isinstance(state_out, PIDController.State)
     assert isinstance(output, PIDController.Output)
 
     # Expect the control output to be the proportional term only for this first iteration.
     expected_control = config.Kp * 5.0
     assert jnp.isclose(output.control, expected_control, atol=1e-6)
-
-    # Test PID states are updated as expected.
-    assert next_state.error_history[0] == 5.0
-    assert jnp.all(next_state.error_history[1:] == 0.0)
 
     # Test output limiting
     params_max = PIDController.Params(setpoint=100.0, measurement=0.0)
@@ -38,4 +34,4 @@ def test_pid_controller():
     # Test that we can run "simulate" with time varying setpoint and measurement.
     ts = 0.1 * jnp.arange(100)
     params = PIDController.Params(setpoint=interp(ts, jnp.sin(ts)), measurement=interp(ts, jnp.cos(ts)))
-    _ = simulate(pid, ts, initial_state, params, return_xarray=False)
+    ds = simulate(pid, ts, initial_state, params, return_xarray=True)
