@@ -56,7 +56,7 @@ def test_mode_growth_and_freq(tearing_test_sim):
     sol_xarray, aux_data = tearing_test_sim
 
     for mode in aux_data["modes"]:
-        W_dot = sol_xarray[f"aux.state_dot.W.{str(mode)}"]
+        W_dot = sol_xarray[f"output.state_dot.W.{str(mode)}"]
         assert W_dot.sel(time=0, method="nearest") == 0.0
         assert W_dot.sel(time=aux_data["trigger_time"], method="nearest") == DEFAULT_WDOT[mode]
         assert W_dot.sel(time=aux_data["trigger_time"]+aux_data["rot_dur"], method="nearest") == DEFAULT_WDOT[mode]
@@ -64,17 +64,17 @@ def test_mode_growth_and_freq(tearing_test_sim):
         assert W_dot.sel(time=aux_data["disrupt_time"], method="nearest") == TQ_WDOT[mode]
         assert W_dot.sel(time=aux_data["cq_time"], method="nearest") == CQ_WDOT[mode]
 
-        current = sol_xarray[f"aux.mode_current.{str(mode)}"]
+        current = sol_xarray[f"output.mode_current.{str(mode)}"]
         assert current.sel(time=0, method="nearest") == 0.0
         assert current.sel(time=aux_data["trigger_time"] + aux_data["dt"], method="nearest") > 0.0
         assert current.sel(time=aux_data["cq_time"]+1e3*aux_data["dt"], method="nearest") == 0.0
 
-        F_dot = sol_xarray[f"aux.state_dot.F.{str(mode)}"]
+        F_dot = sol_xarray[f"output.state_dot.F.{str(mode)}"]
         assert F_dot.sel(time=0, method="nearest") == 0.0
         assert F_dot.sel(time=aux_data["trigger_time"]+aux_data["dt"], method="nearest") < 0.0
         assert F_dot.sel(time=aux_data["lock_time"], method="nearest") == 0.0
 
-        F = sol_xarray[f"aux.mode_freq.{str(mode)}"]
+        F = sol_xarray[f"output.mode_freq.{str(mode)}"]
         assert F.sel(time=0, method="nearest") == 0.0
         assert F.sel(time=aux_data["trigger_time"]+aux_data["dt"], method="nearest") == INITIAL_ROT_FREQ[mode]
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0

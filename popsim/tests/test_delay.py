@@ -11,7 +11,7 @@ def test_delay_buffer():
 
     out = simulate(module, ts, initial_state, params, return_xarray=True)
 
-    delayed_vals = out['aux.delayed'].values
+    delayed_vals = out['output.delayed'].values
 
     assert jnp.all(delayed_vals[:n_buffer] == 0)
     assert jnp.all(delayed_vals[n_buffer:] == 1)

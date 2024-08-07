@@ -94,13 +94,14 @@ def _diffrax_simulate(module, ts: Array, state0, params) -> diffrax.Solution:
         params_resolved = resolve_paths(params, t)
         state_dot, out = module(y, params_resolved)
         if return_aux:
-            return out
+            return out, params_resolved
         else:
             return state_dot
 
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
-        out = {"state": y, "aux": module_f(t, y, args, return_aux=True)}
+        output, params_resolved = module_f(t, y, args, return_aux=True)
+        out = {"state": y, "output": output, "params": params_resolved}
         return out
 
     sol = diffrax.diffeqsolve(
@@ -144,8 +145,9 @@ def _simple_euler_simulate(module, ts: Array, state0, params):
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
         output_data = {
-            "aux": out,
+            "output": out,
             "state": state,
+            "params": params_resolved,
         }
 
         return state_next, output_data

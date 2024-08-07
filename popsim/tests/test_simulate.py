@@ -103,7 +103,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.x)).all()
 
     # Expect that y is the absolute value of x.
-    assert jnp.allclose(sol["aux.y"].values, jnp.abs(sol["state.x"].values))
+    assert jnp.allclose(sol["output.y"].values, jnp.abs(sol["state.x"].values))
 
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
@@ -144,7 +144,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
     assert (jnp.abs(sol["state.y"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.y)).all()
 
     # Expect that z is the absolute value of y.
-    assert jnp.allclose(sol["aux.z"].values, jnp.abs(sol["state.y"].values))
+    assert jnp.allclose(sol["output.z"].values, jnp.abs(sol["state.y"].values))
 
     # Expect x to be incremented by 1 at each time step.
     assert jnp.allclose(sol["state.x"].values, jnp.arange(0, len(ts)))

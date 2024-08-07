@@ -13,8 +13,8 @@ def test_tearing_sim():
     sim_xarray = simulate(tearing_sim, time_base, sim_initial_state, sim_params)
 
     # Ensure the amplitudes of the simulated modes are large
-    assert sim_xarray['aux.locals.reconstructed_magnitudes.1'].max() > 1
-    assert sim_xarray['aux.locals.reconstructed_magnitudes.2'].max() > 1
+    assert sim_xarray['output.locals.reconstructed_magnitudes.1'].max() > 1
+    assert sim_xarray['output.locals.reconstructed_magnitudes.2'].max() > 1
 
     # Ensure the amplitudes of modes that are not simulated are small
-    assert sim_xarray['aux.locals.reconstructed_magnitudes.3'].max() < 1e-3
+    assert sim_xarray['output.locals.reconstructed_magnitudes.3'].max() < 1e-3

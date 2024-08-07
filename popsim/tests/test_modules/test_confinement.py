@@ -74,13 +74,13 @@ def test_dynamics():
 
     dataset = simulate(confinement_module, times, state, params, return_xarray=True, stepper_type=StepperType.DIFFRAX)
 
-    assert jnp.isclose(float(dataset['aux.tau_E'][0]),0.1834906)
-    assert jnp.isclose(float(dataset['aux.tau_E'][1]),0.67667817)
+    assert jnp.isclose(float(dataset['output.tau_E'][0]),0.1834906)
+    assert jnp.isclose(float(dataset['output.tau_E'][1]),0.67667817)
 
-    assert jnp.isclose(float(dataset['aux.species_confinement_time.Impurity.Tungsten'][0]),1.834906)
-    assert jnp.isclose(float(dataset['aux.species_confinement_time.Impurity.Tungsten'][1]),6.7667817)
+    assert jnp.isclose(float(dataset['output.species_confinement_time.Impurity.Tungsten'][0]),1.834906)
+    assert jnp.isclose(float(dataset['output.species_confinement_time.Impurity.Tungsten'][1]),6.7667817)
 
-    in_hmodes = dataset['aux.in_hmode']
+    in_hmodes = dataset['output.in_hmode']
     assert in_hmodes[0] == False
     assert in_hmodes[1] == True
     assert in_hmodes[2] == True
