@@ -7,9 +7,8 @@ from popsim import ModuleBase, discrete_time_field
 from popsim.logic_utils import select_w_tuples
 
 """
-Contains three example modules for automated testing and documentation purposes:
-    1. BasicLorenz: A minimum example module that implements the Lorenz equations and introduces the four categories of variables.
-
+Contains three example modules for automated testing and educational purposes.
+See popsim/demos/intro_to_modules.ipynb for a tutorial on how to use these modules.
 """
 
 
