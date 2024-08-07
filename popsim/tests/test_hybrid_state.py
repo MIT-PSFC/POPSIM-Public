@@ -4,8 +4,10 @@ import chex
 import jax
 from dataclasses import field
 
+
 @pytest.fixture
 def state_classes():
+    # Example state classes that have both discrete and continuous time fields.
     @chex.dataclass
     class SubState:
         discrete_foo: int = hybrid_state.discrete_time_field(default=0)
@@ -26,9 +28,13 @@ def state_instance(state_classes):
 
 
 def test_create_discrete_state_filter_spec(state_classes, state_instance):
+    """
+    Test that create_discrete_state_filter_spec correctly labels the fields of a dataclass that are discrete time states.
+    """
     State, SubState = state_classes
     s = state_instance
 
+    # Expect State.example_state and State.sub_state.discrete_foo to be discrete time states.
     expected = State(example_state=True, example_cont=False, sub_state=SubState(discrete_foo=True, cont_bar=False))
 
     result = hybrid_state.create_discrete_state_filter_spec(s)
@@ -36,6 +42,9 @@ def test_create_discrete_state_filter_spec(state_classes, state_instance):
     chex.assert_trees_all_equal(result, expected)
 
 def test_hybrid_state(state_classes, state_instance):
+    """
+    Test that the function "partition_discrete_cont" correctly partitions the state into discrete and continuous components.
+    """
     State, SubState = state_classes
     s = state_instance
 
