@@ -16,7 +16,7 @@ def generate_sim_and_checks(only_return_final: bool = True):
         out = jax.tree.map(lambda x: x[-1], sol)
     else:
         out = sol
-    out_state, out_aux = out["state"], out["output"]
+    out_state, out_aux = out["state"], out["output"]["aux_data"]
 
     # The checks take the form of (actual, expected, percent_tolerance).
     PsepB0R0 = (out_aux["P_tau_MW"] * params.magnetic_field_on_axis)/params.geometry.major_radius

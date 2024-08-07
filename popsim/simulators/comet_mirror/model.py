@@ -15,6 +15,7 @@ from jaxtyping import Array
 
 import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
+from popsim import ModuleBase
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 from popsim.physics.geometry import GeometryCFSPopcon
@@ -23,56 +24,57 @@ from popsim.physics.profiles import ProfileCalculator
 
 
 @chex.dataclass
-class State:
-    """
-    State variables for the CometMirror model.
-    """
+class CometMirror(ModuleBase):
+    @chex.dataclass
+    class State:
+        """
+        State variables for the CometMirror model.
+        """
 
-    stored_energy: float  # [MJ]
-    density_state: density_model.Density.State
-    hmode_state: hmode.HmodeDynamics.State
+        stored_energy: float  # [MJ]
+        density_state: density_model.Density.State
+        hmode_state: hmode.HmodeDynamics.State
 
+    @chex.dataclass
+    class Params:
+        """
+        Dynamic parameters for the CometMirror model.
+        """
 
-@chex.dataclass
-class Params:
-    """
-    Dynamic parameters for the CometMirror model.
-    """
+        magnetic_field_on_axis: float  # [T]
+        plasma_current: float  # [A]
+        fraction_of_external_power_coupled: float  # [-]
+        normalized_inverse_temp_scale_length: float  # [-]
+        electron_density_peaking_offset: float  # [-]
+        ion_density_peaking_offset: float  # [-]
+        temperature_peaking: float  # [-]
+        ion_to_electron_temp_ratio: float  # [-]
+        confinement_time_scalar: float  # [-]
+        P_aux_MW: float  # [MW]
+        geometry: GeometryCFSPopcon
+        fueling19: dict[Species, float]  # 1e19/s
+        particle_confinement_scalar: dict[Species, float]  # [-]
+        hmode_transition_characteristic_time: float  # [s]
+        hl_threshold_scalar: float  # Assume the h->l transition is some fraction of the l->h transition [-]
 
-    magnetic_field_on_axis: float  # [T]
-    plasma_current: float  # [A]
-    fraction_of_external_power_coupled: float  # [-]
-    normalized_inverse_temp_scale_length: float  # [-]
-    electron_density_peaking_offset: float  # [-]
-    ion_density_peaking_offset: float  # [-]
-    temperature_peaking: float  # [-]
-    ion_to_electron_temp_ratio: float  # [-]
-    confinement_time_scalar: float  # [-]
-    P_aux_MW: float  # [MW]
-    geometry: GeometryCFSPopcon
-    fueling19: dict[Species, float]  # 1e19/s
-    particle_confinement_scalar: dict[Species, float]  # [-]
-    hmode_transition_characteristic_time: float  # [s]
-    hl_threshold_scalar: float  # Assume the h->l transition is some fraction of the l->h transition [-]
+    @chex.dataclass
+    class Config:
+        """
+        Static compile-time configuration for the CometMirror model.
+        """
 
+        species: SpeciesContainer
+        profile_form: ProfileForm
+        rho: Array
+        hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
+        lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
+        fusion_reaction: ReactionType = ReactionType.DT
+        radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
 
-@chex.dataclass
-class Config:
-    """
-    Static compile-time configuration for the CometMirror model.
-    """
+    @chex.dataclass
+    class Output:
+        aux_data: dict[str, Array]
 
-    species: SpeciesContainer
-    profile_form: ProfileForm
-    rho: Array
-    hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
-    lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
-    fusion_reaction: ReactionType = ReactionType.DT
-    radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
-
-
-@chex.dataclass
-class CometMirror:
     config: Config
     profiles: ProfileCalculator
     hmode_tau_e_and_P: Callable
@@ -317,7 +319,7 @@ class CometMirror:
 
         hmode_dot = hmode.dynamics(state.hmode_state, hmode_params)
 
-        state_dot = State(
+        state_dot = CometMirror.State(
             stored_energy=dW_dt,
             density_state=density_dot,
             hmode_state=hmode_dot,
@@ -327,4 +329,5 @@ class CometMirror:
         aux_data = eqx.filter(locals(), eqx.is_array_like)
         # Promote any scalar-like variables to arrays
         aux_data = jax.tree.map(jnp.asarray, aux_data)
-        return state_dot, aux_data
+        output = CometMirror.Output(aux_data=aux_data)
+        return state_dot, output
