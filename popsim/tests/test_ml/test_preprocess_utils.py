@@ -222,5 +222,5 @@ def test_mask_to_largest_group_mask_invalid_dtype():
     ),
 ])
 def test_shift_time_to_not_nan(ds, how, subset, expected):
-    result = shift_time_to_not_nan(ds, episode_dim="shot", time_dim="time", how=how, subset=subset)
+    result = shift_time_to_not_nan(ds, episode_dim="shot", time_var="time", how=how, subset=subset)
     xr.testing.assert_identical(result, expected)
