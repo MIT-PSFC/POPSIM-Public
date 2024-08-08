@@ -186,6 +186,24 @@ files = [
 dev = ["freezegun (>=1.0,<2.0)", "pytest (>=6.0)", "pytest-cov"]
 
 [[package]]
+name = "beartype"
+version = "0.18.5"
+description = "Unbearably fast runtime type checking in pure Python."
+optional = false
+python-versions = ">=3.8.0"
+files = [
+    {file = "beartype-0.18.5-py3-none-any.whl", hash = "sha256:5301a14f2a9a5540fe47ec6d34d758e9cd8331d36c4760fc7a5499ab86310089"},
+    {file = "beartype-0.18.5.tar.gz", hash = "sha256:264ddc2f1da9ec94ff639141fbe33d22e12a9f75aa863b83b7046ffff1381927"},
+]
+
+[package.extras]
+all = ["typing-extensions (>=3.10.0.0)"]
+dev = ["autoapi (>=0.9.0)", "coverage (>=5.5)", "equinox", "mypy (>=0.800)", "numpy", "pandera", "pydata-sphinx-theme (<=0.7.2)", "pytest (>=4.0.0)", "sphinx", "sphinx (>=4.2.0,<6.0.0)", "sphinxext-opengraph (>=0.7.5)", "tox (>=3.20.1)", "typing-extensions (>=3.10.0.0)"]
+doc-rtd = ["autoapi (>=0.9.0)", "pydata-sphinx-theme (<=0.7.2)", "sphinx (>=4.2.0,<6.0.0)", "sphinxext-opengraph (>=0.7.5)"]
+test-tox = ["equinox", "mypy (>=0.800)", "numpy", "pandera", "pytest (>=4.0.0)", "sphinx", "typing-extensions (>=3.10.0.0)"]
+test-tox-coverage = ["coverage (>=5.5)"]
+
+[[package]]
 name = "beautifulsoup4"
 version = "4.12.3"
 description = "Screen-scraping library"
@@ -1057,6 +1075,29 @@ all = ["matplotlib"]
 testing = ["black[jupyter] (==23.7.0)", "clu", "clu (<=0.0.9)", "einops", "gymnasium[accept-rom-license,atari]", "jaxlib", "jaxtyping", "jraph (>=0.0.6dev0)", "ml-collections", "mypy", "nbstripout", "opencv-python", "penzai (>=0.1.2)", "pytest", "pytest-cov", "pytest-custom-exit-code", "pytest-xdist", "pytype", "sentencepiece", "tensorflow (>=2.12.0)", "tensorflow-datasets", "tensorflow-text (>=2.11.0)", "torch"]
 
 [[package]]
+name = "flox"
+version = "0.9.10"
+description = "GroupBy operations for dask.array"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "flox-0.9.10-py3-none-any.whl", hash = "sha256:9d4663631698ba326a4d9383d5a64f31ee990ace66ae92f65af62bed64abe298"},
+    {file = "flox-0.9.10.tar.gz", hash = "sha256:3ff39092bc3804293276c479ee2312ede97d0c99c580fe930b211eadf6d03d0a"},
+]
+
+[package.dependencies]
+numpy = ">=1.22"
+numpy-groupies = ">=0.9.19"
+packaging = ">=21.3"
+pandas = ">=1.5"
+scipy = ">=1.9"
+toolz = "*"
+
+[package.extras]
+all = ["cachey", "dask", "numba", "numbagg", "xarray"]
+test = ["netCDF4"]
+
+[[package]]
 name = "fonttools"
 version = "4.53.1"
 description = "Tools to manipulate font files"
@@ -1552,7 +1593,7 @@ files = [
 
 [package.dependencies]
 jax-cuda12-plugin = {version = "0.4.28", optional = true, markers = "extra == \"cuda12\""}
-jaxlib = {version = "0.4.28", optional = true, markers = "extra == \"cuda12\""}
+jaxlib = {version = "0.4.28", optional = true, markers = "extra == \"cpu\""}
 ml-dtypes = ">=0.2.0"
 numpy = [
     {version = ">=1.23.2", markers = "python_version >= \"3.11\""},
@@ -1613,6 +1654,28 @@ files = [
 
 [package.dependencies]
 jax-cuda12-pjrt = "0.4.28"
+
+[[package]]
+name = "jax-dataloader"
+version = "0.1.2"
+description = "Dataloader for jax"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "jax-dataloader-0.1.2.tar.gz", hash = "sha256:3f77a2f9770c1898ede5b1202749b268c5fe64fbedf5e558bb33a02e5cae5d3d"},
+    {file = "jax_dataloader-0.1.2-py3-none-any.whl", hash = "sha256:a8904bf7c7f81e847627e66fd7797dc3a400ddd6b5b0cc90232c7ed2bd068357"},
+]
+
+[package.dependencies]
+jax = {version = "*", extras = ["cpu"]}
+plum-dispatch = "*"
+
+[package.extras]
+all = ["datasets", "dm-haiku", "jax[cpu]", "jupyter", "nbdev", "nbdev-mkdocs", "numpy (<2.0.0)", "optax", "pandas", "plum-dispatch", "scikit-learn", "tensorflow", "tensorflow-datasets", "torch", "torchvision"]
+dev = ["datasets", "dm-haiku", "jax[cpu]", "jupyter", "nbdev", "nbdev-mkdocs", "numpy (<2.0.0)", "optax", "pandas", "plum-dispatch", "scikit-learn", "tensorflow", "tensorflow-datasets", "torch", "torchvision"]
+huggingface = ["datasets", "numpy (<2.0.0)"]
+tensorflow = ["tensorflow", "tensorflow-datasets"]
+torch = ["torch", "torchvision"]
 
 [[package]]
 name = "jaxlib"
@@ -2817,6 +2880,24 @@ files = [
 ]
 
 [[package]]
+name = "numpy-groupies"
+version = "0.11.2"
+description = "Optimised tools for group-indexing operations: aggregated sum and more."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "numpy_groupies-0.11.2-py3-none-any.whl", hash = "sha256:8d0d686160f860c12d97f12f457116f8b8bebfa33a68b8efcd24dcfedc2837f1"},
+    {file = "numpy_groupies-0.11.2.tar.gz", hash = "sha256:2fda978c4d28d2f1633a63972f425d0a7f2f12a75505d215b41b6de712e2ec4b"},
+]
+
+[package.dependencies]
+numpy = "*"
+
+[package.extras]
+dev = ["numba", "pandas", "pytest"]
+fast = ["numba"]
+
+[[package]]
 name = "nvidia-cublas-cu12"
 version = "12.6.0.22"
 description = "CUBLAS native runtime libraries"
@@ -3400,6 +3481,25 @@ files = [
 [package.extras]
 dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
+
+[[package]]
+name = "plum-dispatch"
+version = "2.5.2"
+description = "Multiple dispatch in Python"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "plum_dispatch-2.5.2-py3-none-any.whl", hash = "sha256:49f1e1487028849451454c59e330f800aac6ec520a432a0ed3ea6e04b74e2e31"},
+    {file = "plum_dispatch-2.5.2.tar.gz", hash = "sha256:1abfccc5a9c751f20dcdb1020c645968dfbc1c33ad3a9a47780834ec332cfe9e"},
+]
+
+[package.dependencies]
+beartype = ">=0.16.2"
+rich = ">=10.0"
+typing-extensions = ">=4.9.0"
+
+[package.extras]
+dev = ["black (==23.9.0)", "build", "coveralls", "ghp-import", "ipython", "jupyter-book", "mypy", "numpy", "pre-commit", "pyright (>=1.1.331)", "pytest (>=6)", "pytest-cov", "ruff (==0.1.0)", "sybil", "tox", "wheel"]
 
 [[package]]
 name = "pre-commit"
@@ -4749,4 +4849,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "3b870acb69b0ebc8f4f8ea1d3edfad0e95363e2092fed53c518a4d14831423b0"
+content-hash = "be816897fc40ea8b62ea626b7722f6f2d16824d45d5eb7459228490afd596020"
