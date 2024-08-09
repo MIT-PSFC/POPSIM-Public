@@ -33,7 +33,7 @@ def make_dataloader(
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
 ) -> xr.Dataset:
-    """Given a dataset,
+    """Given a multi-episode time series dataset, segment the data into training samples and create a DataLoader.
 
     Args:
         ds (xr.Dataset): input dataset.

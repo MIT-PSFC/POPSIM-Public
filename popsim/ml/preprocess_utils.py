@@ -46,7 +46,7 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
         largest_group = group_sizes.idxmax()
         return groups == largest_group
 
-    return mask.groupby(episode_dim).map(lambda shot_mask: _mask_to_largest_group_mask(shot_mask))
+    return mask.groupby(episode_dim).map(_mask_to_largest_group_mask)
 
 
 def shift_time_to_not_nan(
@@ -65,7 +65,7 @@ def shift_time_to_not_nan(
         xr.Dataset: dataset with the time dimension shifted so that the first time slice is not NaN.
     """
 
-    def dropna_preserve_size(group):
+    def _shift_time_to_not_nan(group):
         # Remove extraneous dimensions.
         group = group.squeeze()
 
@@ -85,4 +85,4 @@ def shift_time_to_not_nan(
         n_shift = -time_index
         return group.shift({time_dim: n_shift})
 
-    return ds.groupby(episode_dim).map(dropna_preserve_size)
+    return ds.groupby(episode_dim).map(_shift_time_to_not_nan)
