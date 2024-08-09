@@ -3,6 +3,28 @@ import typing
 import numpy as np
 import xarray as xr
 
+DatasetOrDataArray = typing.Union[xr.Dataset, xr.DataArray]
+
+
+def maybe_groupby_and_map(
+    ds: DatasetOrDataArray, dim: str, func: typing.Callable[[DatasetOrDataArray], DatasetOrDataArray]
+) -> DatasetOrDataArray:
+    """If the dataset(array) has the specified dimension, group by that dimension and apply the function to each group. Otherwise, apply the function to the entire dataset(array).
+
+    Args:
+        ds (DatasetOrDataArray): dataset(array) to be processed.
+        dim (str): name of the dimension to group by.
+        func (typing.Callable[[DatasetOrDataArray], DatasetOrDataArray]): function to be applied to each group.
+
+    Returns:
+        DatasetOrDataArray: dataset(array) with the function applied to each group.
+    """
+
+    if dim in ds.dims:
+        return ds.groupby(dim).map(func)
+    else:
+        return func(ds)
+
 
 def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: str) -> xr.DataArray:
     """Given a boolean mask, generate a new mask that only includes the largest
@@ -46,7 +68,7 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
         largest_group = group_sizes.idxmax()
         return groups == largest_group
 
-    return mask.groupby(episode_dim).map(_mask_to_largest_group_mask)
+    return maybe_groupby_and_map(mask, episode_dim, _mask_to_largest_group_mask)
 
 
 def shift_time_to_not_nan(
@@ -71,6 +93,7 @@ def shift_time_to_not_nan(
 
         assert len(group[time_var].dims) == 1, "Unexpected number of dimensions for time variable."
         time_dim = group[time_var].dims[0]
+
         # Drop NaNs across the 'time_slice' dimension.
         cleaned_group = group.dropna(time_dim, how=how, subset=subset)
 
@@ -82,7 +105,15 @@ def shift_time_to_not_nan(
         # Find its index in the original group and shift the time dimension by that amount.
         first_cleaned_slice = cleaned_group[time_var].isel({time_dim: 0})
         time_index = np.where(group[time_var] == first_cleaned_slice)[0][0]
-        n_shift = -time_index
-        return group.shift({time_dim: n_shift})
+        n_shift = time_index
 
-    return ds.groupby(episode_dim).map(_shift_time_to_not_nan)
+        # We want to shift the time dimension by n_shift, but .shift() does not shift
+        # the coordinates, which we want to do. So we first use reset_coords() to convert
+        # the coordinates to normal variables, apply the shift, then set the coordinates back.
+        group_coords = list(group.coords)
+        group = group.reset_coords()
+        shifted_group = group.shift({time_dim: -n_shift}, fill_value=np.nan)
+        shifted_group = shifted_group.set_coords(group_coords)
+        return shifted_group
+
+    return maybe_groupby_and_map(ds, episode_dim, _shift_time_to_not_nan)

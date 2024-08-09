@@ -3,6 +3,16 @@ import xarray as xr
 import numpy as np
 
 from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan
+from popsim.tests.test_ml.fixtures import cmod_test_dataset
+
+
+@pytest.fixture
+def cmod_data_with_energy_mask(cmod_test_dataset):
+    ds = cmod_test_dataset
+    energy_bounds = (1e4, 2.5e5)
+    ds["values_in_bounds"] = (energy_bounds[0] < ds["Wmhd"]) & (ds["Wmhd"] < energy_bounds[1])
+    return ds
+
 
 @pytest.mark.parametrize("mask, expected", [
     # Single Episode, Single Group
@@ -47,6 +57,34 @@ def test_mask_to_largest_group_mask_invalid_dtype():
     )
     with pytest.raises(ValueError, match="Expected mask to be of type int or bool"):
         mask_to_largest_group_mask(mask, episode_dim="episode", time_dim="time")
+
+@pytest.mark.parametrize("multishot", [True, False])
+def test_test_mask_to_largest_group_cmod(cmod_data_with_energy_mask, multishot):
+    ds = cmod_data_with_energy_mask
+
+    # Test case and expected result was derived manually via Jupyter Notebook.
+    test_shot = 1140723019
+    expected_times_true = (0.33699992, 1.61799992)
+
+    def get_times_true(_ds):
+        _ds["values_in_bounds_largest_group"] = mask_to_largest_group_mask(_ds["values_in_bounds"], episode_dim="shot", time_dim="time_slice")
+        times_true = _ds["time"].where(_ds["values_in_bounds_largest_group"])
+        return times_true
+
+    if multishot:
+        # Run the function with the entire dataset.
+        times_true = get_times_true(ds)
+        times_true = times_true.sel(shot=test_shot)
+    else:
+        # Run the function with a single shot.
+        times_true = get_times_true(ds.sel(shot=test_shot))
+
+    # Check that the first and last times that are True are as expected.
+    # Also check that all times in between the two times are true.
+    assert np.isclose(times_true.min().values, expected_times_true[0])
+    assert np.isclose(times_true.max().values, expected_times_true[1])
+    assert times_true.dropna("time_slice").all()
+
 
 @pytest.mark.parametrize("ds, how, subset, expected", [
     # how=Any: No NaN
@@ -224,3 +262,25 @@ def test_mask_to_largest_group_mask_invalid_dtype():
 def test_shift_time_to_not_nan(ds, how, subset, expected):
     result = shift_time_to_not_nan(ds, episode_dim="shot", time_var="time", how=how, subset=subset)
     xr.testing.assert_identical(result, expected)
+
+@pytest.mark.parametrize("multishot", [True, False])
+def test_shift_time_to_not_nan_cmod(cmod_data_with_energy_mask, multishot):
+    ds = cmod_data_with_energy_mask
+    test_shot = 1120104005
+
+    # Expected first and last time and Wmhd values after shifting the time dimension.
+    expected_times = (0.347, 1.774)
+    expected_wmhds = (10135.40933778, 10013.27040793)
+    ds = ds.where(ds["values_in_bounds"], drop=True)
+    if multishot:
+        result = shift_time_to_not_nan(ds, episode_dim="shot", time_var="time", how="any", subset=["Wmhd"])
+        result = result.sel(shot=test_shot)
+    else:
+        result = shift_time_to_not_nan(ds.sel(shot=test_shot), episode_dim="shot", time_var="time", how="any", subset=["Wmhd"])
+    
+    result = result.dropna('time_slice', how='all')
+    # Check that the first and last times and Wmhd values are as expected.
+    assert np.isclose(result["time"].min().values, expected_times[0])
+    assert np.isclose(result["time"].max().values, expected_times[1])
+    assert np.isclose(result["Wmhd"].isel(time_slice=0), expected_wmhds[0])
+    assert np.isclose(result["Wmhd"].isel(time_slice=-1), expected_wmhds[1])
