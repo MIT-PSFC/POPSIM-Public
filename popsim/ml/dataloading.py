@@ -27,7 +27,7 @@ def make_dataloader(
     time_var: str,
     episode_var: str,
     state_init_vars: list[str],
-    param_vars: list[str],
+    other_vars: list[str],
     segment_length: int,
     segment_overlap: int,
     batch_size: typing.Optional[int] = None,
@@ -40,7 +40,7 @@ def make_dataloader(
         time_name (str): Name of the time variable.
         episode_name (str): Name of the episode variable.
         state_init_vars (list[str]): List of variables required to initialize the state of the model.
-        param_vars (list[str]): List of variables that are time-varying parameters input to the model.
+        other_vars (list[str]): List of additional variables that are needed for training.
         segment_length (int): Number of time steps used in each training segment.
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
@@ -87,7 +87,7 @@ def make_dataloader(
     )
 
     # Drop samples where the data is all NaN.
-    sample_ds = sample_ds.dropna("sample", how="all", subset=state_init_vars + param_vars)
+    sample_ds = sample_ds.dropna("sample", how="all", subset=state_init_vars + other_vars)
 
     if batch_size is None:
         batch_size = len(sample_ds["sample"])
