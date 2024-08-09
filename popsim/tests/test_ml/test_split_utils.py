@@ -71,7 +71,8 @@ def test_split_dataset_by_coords(cmod_test_dataset):
     n_shots = len(ds["shot"])
     expected_lengths = [int(n_shots * frac) for frac in split_fracs]
     for split, expected_length in zip(split_datasets, expected_lengths):
-        assert len(split["shot"]) == expected_length
+        # Allow for differences of 1 due to rounding.
+        assert abs(len(split["shot"]) - expected_length) <= 1
 
     # Check that the splits are disjoint
     all_shots = jnp.unique(jnp.concatenate([split["shot"].values for split in split_datasets]))
