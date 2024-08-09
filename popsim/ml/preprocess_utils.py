@@ -112,7 +112,7 @@ def shift_time_to_not_nan(
         # the coordinates to normal variables, apply the shift, then set the coordinates back.
         group_coords = list(group.coords)
         group = group.reset_coords()
-        shifted_group = group.shift({time_dim: -n_shift}, fill_value=np.nan)
+        shifted_group = group.shift({time_dim: -n_shift})
         shifted_group = shifted_group.set_coords(group_coords)
         return shifted_group
 

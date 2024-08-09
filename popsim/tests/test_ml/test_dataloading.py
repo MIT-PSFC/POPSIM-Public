@@ -1,5 +1,5 @@
 from popsim.tests.test_ml.fixtures import cmod_test_dataset
-from popsim.ml.dataloading import make_dataloader
+from popsim.ml import make_dataloader
 import xarray as xr
 import numpy as np
 
