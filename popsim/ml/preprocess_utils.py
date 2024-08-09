@@ -74,7 +74,7 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
 def shift_time_to_not_nan(
     ds: xr.Dataset, episode_dim: str, time_var: str, how: str = "any", subset: typing.Optional[typing.Iterable[typing.Hashable]] = None
 ) -> xr.Dataset:
-    """For each shot in a dataset, shift the time dimension so that the first time slice is not NaN. Each shot is end-padded with NaNs. To specify that only a subset of the variables should be considered when determining the first non-NaN time slice, pass a list of variable names to the `subset` argument.
+    """For each episode in a dataset, shift the time dimension so that the first time slice is not NaN. Each episode is end-padded with NaNs. To specify that only a subset of the variables should be considered when determining the first non-NaN time slice, pass a list of variable names to the `subset` argument.
 
     Args:
         ds (xr.Dataset): dataset to be processed.
