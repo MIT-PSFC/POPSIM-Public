@@ -1,3 +1,6 @@
 # Welcome to Plasma OPerational SIMulation (POPSIM)!
 
-This is currently a bit bare; the key tutorial right now is the one on CometMirror.
+This is currently a bit bare.
+
+## Getting Started
+The easiest way to get oriented to POPSIM and many of its core capabilities is by exploring the [CometMirror Tutorial](./demos/comet_mirror.ipynb).
