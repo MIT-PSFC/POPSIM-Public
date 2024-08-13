@@ -12,6 +12,7 @@ from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
 from popsim.param_utils import build_vectorized_params
+from popsim.types import SimulationInput
 from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
 
 
@@ -31,6 +32,7 @@ def simulate(
     prng_key_seed: typing.Optional[jax.random.PRNGKey] = None,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Simulate a module.
+
     Args:
         module (ModuleBase): the dynamics module to simulate.
         time_base (Array): the time base for the simulation.
@@ -40,6 +42,7 @@ def simulate(
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
         prng_key_seed (typing.Optional[jax.random.PRNGKey], optional): If a random number key is provided, then PRNGKey trajectories will be auto-generated for the module for all simulation cases. If provided value is 'None', then 'None' will be passed to all modules as the 'key' argument. Defaults to None.
+
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
     """
@@ -83,13 +86,13 @@ def simulate(
 
 
 @eqx.filter_jit
-def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
-    params_axes = jax.tree.map(lambda _: 0, params_vectorized)
+def _vec_simulate(module: ModuleBase, sim_input: SimulationInput, simulate_fun):
+    sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
     # Perform a vectorized simulation.
     sol = jax.vmap(
         simulate_fun,
-        in_axes=(None, None, None, params_axes),
-    )(module, ts, state0, params_vectorized)
+        in_axes=(None, sim_input_axes),
+    )(module, sim_input)
 
     # Remove extraneous dimensions.
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
@@ -97,7 +100,7 @@ def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, sim_input: SimulationInput) -> diffrax.Solution:
     def module_f(t, y, params, return_aux=False):
         params_resolved = resolve_paths(params, t)
         state_dot, out = module(y, params_resolved)
@@ -115,20 +118,20 @@ def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params) -> diffrax.
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),
         solver=diffrax.Euler(),
-        t0=ts[0],
-        t1=ts[-1],
-        dt0=jnp.min(jnp.diff(ts)),
-        y0=state0,
-        args=params,
-        saveat=diffrax.SaveAt(ts=ts, fn=saveat_fn),
+        t0=sim_input.ts[0],
+        t1=sim_input.ts[-1],
+        dt0=jnp.min(jnp.diff(sim_input.ts)),
+        y0=sim_input.initial_state,
+        args=sim_input.params,
+        saveat=diffrax.SaveAt(ts=sim_input.ts, fn=saveat_fn),
         max_steps=None,  # Allows indefinite number of steps.
     )
     return sol
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params):
-    dts = jnp.diff(ts)
+def _simple_euler_simulate(module: ModuleBase, sim_input: SimulationInput) -> PyTree:
+    dts = jnp.diff(sim_input.ts)
     # Check dts are all equal.
     dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > 1e-10), "Time steps must be uniform.")
 
@@ -136,7 +139,7 @@ def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params):
 
     def _euler_step(carry, t):
         state = carry
-        params_resolved = resolve_paths(params, t)
+        params_resolved = resolve_paths(sim_input.params, t)
         state_out, out = module(state, params_resolved)
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
@@ -160,5 +163,5 @@ def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params):
 
         return state_next, output_data
 
-    _, outputs = jax.lax.scan(_euler_step, state0, xs=ts)
+    _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.ts)
     return outputs
