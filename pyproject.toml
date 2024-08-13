@@ -37,7 +37,7 @@ nbmake = "^1.4.6"
 pytest-xdist = "^3.6.1"
 mkdocs = "^1.6.0"
 pymdown-extensions = "^10.9"
-mkdocstrings = "^0.25.2"
+mkdocstrings = {extras = ["python"], version = "^0.25.2"}
 mknotebooks = "^0.8.0"
 mkdocs-material = "^9.5.30"
 

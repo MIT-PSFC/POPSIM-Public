@@ -54,6 +54,7 @@ plugins:
     - search  # default search plugin; needs manually re-enabling when using any other plugins
     - autorefs  # Cross-links to headings
     - mknotebooks
+    - mkdocstrings
 nav:
     - 'index.md'
     - Getting Started:
@@ -63,3 +64,7 @@ nav:
         - 'Composite Modules: Controller Plus Sim': 'demos/controller_plus_sim.ipynb'
     - Developing: 
         - Workflow Basics: 'development_workflow.md'
+    - API:
+        - 'api/simulate.md'
+        - 'api/module_base.md'
+        - 'api/interp.md'
