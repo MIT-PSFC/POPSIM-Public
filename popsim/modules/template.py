@@ -1,5 +1,4 @@
 import chex
-import jax
 
 from popsim import ModuleBase
 
@@ -36,7 +35,7 @@ class ExampleTemplate(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # Make a state_dot.
         state_dot = ExampleTemplate.State()
         # Make an output.

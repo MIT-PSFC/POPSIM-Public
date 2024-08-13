@@ -33,7 +33,7 @@ def pure_continuous_time_module():
         def __init__(self, config):
             self.config = config
 
-        def __call__(self, state: State, params: Params, key) -> tuple[State, Output]:
+        def __call__(self, state: State, params: Params) -> tuple[State, Output]:
             state_dot = ContinuousTimeModule.State(x=-state.x)
             out = ContinuousTimeModule.Output(y=jnp.abs(state.x))
             return state_dot, out
@@ -58,40 +58,6 @@ def hybrid_time_module():
     final_lim_mag = 0.01
     params = HybridExample.Params(speed=1.0, ylims=({0.0: -1.0, 10.0: -final_lim_mag}, {0.0: 1.0, 10.0: final_lim_mag}))
     return module, time_base, initial_state, params
-
-
-@pytest.fixture
-def test_prng_module():
-    @chex.dataclass
-    class PRNGModule(ModuleBase):
-        @chex.dataclass
-        class Config:
-            pass
-
-        @chex.dataclass
-        class State:
-            x: float
-
-        @chex.dataclass
-        class Output:
-            prng_out0: int
-            prng_out1: int
-
-        @chex.dataclass
-        class Params:
-            a: float = 0
-
-        config: Config
-
-        def __init__(self, config):
-            self.config = config
-
-        def __call__(self, state: State, params: Params, key: jax.random.PRNGKey) -> tuple[State, Output]:
-            state_dot = PRNGModule.State(x=-state.x)
-            out = PRNGModule.Output(prng_out0=key[0], prng_out1=key[1])
-            return state_dot, out
-    initial_state = PRNGModule.State(x=-1.0)
-    return PRNGModule, initial_state
 
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
@@ -133,8 +99,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
-@pytest.mark.parametrize("prng_key_seed", [None, jax.random.PRNGKey(0)])
-def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_type, multi_sim, prng_key_seed):
+def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_type, multi_sim):
     module, time_base, initial_state, params = pure_discrete_time_module
     if multi_sim:
         params = [params, params]
@@ -145,7 +110,7 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
             sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
         return
     else:
-        sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray, prng_key_seed=prng_key_seed)
+        sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
@@ -193,20 +158,3 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
         assert "simulation" in sol.dims
-    
-
-def test_simulate_prngkey(test_prng_module):
-    # A more detailed test that records PRNGKey values and checks that they are unique.
-    PRNGModule, initial_state = test_prng_module
-    params2 = PRNGModule.Params(a=0.0)
-    module = PRNGModule(config=PRNGModule.Config())
-    params = PRNGModule.Params(a=0.0)
-    ts = jnp.linspace(0.0, 10.0, 100)
-    sol = simulate.simulate(module, ts, initial_state, [params, params2], prng_key_seed=jax.random.PRNGKey(0))
-
-    # Check type is int.
-    assert sol["aux.prng_out0"].dtype == jnp.uint32
-    assert sol["aux.prng_out1"].dtype == jnp.uint32
-
-    # Check that "prng_out1" are all different.
-    assert len(jnp.unique(sol["aux.prng_out1"].values)) == sol["aux.prng_out1"].values.size

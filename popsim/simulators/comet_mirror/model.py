@@ -98,7 +98,7 @@ class CometMirror(ModuleBase):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> State:  # noqa: PLR0915
+    def __call__(self, state: State, params: Params) -> State:  # noqa: PLR0915
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,

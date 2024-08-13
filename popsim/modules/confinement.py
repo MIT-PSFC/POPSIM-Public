@@ -64,7 +64,7 @@ class Confinement:
         self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
         self.hmode_dynamics = HmodeDynamics(config=HmodeDynamics.Config())
 
-    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         lh_threshold_MW = calc_LH_transition_threshold_power(
             plasma_current=1e-6 * params.plasma_current,
             magnetic_field_on_axis=params.magnetic_field_on_axis,

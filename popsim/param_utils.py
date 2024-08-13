@@ -286,5 +286,6 @@ def build_vectorized_params(
 
     # We need to perform a tree-transpose to vectorize the parameters.
     params_vectorized = tree_transpose(params)
+    params_vectorized = jax.tree.map(lambda x: x.squeeze(), params_vectorized)  # Remove extraneous dimensions.
     nsims = len(params)
     return (params_vectorized, nsims)

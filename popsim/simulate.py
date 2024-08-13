@@ -81,6 +81,7 @@ def simulate(
 
     # Build the params.
     params_vectorized, nsims = build_vectorized_params(params, time_base, interp_type)
+
     multi_sim = nsims > 1
 
     # Choose the simulation function based on the stepper type.

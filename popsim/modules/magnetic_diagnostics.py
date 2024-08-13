@@ -1,8 +1,6 @@
 import os
-from typing import Optional
 
 import chex
-import jax
 import jax.numpy as jnp
 import numpy as np
 from interpax import Interpolator1D
@@ -154,7 +152,7 @@ class LowNArray(ModuleBase):
         # Needs to be jnp array for JAX
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
-    def __call__(self, state: State, params: Params, key: Optional[jax.random.PRNGKey] = None) -> Output:
+    def __call__(self, state: State, params: Params) -> Output:
         """Reconstruct the magnitudes of the tearing modes from the signals measured by the probes in the Low-N array.
 
         Args:

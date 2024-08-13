@@ -1,5 +1,4 @@
 import chex
-import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ScalarLike
 
@@ -29,7 +28,7 @@ class DelayBuffer(ModuleBase):
     def __init__(self, config=None):
         self.config = config or self.Config()
 
-    def __call__(self, state: State, params: Params, key: jax.random.PRNGKey = None) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # The first element of the buffer is the delayed input.
         output = DelayBuffer.Output(delayed=state.buffer[0])
 

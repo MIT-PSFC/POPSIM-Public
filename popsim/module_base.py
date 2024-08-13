@@ -1,8 +1,7 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import ClassVar, Optional
+from typing import ClassVar
 
-import jax
 from jaxtyping import PyTree
 
 
@@ -39,5 +38,5 @@ class ModuleBase(ABC):
                 raise TypeError(f"__call__ method in {self.__class__.__name__} must have a '{param_name}' parameter")
 
     @abstractmethod
-    def __call__(self, state: "State", params: "Params", key: Optional[jax.random.PRNGKey] = None) -> tuple["State", "Output"]:  # type: ignore # noqa: F821, PGH003
+    def __call__(self, state: "State", params: "Params") -> tuple["State", "Output"]:  # type: ignore # noqa: F821, PGH003
         raise NotImplementedError("This method must be overridden in a subclass.")
