@@ -8,7 +8,6 @@ import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import Array, PyTree
 
-import popsim.interp as pinterp
 from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
@@ -19,30 +18,6 @@ from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
 class StepperType(IntEnum):
     SIMPLE_EULER = 0
     DIFFRAX = 1
-
-
-def generate_prng_trajectory(prng_key_seed: jax.random.PRNGKey, n_samps: int, time_base: Array) -> diffrax.LinearInterpolation:
-    """Generate PRNG trajectories for all of the simulations.
-
-    Args:
-        prng_key_seed (jax.random.PRNGKey): seed used to randomly generate the PRNG trajectories.
-        n_samps (int): number of simulations.
-        time_base (Array): time base for the simulation.
-
-    Returns:
-        diffrax.LinearInterpolation: PRNG trajectories.
-    """
-    # If we have a seed, use it to generate a PRNG key for each simulation case and each time step.
-    prng_key = jax.random.randint(
-        prng_key_seed, (n_samps, time_base.size), minval=jnp.iinfo(jnp.int32).min, maxval=jnp.iinfo(jnp.int32).max
-    )
-
-    def interp_one_sim(key_for_one_sim):
-        return pinterp.interp(time_base, key_for_one_sim, interp_type=pinterp.InterpType.LINEAR)
-
-    prng_traj = jax.vmap(interp_one_sim)(prng_key)
-
-    return prng_traj
 
 
 def simulate(
