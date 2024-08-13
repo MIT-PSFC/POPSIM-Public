@@ -29,7 +29,7 @@ class ModuleBase(ABC):
         # Get the signature of the __call__ method
         signature = inspect.signature(call_method)
 
-        # Define required parameters and their expected types
+        # Define required parameters
         required_params = ("state", "params")
 
         # Check if all required parameters are in the signature
