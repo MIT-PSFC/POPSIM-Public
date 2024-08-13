@@ -83,9 +83,6 @@ def simulate(
     params_vectorized, nsims = build_vectorized_params(params, time_base, interp_type)
     multi_sim = nsims > 1
 
-    # Build the PRNG trajectory.
-    prng_traj = generate_prng_trajectory(prng_key_seed, nsims, time_base) if prng_key_seed is not None else None
-
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
         simulate_fun = _simple_euler_simulate
@@ -95,9 +92,11 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
     # Perform the simulation.
-    sol = _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun, prng_traj=prng_traj)
-
-    sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
+    sol = (
+        _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun)
+        if multi_sim
+        else simulate_fun(module, time_base, initial_state, params_vectorized)
+    )
 
     if stepper_type == StepperType.SIMPLE_EULER:
         return time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim) if return_xarray else sol
@@ -108,24 +107,24 @@ def simulate(
 
 
 @eqx.filter_jit
-def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun, prng_traj):
-    params_axes = jax.tree.map(lambda x: 0, params_vectorized)
-    prng_axes = jax.tree.map(lambda x: 0, prng_traj)
-
+def _vec_simulate(module, ts, state0, params_vectorized, simulate_fun):
+    params_axes = jax.tree.map(lambda _: 0, params_vectorized)
     # Perform a vectorized simulation.
     sol = jax.vmap(
         simulate_fun,
-        in_axes=(None, None, None, params_axes, prng_axes),
-    )(module, ts, state0, params_vectorized, prng_traj)
+        in_axes=(None, None, None, params_axes),
+    )(module, ts, state0, params_vectorized)
+
+    # Remove extraneous dimensions.
+    sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
     return sol
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params, prng_traj) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params) -> diffrax.Solution:
     def module_f(t, y, params, return_aux=False):
-        params_resolved, prng_resolved = resolve_paths((params, prng_traj), t)
-        prng_key = jax.random.PRNGKey(prng_resolved.astype(int)) if prng_resolved is not None else None
-        state_dot, out = module(y, params_resolved, key=prng_key)
+        params_resolved = resolve_paths(params, t)
+        state_dot, out = module(y, params_resolved)
         if return_aux:
             return out, params_resolved
         else:
@@ -152,7 +151,7 @@ def _diffrax_simulate(module: ModuleBase, ts: Array, state0, params, prng_traj) 
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params, prng_traj):
+def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params):
     dts = jnp.diff(ts)
     # Check dts are all equal.
     dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > 1e-10), "Time steps must be uniform.")
@@ -161,9 +160,8 @@ def _simple_euler_simulate(module: ModuleBase, ts: Array, state0, params, prng_t
 
     def _euler_step(carry, t):
         state = carry
-        params_resolved, prng_resolved = resolve_paths((params, prng_traj), t)
-        prng_key = jax.random.PRNGKey(prng_resolved.astype(int)) if prng_resolved is not None else None
-        state_out, out = module(state, params_resolved, key=prng_key)
+        params_resolved = resolve_paths(params, t)
+        state_out, out = module(state, params_resolved)
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
         # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.

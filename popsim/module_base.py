@@ -31,7 +31,7 @@ class ModuleBase(ABC):
         signature = inspect.signature(call_method)
 
         # Define required parameters and their expected types
-        required_params = ("state", "params", "key")
+        required_params = ("state", "params")
 
         # Check if all required parameters are in the signature
         for param_name in required_params:

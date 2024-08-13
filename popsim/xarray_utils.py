@@ -10,6 +10,7 @@ from jaxtyping import Array, PyTree
 
 import popsim.tree_util as ptu
 import popsim.types as ptypes
+from popsim.array_utils import jax_to_numpy_array
 
 Coords = tuple[str, Array]
 CoordSpec = typing.Union[list[Coords], Coords, None]
@@ -97,6 +98,7 @@ def tree_and_coords_to_xarray(tree: PyTree[Array], coord_tree: PyTree[typing.Opt
     """
 
     def make_data_array(keypath: tuple[ptypes.PyTreeKey], array: Array, coord: list[Coords]) -> xr.DataArray:
+        array = jax_to_numpy_array(array)
         if array.ndim == len(coord):
             # If the array and the coord have the same number of dimensions, we can just make a DataArray.
             return xr.DataArray(array, coords=convert_enums(coord))
