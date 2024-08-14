@@ -12,6 +12,7 @@ from jaxtyping import PyTree
 import popsim.xarray_utils as pxr
 from popsim import param_utils
 from popsim.interp import InterpType
+from popsim.tree_util import tree_transpose_and_squeeze
 
 
 def visualize_time_series(
@@ -96,18 +97,21 @@ def add_hlines(plot: hv.Element, var: Union[str, Sequence[str]], hlines: dict[st
 
 
 def visualize_params(
-    params: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
+    pytrees: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
 ) -> pn.panel:
     """Visualize the params of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 
     Args:
-        params (typing.Union[PyTree, typing.Sequence[PyTree]]): params tree.
+        pytrees (typing.Union[PyTree, typing.Sequence[PyTree]]): params tree.
         time_base (np.ndarray): Time base for the simulation.
         interp_type (InterpType): Interpolation type.
 
     Returns:
         pn.panel: panel showing the params as a time trace.
     """
-    params_vec, nsims = param_utils.build_vectorized_params(params, time_base, interp_type)
-    dataset = pxr.time_and_pytree_to_xarray(time_base, params_vec, multi_simulation=nsims > 1)
+    if not isinstance(pytrees, Sequence):
+        pytrees = [pytrees]
+    pytrees = [param_utils.build_param_paths(tree, time_base, interp_type) for tree in pytrees]
+    pytrees_vec = tree_transpose_and_squeeze(pytrees)
+    dataset = pxr.time_and_pytree_to_xarray(time_base, pytrees_vec, multi_simulation=len(pytrees) > 1)
     return visualize_time_series(dataset)

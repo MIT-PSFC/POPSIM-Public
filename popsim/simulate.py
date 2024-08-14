@@ -15,6 +15,8 @@ from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
 from popsim.sim_utils import (
+    CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
+    MultiCases,  # . Import is used to allow the user to import this function from this module.
     SimInput,
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
@@ -49,6 +51,19 @@ def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput],
         seeds = [state.seed for state in seed_states]
         if len(seeds) != len(set(seeds)):
             warnings.warn(f"Multiple simulations have the same PRNG seed. Simulation PRNG seeds: {seeds}.", stacklevel=2)
+
+    # Make sure that sim_inputs do not have any instances of MultiCases or CombinatorialCases.
+    multi_cases = get_instances_from_tree_leaves(sim_inputs, MultiCases)
+    if multi_cases:
+        raise ValueError(
+            "MultiCases detected in simulation inputs. Recommend explicitly calling .generate_cases() on them before calling simulate."
+        )
+
+    combinatorial_cases = get_instances_from_tree_leaves(sim_inputs, CombinatorialCases)
+    if combinatorial_cases:
+        raise ValueError(
+            "CombinatorialCases detected in simulation inputs. Recommend explicitly calling .generate_cases() on them before calling simulate."
+        )
 
 
 def simulate(
