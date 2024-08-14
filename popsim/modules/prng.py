@@ -34,13 +34,13 @@ class PRNGModule(ModuleBase):
 
     @chex.dataclass
     class Output:
-        key_array: PRNGKeyArray  # Generated PRNGKeyArray that can be used, for example, in jax.random functions.
+        key: PRNGKeyArray  # Generated PRNGKeyArray that can be used, for example, in jax.random functions.
 
-    def __call__(self, state: State, params: Output) -> tuple[State, Output]:
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
         # Generate a new key from the current seed.
         key = jax.random.key(state.seed)
 
         # Generate the seed for the next iteration.
         next_seed = jax.random.randint(key, (1,), minval=jnp.iinfo(jnp.int32).min, maxval=jnp.iinfo(jnp.int32).max).squeeze()
 
-        return self.State(seed=next_seed), self.Output(key_array=key)
+        return self.State(seed=next_seed), self.Output(key=key)
