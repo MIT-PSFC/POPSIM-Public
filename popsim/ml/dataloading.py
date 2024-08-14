@@ -1,25 +1,153 @@
 import typing
 
+import jax.numpy as jnp
 import xarray as xr
 import xbatcher
 from jax_dataloader import DataLoader, Dataset
+from jaxtyping import Array
 
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
+from popsim.ml.types import EvalInput
 
 
-class XBatcherDataset(Dataset):
-    bgen: xbatcher.BatchGenerator
+def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
+    return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
 
-    def __init__(self, bgen: xbatcher.BatchGenerator):
-        self.bgen = bgen
+
+class XarrayDataset(Dataset):
+    ds: xr.Dataset
+    sample_var: str
+    sample_dim: str
+    param_vars: list[str]
+    targ_vars: list[str]
+    state_init_vars: typing.Optional[list[str]]
+    time_var: typing.Optional[str]
+    time_dim: typing.Optional[str]
+
+    def __init__(
+        self,
+        ds: xr.Dataset,
+        sample_var: str,
+        sample_dim: str,
+        param_vars: list[str],
+        targ_vars: list[str],
+        state_init_vars: typing.Optional[list[str]] = None,
+        time_var: typing.Optional[str] = None,
+        time_dim: typing.Optional[str] = None,
+    ):
+        self.ds = ds
+        self.sample_var = sample_var
+        self.sample_dim = sample_dim
+        self.param_vars = param_vars
+        self.targ_vars = targ_vars
+        self.state_init_vars = state_init_vars
+        self.time_var = time_var
+        self.time_dim = time_dim
+        assert (
+            len(
+                {
+                    (self.time_var is None),
+                    (self.time_dim is None),
+                    (self.state_init_vars is None or len(self.state_init_vars) == 0),
+                }
+            )
+            == 1
+        ), "Either all of time_var, time_dim, and state_init_vars must be None, or all must be specified."
 
     def __len__(self):
-        return len(self.bgen)
+        return self.ds[self.sample_dim].size
 
     def __getitem__(self, idx):
-        idx = int(idx.squeeze())  # The Dataloader provides Jax arrays, but xbatcher expects ints.
-        batch = self.bgen[idx].load()
-        return batch
+        ds_slice = self.ds.isel({self.sample_dim: idx})
+        return XarrayDataset(
+            ds=ds_slice,
+            sample_var=self.sample_var,
+            sample_dim=self.sample_dim,
+            param_vars=self.param_vars,
+            targ_vars=self.targ_vars,
+            state_init_vars=self.state_init_vars,
+            time_var=self.time_var,
+            time_dim=self.time_dim,
+        )
+
+    def to_eval_input(self) -> EvalInput:
+        # Forward fill to replace missing time values with the last known time value.
+        time = self.ds[self.time_var].ffill(dim=self.time_dim).values if self.time_var is not None else None
+        eval_input = EvalInput(
+            time=time,
+            state_init=ds_to_dict_jnp(self.ds[self.state_init_vars].isel({self.time_dim: 0})) if self.state_init_vars is not None else None,
+            params=ds_to_dict_jnp(self.ds[self.param_vars]),
+            targs=ds_to_dict_jnp(self.ds[self.targ_vars]),
+        )
+        return eval_input
+
+
+def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str) -> tuple[str, str]:
+    """Given a dataset and the names of the episode and time variables, extract the dimension names of these variables and check that they are consistent.
+
+    Args:
+        ds (xr.Dataset): Dataset containing the episode and time variables.
+        episode_var_name (str): Name of the episode variable.
+        time_var_name (str): Name of the time variable.
+
+    Returns:
+        tuple[str, str]: The dimension names of the episode and time variables.
+    """
+    # Extract the dimension of the episode variable and make sure it is one-dimensional.
+    episode_var = ds[episode_var_name]
+    episode_var_dims = list(episode_var.sizes.keys())
+    assert len(episode_var_dims) == 1, f"Expected one dimension for episode var {episode_var}"
+    episode_var_dim = episode_var_dims[0]
+
+    # Extract the dimension of the time variable.
+    time_var = ds[time_var_name]
+    time_var_dims = set(time_var.sizes.keys())
+
+    assert episode_var_name in time_var_dims, f"{episode_var} not in {time_var_dims}"
+    time_var_dims_minus_episode = [d for d in time_var_dims if d != episode_var_dim]
+
+    assert (
+        len(time_var_dims_minus_episode) == 1
+    ), f"For time var {time_var}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
+    time_var_dim = time_var_dims_minus_episode[0]
+    return episode_var_dim, time_var_dim
+
+
+def make_time_indep_dataloader(
+    ds: xr.Dataset,
+    time_var: str,
+    episode_var: str,
+    input_vars: list[str],
+    targ_vars: list[str],
+    batch_size: typing.Optional[int] = None,
+    shuffle: bool = True,
+) -> DataLoader:
+    """Create a DataLoader for training tasks that do not require time dependence.
+
+    Args:
+        ds (xr.Dataset): Input dataset.
+        time_var (str): Name of the time variable.
+        episode_var (str): Name of the episode variable.
+        input_vars (list[str]): Names of the input variables that go into the model.
+        targ_vars (list[str]): Names of the target variables that the model predicts.
+        batch_size (typing.Optional[int], optional): _description_. Defaults to None.
+        shuffle (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
+    return make_dataloader(
+        ds=ds,
+        time_var=time_var,
+        episode_var=episode_var,
+        state_init_vars=None,
+        param_vars=input_vars,
+        targ_vars=targ_vars,
+        segment_length=1,  # Segment length of 1 means that the time dimension is removed.
+        segment_overlap=0,  # No overlap because we are only taking one time step.
+        batch_size=batch_size,
+        shuffle=shuffle,
+    )
 
 
 def make_dataloader(
@@ -27,22 +155,24 @@ def make_dataloader(
     time_var: str,
     episode_var: str,
     state_init_vars: list[str],
-    other_vars: list[str],
+    param_vars: list[str],
+    targ_vars: list[str],
     segment_length: int,
-    segment_overlap: int,
+    segment_overlap: int = 0,
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
-) -> xr.Dataset:
+) -> DataLoader:
     """Given a multi-episode time series dataset, segment the data into training samples and create a DataLoader.
 
     Args:
-        ds (xr.Dataset): input dataset.
+        ds (xr.Dataset): Input dataset.
         time_name (str): Name of the time variable.
         episode_name (str): Name of the episode variable.
-        state_init_vars (list[str]): List of variables required to initialize the state of the model.
-        other_vars (list[str]): List of additional variables that are needed for training.
+        state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
+        param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
+        targ_vars (list[str]): Names of the target variables that the module predicts.
         segment_length (int): Number of time steps used in each training segment.
-        segment_overlap (int): Number of time steps that each segment overlaps with the previous segment.
+        segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
@@ -50,29 +180,10 @@ def make_dataloader(
         xr.Dataset: Dataset with dimensions (sample, time, other_dims).
     """
 
-    def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str):
-        # Extract the dimension of the episode variable and make sure it is one-dimensional.
-        episode_var = ds[episode_var_name]
-        episode_var_dims = list(episode_var.sizes.keys())
-        assert len(episode_var_dims) == 1, f"Expected one dimension for episode var {episode_var}"
-        episode_var_dim = episode_var_dims[0]
-
-        # Extract the dimension of the time variable.
-        time_var = ds[time_var_name]
-        time_var_dims = set(time_var.sizes.keys())
-
-        assert episode_var_name in time_var_dims, f"{episode_var} not in {time_var_dims}"
-        time_var_dims_minus_episode = [d for d in time_var_dims if d != episode_var_dim]
-
-        assert (
-            len(time_var_dims_minus_episode) == 1
-        ), f"For time var {time_var}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
-        time_var_dim = time_var_dims_minus_episode[0]
-        return episode_var_dim, time_var_dim
-
+    input_vars = state_init_vars + param_vars
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
 
-    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_var=time_var, how="any", subset=state_init_vars)
+    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_var=time_var, how="any", subset=input_vars)
 
     # Construct the input_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.
@@ -85,16 +196,31 @@ def make_dataloader(
     sample_ds = next(
         iter(xbatcher.BatchGenerator(ds, input_dims=input_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True))
     )
+    time_dim_sample_ds = f"{time_var_dim}_input"  # By convention, the BatchGenerator adds "_input" to the time dimension.
 
     # Drop samples where the data is all NaN.
-    sample_ds = sample_ds.dropna("sample", how="all", subset=state_init_vars + other_vars)
+    sample_ds = sample_ds.dropna("sample", how="all", subset=input_vars + targ_vars)
+
+    # Squeeze the sample_ds to get rid of extraneous dimensions.
+    # For example, when "segment_length=1", we get rid of the "time" dimension.
+    sample_ds = sample_ds.squeeze()
 
     if batch_size is None:
         batch_size = len(sample_ds["sample"])
 
-    bgen = xbatcher.BatchGenerator(sample_ds, input_dims={"sample": batch_size})
-
-    # batch_size = 1 because we are already batching in the xbatcher.BatchGenerator.
-    # Telling the Dataloader batch_size=1 means "grab one batch at a time".
-    dl = DataLoader(XBatcherDataset(bgen), backend="jax", batch_size=1, shuffle=shuffle)
+    dl = DataLoader(
+        XarrayDataset(
+            ds=sample_ds,
+            sample_var="sample",
+            sample_dim="sample",
+            param_vars=param_vars,
+            targ_vars=targ_vars,
+            state_init_vars=state_init_vars,
+            time_var=time_var,
+            time_dim=time_dim_sample_ds,
+        ),
+        backend="jax",
+        batch_size=batch_size,
+        shuffle=shuffle,
+    )
     return dl

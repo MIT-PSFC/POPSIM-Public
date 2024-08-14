@@ -3,7 +3,7 @@ import xarray as xr
 import numpy as np
 
 from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan
-from popsim.tests.test_ml.fixtures import cmod_test_dataset
+from popsim.tests.fixtures import cmod_test_dataset
 
 
 @pytest.fixture

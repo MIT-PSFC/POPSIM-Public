@@ -6,7 +6,7 @@ import pytest
 import jax.numpy as jnp
 
 from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_by_coords
-from popsim.tests.test_ml.fixtures import cmod_test_dataset
+from popsim.tests.fixtures import cmod_test_dataset
 
 def test_fracs_to_lengths():
     def generate_three_numbers_sum_to_one():

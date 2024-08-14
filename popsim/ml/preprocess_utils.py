@@ -97,9 +97,9 @@ def shift_time_to_not_nan(
         # Drop NaNs across the 'time_slice' dimension.
         cleaned_group = group.dropna(time_dim, how=how, subset=subset)
 
-        # If there are no time slices left, just return the cleaned group which is empty.
+        # If there are no time slices left, just return all NaNs.
         if cleaned_group[time_dim].size == 0:
-            return cleaned_group
+            return group * np.nan
 
         # Find the first time slice remaining in the cleaned group.
         # Find its index in the original group and shift the time dimension by that amount.
