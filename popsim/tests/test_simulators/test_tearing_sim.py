@@ -1,5 +1,5 @@
 from popsim.simulators.tearing_sim.scenarios.simple_tearing import build_simple_tearing_sim_config
-from popsim.simulate import simulate
+from popsim.simulate import simulate, SimInput
 
 
 
@@ -10,7 +10,7 @@ def test_tearing_sim():
 
     tearing_sim, time_base, sim_initial_state, sim_params = build_simple_tearing_sim_config(simulated_modes, reconstructed_modes)
 
-    sim_xarray = simulate(tearing_sim, time_base, sim_initial_state, sim_params)
+    sim_xarray = simulate(tearing_sim, SimInput(time=time_base, initial_state=sim_initial_state, params=sim_params), return_xarray=True)
 
     # Ensure the amplitudes of the simulated modes are large
     assert sim_xarray['output.locals.reconstructed_magnitudes.1'].max() > 1

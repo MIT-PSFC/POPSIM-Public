@@ -1,6 +1,6 @@
-from popsim import param_utils
 from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
 from popsim.modules.tearing import DEFAULT_WDOT, Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory
+from popsim.simulate import make_time_base
 from popsim.simulators.tearing_sim.model import TearingSim
 
 
@@ -22,7 +22,7 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
 
     # Define the time base.
     dt = 1e-4 / 3  # s
-    time_base = param_utils.make_time_base(t0=0.0, t1=7.0, dt=dt)
+    time_base = make_time_base(t0=0.0, t1=7.0, dt=dt)
 
     # Define the tearing modes.
     tearing_config = Tearing.Config(

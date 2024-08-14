@@ -1,6 +1,6 @@
 from popsim.modules.pid import PIDController
 import jax.numpy as jnp
-from popsim.simulate import simulate
+from popsim.simulate import simulate, SimInput
 from popsim.interp import interp
 
 def test_pid_controller():
@@ -34,4 +34,4 @@ def test_pid_controller():
     # Test that we can run "simulate" with time varying setpoint and measurement.
     ts = 0.1 * jnp.arange(100)
     params = PIDController.Params(setpoint=interp(ts, jnp.sin(ts)), measurement=interp(ts, jnp.cos(ts)))
-    ds = simulate(pid, ts, initial_state, params, return_xarray=True)
+    ds = simulate(pid, SimInput(time=ts, initial_state=initial_state, params=params), return_xarray=True)

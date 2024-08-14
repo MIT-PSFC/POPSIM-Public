@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 
-import popsim.param_utils as param_utils
 from popsim.modules.tearing import Tearing, DisruptionPhase, TearingPhase
 from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
+from popsim.simulate import make_time_base
 
 def test_lown_array_same_amplitude_diff_phases():
     """Ensure the Low-N Array module returns the same amplitude for different phases of the same mode."""
@@ -10,7 +10,7 @@ def test_lown_array_same_amplitude_diff_phases():
     modes = [(2, 1), (3, 2)]
 
     dt = 1e-4 / 3  # s
-    time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
+    time_base = make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
         modes = modes
     )
@@ -66,7 +66,7 @@ def test_lown_array_nonexistent_mode():
     modes = [(3, 2)]
 
     dt = 1e-4 / 3  # s
-    time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
+    time_base = make_time_base(t0=0.0, t1=3.0, dt=dt)
     config = Tearing.Config(
         modes = modes
     )

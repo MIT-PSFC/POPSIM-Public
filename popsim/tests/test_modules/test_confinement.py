@@ -3,9 +3,7 @@ from popsim.physics.geometry import GeometryCFSPopcon
 import jax.numpy as jnp
 import diffrax
 from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
-from popsim.interp import resolve_paths
-from popsim.xarray_utils import solution_to_xarray
-from popsim.simulate import simulate, StepperType
+from popsim.simulate import simulate, StepperType, SimInput
 
 def test_dynamics():
     input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
@@ -71,8 +69,8 @@ def test_dynamics():
         P_input_MW = input_powers_traj,  # Power input to the plasma [MW]
 )
 
-
-    dataset = simulate(confinement_module, times, state, params, return_xarray=True, stepper_type=StepperType.DIFFRAX)
+    sim_input = SimInput(time=times, initial_state=state, params=params)
+    dataset = simulate(confinement_module, sim_input, return_xarray=True, stepper_type=StepperType.DIFFRAX)
 
     assert jnp.isclose(float(dataset['output.tau_E'][0]),0.1834906)
     assert jnp.isclose(float(dataset['output.tau_E'][1]),0.67667817)

@@ -3,8 +3,8 @@ import jax.numpy as jnp
 
 import popsim.simulators.modular_sim.model as msm
 from popsim.simulators.modular_sim.model import ModularModel
-from popsim.simulate import simulate
-from popsim.enums import Species, SpeciesContainer, FuelSpecies, Impurity
+from popsim.simulate import simulate, SimInput
+from popsim.enums import SpeciesContainer, FuelSpecies, Impurity
 
 def test_modular_sim():
     # Configure the model
@@ -57,4 +57,4 @@ def test_modular_sim():
 
     # Simulate the model
     ts = jnp.linspace(0, 1.0, 10)
-    sol = simulate(model, ts, state, params, return_xarray=True)
+    sol = simulate(model, SimInput(time=ts, initial_state=state,params=params), return_xarray=True)

@@ -1,14 +1,12 @@
-from popsim.simulate import simulate
-
 import popsim.param_utils as param_utils
 from popsim.modules.tearing import Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory, DEFAULT_WDOT, TQ_WDOT, CQ_WDOT, INITIAL_ROT_FREQ
-from popsim.simulate import simulate
+from popsim.simulate import simulate, make_time_base, SimInput
 import pytest
 
 def run_tearing_test_sim():
     """Ensure the simulated mode growth and rotation frequency match the hard-coded values"""
     dt = 1e-4 / 3  # s
-    time_base = param_utils.make_time_base(t0=0.0, t1=3.0, dt=dt)
+    time_base = make_time_base(t0=0.0, t1=3.0, dt=dt)
     modes = [(2, 1), (3, 2)]
     config = Tearing.Config(
         modes = modes
@@ -43,7 +41,7 @@ def run_tearing_test_sim():
 
     tearing_module = Tearing(config=config)
 
-    sol_xarray = simulate(tearing_module, time_base, initial_state, params)
+    sol_xarray = simulate(tearing_module, SimInput(time=time_base, initial_state=initial_state, params=params), return_xarray=True)
     aux_data = locals()
     return sol_xarray, aux_data
 

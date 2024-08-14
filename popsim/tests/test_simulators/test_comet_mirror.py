@@ -3,14 +3,14 @@ import jax.numpy as jnp
 
 import popsim.simulators.comet_mirror.scenarios.sparc_prd as sparc_prd_cm
 from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData
-from popsim.simulate import simulate
+from popsim.simulate import simulate, SimInput
 
 
 def generate_sim_and_checks(only_return_final: bool = True):
     # Test that the simulator runs and compare against a reference solution.
     model, state, params = sparc_prd_cm.build_comet_mirror_config()
     ts = jnp.linspace(0, 1.0, 10)
-    sol = simulate(model, ts, state, params, return_xarray=False)
+    sol = simulate(model, SimInput(time=ts, initial_state=state, params=params), return_xarray=False)
 
     if only_return_final:
         out = jax.tree.map(lambda x: x[-1], sol)
