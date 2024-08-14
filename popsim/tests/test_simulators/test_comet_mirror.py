@@ -51,7 +51,7 @@ def generate_sim_and_checks(only_return_final: bool = True):
     if only_return_final:
         return checks
     else:
-        return checks, sol
+        return checks, sol, ts
 
 
 def test_comet_mirror_prd():
