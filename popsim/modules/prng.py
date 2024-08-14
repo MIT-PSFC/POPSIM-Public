@@ -1,9 +1,15 @@
+import random
+
 import chex
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from popsim import ModuleBase, discrete_time_field
+
+
+def random_seed():
+    return random.randint(jnp.iinfo(jnp.int32).min, jnp.iinfo(jnp.int32).max)
 
 
 class PRNGModule(ModuleBase):
@@ -18,7 +24,9 @@ class PRNGModule(ModuleBase):
 
     @chex.dataclass
     class State:
-        seed: int = discrete_time_field()  # Integer seed for generating a PRNGKeyArray.
+        seed: int = discrete_time_field(
+            default_factory=random_seed
+        )  # Integer seed for generating a PRNGKeyArray that gets updated at every time step. If the user does not provide a seed, a random seed is generated.
 
     @chex.dataclass
     class Params:
