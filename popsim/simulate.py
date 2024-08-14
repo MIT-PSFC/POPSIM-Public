@@ -5,14 +5,17 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 import xarray as xr
-from jaxtyping import Array, PyTree
+from jaxtyping import PyTree
 
 from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
-from popsim.param_utils import build_vectorized_params
-from popsim.types import SimulationInput
+from popsim.modules.prng import PRNGModule
+from popsim.param_utils import param_specs_to_paths
+from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose_and_squeeze
+from popsim.types import SimInput
 from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
 
 
@@ -21,46 +24,73 @@ class StepperType(IntEnum):
     DIFFRAX = 1
 
 
+def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
+    """Create a time base from t0 to t1 with a step size of dt.
+    Use numpy as jnp may give unhashable types.
+
+    Args:
+        t0 (float): time to start.
+        t1 (float): time to end.
+        dt (float): time step.
+
+    Returns:
+        np.ndarray: time base.
+    """
+    return np.arange(t0, t1 + dt, dt)
+
+
+def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
+    """Perform checks of the simulation inputs."""
+
+    # Check if the state has any discrete components when using Diffrax. If so, raise an error.
+    if stepper_type == StepperType.DIFFRAX:
+
+        def _has_discrete_state(sim_input):
+            discrete_state, _ = partition_discrete_cont(sim_input.initial_state)
+            discrete_leaves = jax.tree.leaves(discrete_state)
+            return len(discrete_leaves) > 0
+
+        has_discrete_state = any(_has_discrete_state(sim_input) for sim_input in sim_inputs)
+        if has_discrete_state:
+            raise ValueError("State must be completely continuous when using Diffrax for the simulation.")
+
+    # If PRNGModule.State is in the state, check that the seed is unique for each simulation.
+    # If not, raise a warning.
+    seed_states = get_instances_from_tree_leaves(sim_inputs, PRNGModule.State)
+    if len(seed_states) > 1:
+        seeds = [state.seed for state in seed_states]
+        if len(seeds) != len(set(seeds)):
+            raise ValueError("PRNGModule.State seeds must be unique.")
+
+
 def simulate(
     module: ModuleBase,
-    time_base: Array,
-    initial_state: PyTree,
-    params: typing.Union[typing.Sequence[PyTree], PyTree],
+    sim_inputs: typing.Union[SimInput, typing.Sequence[SimInput]],
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
-    prng_key_seed: typing.Optional[jax.random.PRNGKey] = None,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
-    """Simulate a module.
+    """Public facing API for simulating a module.
 
     Args:
         module (ModuleBase): the dynamics module to simulate.
-        time_base (Array): the time base for the simulation.
-        initial_state (PyTree): the initial state of the system. Should be DynamicsModule.State.
-        params (typing.Union[typing.Sequence[PyTree], PyTree]): the parameters of the system. Should be DynamicsModule.Params or a sequence of DynamicsModule.Params.
+        sim_input (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
         interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
-        prng_key_seed (typing.Optional[jax.random.PRNGKey], optional): If a random number key is provided, then PRNGKey trajectories will be auto-generated for the module for all simulation cases. If provided value is 'None', then 'None' will be passed to all modules as the 'key' argument. Defaults to None.
 
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
     """
-    if not isinstance(params, typing.Sequence):
-        params = [params]
+    if not isinstance(sim_inputs, typing.Sequence):
+        sim_inputs = [sim_inputs]
 
-    # If we are using Diffrax, then we expect the initial state to be completely continuous.
-    if stepper_type == StepperType.DIFFRAX:
-        discrete_state, _ = partition_discrete_cont(initial_state)
-        discrete_leaves = jax.tree.leaves(discrete_state)
+    _check_sim_inputs(module, sim_inputs, stepper_type)
 
-        if len(discrete_leaves) > 0:
-            raise ValueError("State must be completely continuous when using Diffrax for the simulation.")
+    # Resolve the param specifications to paths.
+    sim_inputs = param_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
 
-    # Build the params.
-    params_vectorized, nsims = build_vectorized_params(params, time_base, interp_type)
-
-    multi_sim = nsims > 1
+    multi_sim = len(sim_inputs) > 1
 
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
@@ -70,15 +100,18 @@ def simulate(
     else:
         raise ValueError("Stepper type not recognized.")
 
+    # Vectorize the simulation inputs.
+    sim_inputs_vectorized = tree_transpose_and_squeeze(sim_inputs)
+
     # Perform the simulation.
     sol = (
-        _vec_simulate(module, time_base, initial_state, params_vectorized, simulate_fun=simulate_fun)
+        _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
         if multi_sim
-        else simulate_fun(module, time_base, initial_state, params_vectorized)
+        else simulate_fun(module, sim_inputs_vectorized)
     )
 
     if stepper_type == StepperType.SIMPLE_EULER:
-        return time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim) if return_xarray else sol
+        return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol
     elif stepper_type == StepperType.DIFFRAX:
         return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
     else:
@@ -86,7 +119,8 @@ def simulate(
 
 
 @eqx.filter_jit
-def _vec_simulate(module: ModuleBase, sim_input: SimulationInput, simulate_fun):
+def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
+    """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
     # Perform a vectorized simulation.
     sol = jax.vmap(
@@ -100,7 +134,9 @@ def _vec_simulate(module: ModuleBase, sim_input: SimulationInput, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, sim_input: SimulationInput) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Solution:
+    """Function for simulating a single case using diffrax."""
+
     def module_f(t, y, params, return_aux=False):
         params_resolved = resolve_paths(params, t)
         state_dot, out = module(y, params_resolved)
@@ -118,20 +154,21 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimulationInput) -> diffrax
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),
         solver=diffrax.Euler(),
-        t0=sim_input.ts[0],
-        t1=sim_input.ts[-1],
-        dt0=jnp.min(jnp.diff(sim_input.ts)),
+        t0=sim_input.time[0],
+        t1=sim_input.time[-1],
+        dt0=jnp.min(jnp.diff(sim_input.time)),
         y0=sim_input.initial_state,
         args=sim_input.params,
-        saveat=diffrax.SaveAt(ts=sim_input.ts, fn=saveat_fn),
+        saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=None,  # Allows indefinite number of steps.
     )
     return sol
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, sim_input: SimulationInput) -> PyTree:
-    dts = jnp.diff(sim_input.ts)
+def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
+    """Function for simulating a single case using simple Euler integration."""
+    dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
     dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > 1e-10), "Time steps must be uniform.")
 
@@ -156,12 +193,12 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimulationInput) -> Py
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
         output_data = {
-            "output": out,
             "state": state,
+            "output": out,
             "params": params_resolved,
         }
 
         return state_next, output_data
 
-    _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.ts)
+    _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.time)
     return outputs

@@ -2,7 +2,6 @@ import dataclasses
 
 import chex
 import pytest
-import jax
 from jaxtyping import ArrayLike
 
 import popsim.enums as penums

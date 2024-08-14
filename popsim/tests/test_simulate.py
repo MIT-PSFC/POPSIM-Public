@@ -3,10 +3,10 @@ import pytest
 import chex
 from popsim import ModuleBase, discrete_time_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
-from popsim.param_utils import make_time_base
 import jax.numpy as jnp
 import jax
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray
+from popsim.types import SimInput
 
 @pytest.fixture
 def pure_continuous_time_module():
@@ -45,7 +45,7 @@ def pure_continuous_time_module():
 @pytest.fixture
 def pure_discrete_time_module():
     module = DiscreteTimeExample(config=DiscreteTimeExample.Config(disruptivity_threshold=0.9))
-    time_base = make_time_base(0.0, 1.0, 1e-3)
+    time_base = simulate.make_time_base(0.0, 1.0, 1e-3)
     initial_state = DiscreteTimeExample.State(disrupted_state=ExampleDisruptedState.NOT_DISRUPTED)
     params = DiscreteTimeExample.Params(disruptivity={0.0: 0.1, 0.5: 1.0, 0.75: 0.0})  # Time-dependent disruptivity.
     return module, time_base, initial_state, params
@@ -53,7 +53,7 @@ def pure_discrete_time_module():
 @pytest.fixture
 def hybrid_time_module():
     module = HybridExample()
-    time_base = make_time_base(0.0, 10.0, 1e-3)
+    time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
     initial_state = HybridExample.State(y=0.0, sign=1)
     final_lim_mag = 0.01
     params = HybridExample.Params(speed=1.0, ylims=({0.0: -1.0, 10.0: -final_lim_mag}, {0.0: 1.0, 10.0: final_lim_mag}))
@@ -67,18 +67,19 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 
     module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
 
-    if multi_sim:
-        params = [ContinuousTimeModule.Params(z=0.0), ContinuousTimeModule.Params(z=1.0)]
-    else:
-        params = ContinuousTimeModule.Params(z=0.0)
+    time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
 
-    ts = jnp.linspace(0.0, 10.0, 100)
-    sol = simulate.simulate(module, ts, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
+    if multi_sim:
+        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0)), SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=1.0))]
+    else:
+        sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0))
+
+    sol = simulate.simulate(module, sim_inputs, return_xarray=return_xarray, stepper_type=stepper_type)
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
-            sol = time_and_pytree_to_xarray(ts, sol, multi_simulation=multi_sim)
+            sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
         elif stepper_type == simulate.StepperType.DIFFRAX:
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
@@ -86,7 +87,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     
     
     # After 10 seconds, expect a significant amount of exponential decay of the state.
-    assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(ts)) * jnp.abs(initial_state.x)).all()
+    assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x)).all()
 
     # Expect that y is the absolute value of x.
     assert jnp.allclose(sol["output.y"].values, jnp.abs(sol["state.x"].values))
@@ -101,16 +102,18 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_type, multi_sim):
     module, time_base, initial_state, params = pure_discrete_time_module
+
+    sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=params)
     if multi_sim:
-        params = [params, params]
+        sim_inputs = [sim_inputs, sim_inputs]
 
     # Expect an error if the stepper type is Diffrax.
     if stepper_type == simulate.StepperType.DIFFRAX:
         with pytest.raises(ValueError):
-            sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
+            sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
         return
     else:
-        sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
+        sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
@@ -132,16 +135,17 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type, multi_sim):
     module, time_base, initial_state, params = hybrid_time_module
+    sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=params)
     if multi_sim:
-        params = [params, params]
+        sim_inputs = [sim_inputs, sim_inputs]
 
     # Expect an error if the stepper type is Diffrax.
     if stepper_type == simulate.StepperType.DIFFRAX:
         with pytest.raises(ValueError):
-            sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
+            sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
         return
     else:
-        sol = simulate.simulate(module, time_base, initial_state, params, stepper_type=stepper_type, return_xarray=return_xarray)
+        sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:

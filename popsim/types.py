@@ -1,3 +1,4 @@
+import dataclasses
 import typing
 
 import chex
@@ -35,7 +36,17 @@ PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]
 
 
 @chex.dataclass
-class SimulationInput:
-    ts: Array
+class SimInput:
+    time: Array
     initial_state: PyTree
     params: PyTree
+
+
+@chex.dataclass
+class CombinatorialCases:
+    cases: list = dataclasses.field(default_factory=list)
+
+
+@chex.dataclass
+class MultiCases:
+    cases: list = dataclasses.field(default_factory=list)

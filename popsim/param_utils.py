@@ -1,80 +1,61 @@
-import dataclasses
 import itertools
 import typing
 
-import chex
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jaxtyping import Array, PyTree
 
 import popsim.interp as pinterp
 import popsim.types as ptypes
-from popsim.tree_util import tree_transpose
+from popsim.tree_util import get_instances_from_tree_leaves
 
 
-@chex.dataclass
-class CombinatorialCases:
-    cases: list = dataclasses.field(default_factory=list)
+def generate_sim_cases(sim_input: ptypes.SimInput) -> list[ptypes.SimInput]:
+    combinatorial_cases = get_instances_from_tree_leaves(sim_input, ptypes.CombinatorialCases)
+    multi_cases = get_instances_from_tree_leaves(sim_input, ptypes.MultiCases)
+
+    if combinatorial_cases and multi_cases:
+        raise ValueError("sim_input can only contain instances of ptypes.CombinatorialCases or ptypes.MultiCases and not both.")
+
+    if multi_cases:
+        # All cases must have the same length
+        lengths = [len(x.cases) for x in multi_cases]
+        if not all(length == lengths[0] for length in lengths):
+            raise ValueError("All instances of ptypes.MultiCases must have the same length.")
+        return generate_multi_cases(sim_input)
+    elif combinatorial_cases:
+        return generate_combinatorial_cases(sim_input)
 
 
-@chex.dataclass
-class MultiCases:
-    cases: list = dataclasses.field(default_factory=list)
-
-
-def get_cases(tree, type_):
-    def func(x):
-        return isinstance(x, type_)
-
-    return [x for x in jax.tree.leaves(tree, func) if func(x)]
-
-
-def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
-    """Create a time base from t0 to t1 with a step size of dt.
-    Use numpy as jnp may give unhashable types.
-
-    Args:
-        t0 (float): time to start.
-        t1 (float): time to end.
-        dt (float): time step.
-
-    Returns:
-        np.ndarray: time base.
-    """
-    return np.arange(t0, t1 + dt, dt)
-
-
-def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
-    """Given a PyTree with instances of MultiCases, generate all possible cases.
-    Note that all instances of MultiCases must have the same length.
+def generate_multi_cases(params: PyTree[typing.Union[typing.Any, ptypes.MultiCases]]) -> list[PyTree[typing.Any]]:
+    """Given a PyTree with instances of ptypes.MultiCases, generate all possible cases. Note that all instances of ptypes.MultiCases must have the same length.
 
     Args:
-        params (PyTree[typing.Union[typing.Any, MultiCases]]): PyTree where some leaves are instances of MultiCases.
+        params (PyTree[typing.Union[typing.Any, ptypes.MultiCases]]): PyTree where some leaves are instances of ptypes.MultiCases.
 
     Raises:
-        ValueError: error if all instances of MultiCases do not have the same length.
+        ValueError: error if all instances of ptypes.MultiCases do not have the same length.
 
     Returns:
-        list[PyTree[typing.Any]]: A list of PyTrees where all instances of MultiCases have been replaced with their respective values.
+        list[PyTree[typing.Any]]: A list of PyTrees where all instances of ptypes.MultiCases have been replaced with their respective values.
     """
-    multi_cases = get_cases(params, MultiCases)
+    multi_cases = get_instances_from_tree_leaves(params, ptypes.MultiCases)
 
     if not multi_cases:
         return params
 
     def is_multi_case(x):
-        return isinstance(x, MultiCases)
+        return isinstance(x, ptypes.MultiCases)
 
-    # Check that all instances of MultiCases have the same length
+    # Check that all instances of ptypes.MultiCases have the same length
     lengths = [len(x.cases) for x in multi_cases]
 
     if not all(length == lengths[0] for length in lengths):
-        raise ValueError("All instances of MultiCases must have the same length.")
+        raise ValueError("All instances of ptypes.MultiCases must have the same length.")
 
-    # Partition the tree into MultiCases and non-MultiCases
+    # Partition the tree into ptypes.MultiCases and non-ptypes.MultiCases
     multi_cases_tree, non_multi_cases_tree = eqx.partition(params, is_multi_case, is_leaf=is_multi_case)
 
     list_of_multi_cases, treedef = jax.tree.flatten(multi_cases_tree, is_leaf=is_multi_case)
@@ -91,23 +72,23 @@ def generate_multi_cases(params: PyTree[typing.Union[typing.Any, MultiCases]]) -
     return reconstructed_trees
 
 
-def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
-    """Given a PyTree with instances of CombinatorialCases, generate all combinations of the fields of the CombinatorialCases.
+def generate_combinatorial_cases(params: PyTree[typing.Union[typing.Any, ptypes.CombinatorialCases]]) -> list[PyTree[typing.Any]]:
+    """Given a PyTree with instances of ptypes.CombinatorialCases, generate all combinations of the fields of the ptypes.CombinatorialCases.
 
     Args:
-        params (PyTree[typing.Union[typing.Any, CombinatorialCases]]): PyTree where some leaves are instances of CombinatorialCases.
+        params (PyTree[typing.Union[typing.Any, ptypes.CombinatorialCases]]): PyTree where some leaves are instances of ptypes.CombinatorialCases.
 
     Returns:
-        list[PyTree[typing.Any]]: A list of PyTrees where all instances of CombinatorialCases have been replaced with various combinations of their fields.
+        list[PyTree[typing.Any]]: A list of PyTrees where all instances of ptypes.CombinatorialCases have been replaced with various combinations of their fields.
     """
-    comb_cases = get_cases(params, CombinatorialCases)
+    comb_cases = get_instances_from_tree_leaves(params, ptypes.CombinatorialCases)
     if not comb_cases:
         return params
 
     def is_comb_case(x):
-        return isinstance(x, CombinatorialCases)
+        return isinstance(x, ptypes.CombinatorialCases)
 
-    # Partition the tree into CombinatorialCases and non-CombinatorialCases
+    # Partition the tree into ptypes.CombinatorialCases and non-ptypes.CombinatorialCases
     comb_cases_tree, non_comb_cases_tree = eqx.partition(params, is_comb_case, is_leaf=is_comb_case)
 
     list_of_comb_cases, treedef = jax.tree.flatten(comb_cases_tree, is_leaf=is_comb_case)
@@ -129,9 +110,11 @@ def build_param_paths(
 ) -> PyTree[diffrax.AbstractPath]:
     """Given a user-specified params specification that is a PyTree of "ConstantOrPathSpec", generate
     a new PyTree of "AbstractPath" on the given time_base. Leaves are handeled as follows:
+
         1) If the leaf is a dictionary with float keys, it is assumed to be a PathSpec and is interpolated onto "time_base".
         2) If the leaf is an instance of AbstractPath, we re-map to "time_base" and interpolate again.
         3) Otherwise, the leaf is assumed to be a constant, is repeated for all times in "time_base", and interpolated.
+
     Why interpolate everything? This is done to ensure the inputs to jax.jitted functions are all the same shape across
     calls to prevent re-compiling (which is the main computational cost right now). This way, if the user switches from
     specifying a params as a constant to trajectory, the function will not need to be re-compiled.
@@ -197,95 +180,27 @@ def build_param_paths(
     return jax.tree.map(interp_onto_timebase, params, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
-def check_params(params: ptypes.ParamSpec) -> None:
-    """Check the params for validity.
-    The rules are:
-        1) params can only contain instances of CombinatorialCases or MultiCases and not both.
-
-    Args:
-        params (ptypes.ParamSpec): The params spec to check.
-    """
-
-    combinatorial_cases = get_cases(params, CombinatorialCases)
-    multi_cases = get_cases(params, MultiCases)
-
-    if combinatorial_cases and multi_cases:
-        raise ValueError("params can only contain instances of CombinatorialCases or MultiCases and not both.")
-    if multi_cases:
-        # All cases must have the same length
-        lengths = [len(x.cases) for x in multi_cases]
-        if not all(length == lengths[0] for length in lengths):
-            raise ValueError("All instances of MultiCases must have the same length.")
-
-    out = {
-        "combinatorial_cases": combinatorial_cases,
-        "multi_cases": multi_cases,
-    }
-    return out
-
-
-def build_params(
-    params: ptypes.ParamSpec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
-) -> typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]:
-    """Given a params specification, generate simulation-ready params trees. This involves two steps:
-        1) Interpolating all instances of PathSpec for all CombinatorialCases and MultiCases.
-        2) Resolving all instances of CombinatorialCases and MultiCases.
-
-    Args:
-        params (ptypes.ParamSpec): param specification.
-        time_base (Array): time base to interpolate everything to.
-
-    Returns:
-        typing.Union[list[PyTree[diffrax.AbstractPath]], PyTree[diffrax.AbstractPath]]: either
-            a list of PyTrees where all instances of CombinatorialCases and MultiCases have been resolved, or
-            a single PyTree where paths have been interpolated.
-    """
-    out = check_params(params)
-    interped = build_param_paths(params, time_base, interp_type)
-
-    if out["combinatorial_cases"]:
-        # Generate all combinations of CombinatorialCases
-        combinations = generate_combinatorial_cases(interped)
-        return combinations
-    elif out["multi_cases"]:
-        # Generate all combinations of MultiCases
-        combinations = generate_multi_cases(interped)
-        return combinations
-    else:
-        return interped
-
-
-def build_vectorized_params(
-    params: typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]],
-    time_base: Array,
+def param_specs_to_paths(
+    sim_inputs: typing.Sequence[ptypes.SimInput],
     interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR,
-) -> tuple[PyTree[diffrax.AbstractPath], int]:
-    """Given a param specification (or a list of them), build the vectorized params PyTree. s.t. jax.vmap can be used.
+) -> typing.Sequence[ptypes.SimInput]:
+    """Given a sequence of SimInputs, where the params might be user-specified ParamSpecs, resolve the ParamSpecs to AbstractPaths.
 
     Args:
-        params (typing.Union[ptypes.ParamSpec, typing.Sequence[ptypes.ParamSpec]]): param specification or list of param specifications.
-        time_base (Array): time base to interpolate everything to.
-        interp_type (pinterp.InterpType, optional): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
+        sim_inputs (typing.Sequence[ptypes.SimInput]): _description_
+        interp_type (pinterp.InterpType, optional): _description_. Defaults to pinterp.InterpType.LINEAR.
 
     Returns:
-        tuple[PyTree[diffrax.AbstractPath], int]: A vectorized params tree and an int indicating the number of simulations.
+        typing.Sequence[ptypes.SimInput]: a sequence of SimInputs where the params have been resolved to AbstractPaths.
     """
 
-    def unpack_lists(inp):
-        unpacked_list = []
-        for item in inp:
-            if isinstance(item, list):
-                unpacked_list.extend(item)
-            else:
-                unpacked_list.append(item)
-        return unpacked_list
+    # Check that the time base is the same size for all SimInputs.
+    time_base_sizes = [sim_input.time.size for sim_input in sim_inputs]
+    if not all(size == time_base_sizes[0] for size in time_base_sizes):
+        raise ValueError(f"Expected all time bases to be the same size. Got sizes: {time_base_sizes}.")
 
-    # First build the parameters.
-    params = [build_params(p, time_base, interp_type) for p in params]
-    params = unpack_lists(params)
+    def resolve_param_spec(sim_input):
+        resolved_params = build_param_paths(sim_input.params, sim_input.time, interp_type)
+        return ptypes.SimInput(time=sim_input.time, initial_state=sim_input.initial_state, params=resolved_params)
 
-    # We need to perform a tree-transpose to vectorize the parameters.
-    params_vectorized = tree_transpose(params)
-    params_vectorized = jax.tree.map(lambda x: x.squeeze(), params_vectorized)  # Remove extraneous dimensions.
-    nsims = len(params)
-    return (params_vectorized, nsims)
+    return [resolve_param_spec(sim_input) for sim_input in sim_inputs]
