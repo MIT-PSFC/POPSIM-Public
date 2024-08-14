@@ -6,7 +6,7 @@ from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, E
 import jax.numpy as jnp
 import jax
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray
-from popsim.types import SimInput
+from popsim.simulate import SimInput
 
 @pytest.fixture
 def pure_continuous_time_module():

@@ -1,10 +1,8 @@
-import dataclasses
 import typing
 
-import chex
 import diffrax
 import jax.tree_util as tu
-from jaxtyping import Array, ArrayLike, Float, PyTree
+from jaxtyping import ArrayLike, Float, PyTree
 
 """
 A "PathSpec" is a user-specification for a time dependent trajectory.
@@ -33,20 +31,3 @@ ParamSpec = PyTree[ConstantOrPathSpec]
 
 # Type alias for a Jax PyTree key.
 PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]
-
-
-@chex.dataclass
-class SimInput:
-    time: Array
-    initial_state: PyTree
-    params: PyTree
-
-
-@chex.dataclass
-class CombinatorialCases:
-    cases: list = dataclasses.field(default_factory=list)
-
-
-@chex.dataclass
-class MultiCases:
-    cases: list = dataclasses.field(default_factory=list)

@@ -1,11 +1,11 @@
 import typing
+import warnings
 from enum import IntEnum
 
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import numpy as np
 import xarray as xr
 from jaxtyping import PyTree
 
@@ -14,29 +14,17 @@ from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
+from popsim.sim_utils import (
+    SimInput,
+    make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
+)
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose_and_squeeze
-from popsim.types import SimInput
 from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
 
 
 class StepperType(IntEnum):
     SIMPLE_EULER = 0
     DIFFRAX = 1
-
-
-def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
-    """Create a time base from t0 to t1 with a step size of dt.
-    Use numpy as jnp may give unhashable types.
-
-    Args:
-        t0 (float): time to start.
-        t1 (float): time to end.
-        dt (float): time step.
-
-    Returns:
-        np.ndarray: time base.
-    """
-    return np.arange(t0, t1 + dt, dt)
 
 
 def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
@@ -55,12 +43,12 @@ def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput],
             raise ValueError("State must be completely continuous when using Diffrax for the simulation.")
 
     # If PRNGModule.State is in the state, check that the seed is unique for each simulation.
-    # If not, raise a warning.
+    # If not, issue a warning.
     seed_states = get_instances_from_tree_leaves(sim_inputs, PRNGModule.State)
     if len(seed_states) > 1:
         seeds = [state.seed for state in seed_states]
         if len(seeds) != len(set(seeds)):
-            raise ValueError("PRNGModule.State seeds must be unique.")
+            warnings.warn(f"Multiple simulations have the same PRNG seed. Simulation PRNG seeds: {seeds}.", stacklevel=2)
 
 
 def simulate(
