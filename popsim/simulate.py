@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import PyTree
+from loguru import logger
 
 from popsim import ModuleBase
 from popsim.hybrid_state import partition_discrete_cont
@@ -93,8 +94,6 @@ def simulate(
     # Resolve the param specifications to paths.
     sim_inputs = param_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
 
-    multi_sim = len(sim_inputs) > 1
-
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
         simulate_fun = _simple_euler_simulate
@@ -105,6 +104,9 @@ def simulate(
 
     # Vectorize the simulation inputs.
     sim_inputs_vectorized = tree_transpose_and_squeeze(sim_inputs)
+
+    multi_sim = len(sim_inputs) > 1
+    logger.info(f"Running {len(sim_inputs)} simulations.")
 
     # Perform the simulation.
     sol = (
