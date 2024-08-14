@@ -15,6 +15,37 @@ See the Jax documentation for more information:
 """
 
 
+def get_instances_from_tree_leaves(tree: PyTree[typing.Any], type_: type) -> list[typing.Any]:
+    """Get instances of a specific type from the leaves of a PyTree.
+
+    Args:
+        tree (PyTree[typing.Any]): A PyTree.
+        type_ (type): The type to search for.
+
+    Returns:
+        list[typing.Any]: A list of instances of the specified type.
+    """
+
+    def func(x):
+        return isinstance(x, type_)
+
+    return [x for x in jax.tree.leaves(tree, is_leaf=func) if func(x)]
+
+
+def tree_transpose_and_squeeze(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLike]:
+    """Transpose a sequence of pytrees into a single PyTree of arrays and squeeze the arrays to remove extraneous dimensions.
+
+    Args:
+        seq_of_trees (Sequence[PyTree[ScalarLike]]): A sequence of PyTrees.
+
+    Returns:
+        PyTree[ArrayLike]: PyTree of arrays where the ith element of each array
+            corresponds to the ith element of the input sequence.
+    """
+    tree_transposed = tree_transpose(seq_of_trees)
+    return jax.tree.map(lambda x: jnp.squeeze(x), tree_transposed)
+
+
 def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLike]:
     """Transpose a sequence of pytrees into a single PyTree of arrays.
         Consider the following super simple example:
@@ -36,9 +67,7 @@ def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLi
 
 
 def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
-    """Get the leaves of a PyTree as a single array.
-    Note: this currently does not preserve dictionary order!
-    https://github.com/google/jax/issues/4085
+    """Get the leaves of a PyTree as a single array. Note: this currently does not preserve dictionary order! https://github.com/google/jax/issues/4085
 
     Args:
         tree (PyTree[ArrayLike]): A PyTree of ArrayLike.
@@ -50,8 +79,7 @@ def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
 
 
 def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
-    """Create an ordered dictionary from two arrays. Note: the usage of ordered dictionaries is important because Jax can
-    accidentally sort non-ordered dictionaries. https://github.com/google/jax/issues/4085
+    """Create an ordered dictionary from two arrays. Note: the usage of ordered dictionaries is important because Jax can accidentally sort non-ordered dictionaries. https://github.com/google/jax/issues/4085
 
     Args:
         keys (Array): keys for the dictionary.
