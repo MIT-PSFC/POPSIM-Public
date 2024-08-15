@@ -153,8 +153,8 @@ def make_time_indep_dataloader(
 
     Args:
         ds (xr.Dataset): Input dataset.
-        time_coord (str): Name of the time variable.
-        episode_coord (str): Name of the episode variable.
+        time_coord (str): Name of the time coordinate variable.
+        episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         input_vars (list[str]): Names of the input variables that go into the model.
         target_vars (list[str]): Names of the target variables that the model predicts.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
@@ -202,8 +202,8 @@ def make_dataloader(
 
     Args:
         ds (xr.Dataset): Input dataset.
-        time_name (str): Name of the time variable.
-        episode_name (str): Name of the episode variable.
+        time_coord (str): Name of the time coordinate variable.
+        episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
         param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
