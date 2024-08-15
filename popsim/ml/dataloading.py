@@ -9,6 +9,7 @@ from jaxtyping import Array
 
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
 from popsim.ml.types import EvalInput
+from popsim.simulate import SimInput
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
@@ -92,19 +93,23 @@ class XarrayPreppedDataset(Dataset):
         return {k: v for k, v in vars(self).items() if k != "ds"}
 
     def to_eval_input(self) -> EvalInput:
-        # Forward fill to replace missing time values with the last known time value.
-        time = (
-            self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim).values
-            if self.time_coord is not None
-            else None
+        if self.is_time_dependent:
+            # Forward fill to replace missing time values with the last known time value.
+            time = self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim).values
+
+            # Grab the first time slice to get the initial state.
+            state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
+        else:
+            time = None
+            state_init = None
+        sim_input = SimInput(
+            time=time,
+            initial_state=state_init,
+            params=ds_to_dict_jnp(self.ds[self.param_vars]),
         )
         eval_input = EvalInput(
-            time=time,
-            state_init=ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
-            if self.state_init_vars is not None
-            else None,
-            params=ds_to_dict_jnp(self.ds[self.param_vars]),
-            targs=ds_to_dict_jnp(self.ds[self.target_vars]),
+            sim_input=sim_input,
+            targets=ds_to_dict_jnp(self.ds[self.target_vars]),
         )
         return eval_input
 
