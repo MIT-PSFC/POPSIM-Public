@@ -1,4 +1,5 @@
 import typing
+from dataclasses import dataclass
 
 import jax.numpy as jnp
 import xarray as xr
@@ -15,14 +16,18 @@ def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
 
 
 class XarrayDataset(Dataset):
+    @dataclass
+    class TimeDepMetadata:
+        state_init_vars: list[str]
+        time_var: str
+        time_dim: str
+
     ds: xr.Dataset
     sample_var: str
     sample_dim: str
     param_vars: list[str]
     targ_vars: list[str]
-    state_init_vars: typing.Optional[list[str]]
-    time_var: typing.Optional[str]
-    time_dim: typing.Optional[str]
+    time_dep_metadata: typing.Optional[TimeDepMetadata] = None
 
     def __init__(
         self,
@@ -31,33 +36,19 @@ class XarrayDataset(Dataset):
         sample_dim: str,
         param_vars: list[str],
         targ_vars: list[str],
-        state_init_vars: typing.Optional[list[str]] = None,
-        time_var: typing.Optional[str] = None,
-        time_dim: typing.Optional[str] = None,
+        time_dep_metadata: typing.Optional[TimeDepMetadata] = None,
     ):
         self.ds = ds
         self.sample_var = sample_var
         self.sample_dim = sample_dim
         self.param_vars = param_vars
         self.targ_vars = targ_vars
-        self.state_init_vars = state_init_vars
-        self.time_var = time_var
-        self.time_dim = time_dim
-        assert (
-            len(
-                {
-                    (self.time_var is None),
-                    (self.time_dim is None),
-                    (self.state_init_vars is None or len(self.state_init_vars) == 0),
-                }
-            )
-            == 1
-        ), "Either all of time_var, time_dim, and state_init_vars must be None, or all must be specified."
+        self.time_dep_metadata = time_dep_metadata
 
     def __len__(self):
         return self.ds[self.sample_dim].size
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> "XarrayDataset":
         ds_slice = self.ds.isel({self.sample_dim: idx})
         return XarrayDataset(
             ds=ds_slice,
@@ -65,17 +56,40 @@ class XarrayDataset(Dataset):
             sample_dim=self.sample_dim,
             param_vars=self.param_vars,
             targ_vars=self.targ_vars,
-            state_init_vars=self.state_init_vars,
-            time_var=self.time_var,
-            time_dim=self.time_dim,
+            time_dep_metadata=self.time_dep_metadata,
         )
+
+    def __eq__(self, other: "XarrayDataset") -> bool:
+        # xr.Dataset requires speical handling for equality comparison.
+        ds_equals = self.ds.equals(other.ds)
+
+        # Compare all other variables.
+        self_vars = vars(self)
+        other_vars = vars(other)
+        all_else_equals = all(self_vars[k] == other_vars[k] for k in self_vars if k != "ds")
+        return ds_equals and all_else_equals
+
+    @property
+    def is_time_dependent(self) -> bool:
+        """Check if the dataset is for a time-dependent training task.
+
+        Returns:
+            bool: True if the dataset is for a time-dependent training task.
+        """
+        return self.time_dep_metadata is not None
 
     def to_eval_input(self) -> EvalInput:
         # Forward fill to replace missing time values with the last known time value.
-        time = self.ds[self.time_var].ffill(dim=self.time_dim).values if self.time_var is not None else None
+        time = (
+            self.ds[self.time_dep_metadata.time_var].ffill(dim=self.time_dep_metadata.time_dim).values
+            if self.time_var is not None
+            else None
+        )
         eval_input = EvalInput(
             time=time,
-            state_init=ds_to_dict_jnp(self.ds[self.state_init_vars].isel({self.time_dim: 0})) if self.state_init_vars is not None else None,
+            state_init=ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
+            if self.state_init_vars is not None
+            else None,
             params=ds_to_dict_jnp(self.ds[self.param_vars]),
             targs=ds_to_dict_jnp(self.ds[self.targ_vars]),
         )
@@ -130,24 +144,33 @@ def make_time_indep_dataloader(
         episode_var (str): Name of the episode variable.
         input_vars (list[str]): Names of the input variables that go into the model.
         targ_vars (list[str]): Names of the target variables that the model predicts.
-        batch_size (typing.Optional[int], optional): _description_. Defaults to None.
-        shuffle (bool, optional): _description_. Defaults to True.
+        batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
+        shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
     Returns:
-        _type_: _description_
+        DataLoader: DataLoader for training the model wrapping a XarrayDataset.
     """
-    return make_dataloader(
-        ds=ds,
-        time_var=time_var,
-        episode_var=episode_var,
-        state_init_vars=None,
-        param_vars=input_vars,
-        targ_vars=targ_vars,
-        segment_length=1,  # Segment length of 1 means that the time dimension is removed.
-        segment_overlap=0,  # No overlap because we are only taking one time step.
+    ds = ds[input_vars + targ_vars]
+    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
+    sample_ds = ds.stack(sample=(episode_var_dim, time_var_dim)).dropna("sample", how="any")
+
+    if batch_size is None:
+        batch_size = len(sample_ds["sample"])
+
+    dl = DataLoader(
+        XarrayDataset(
+            ds=sample_ds,
+            sample_var="sample",
+            sample_dim="sample",
+            param_vars=input_vars,
+            targ_vars=targ_vars,
+            time_dep_metadata=None,
+        ),
+        backend="jax",
         batch_size=batch_size,
         shuffle=shuffle,
     )
+    return dl
 
 
 def make_dataloader(
@@ -162,7 +185,7 @@ def make_dataloader(
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
 ) -> DataLoader:
-    """Given a multi-episode time series dataset, segment the data into training samples and create a DataLoader.
+    """Given a multi-episode time series dataset, generate a DataLoader.
 
     Args:
         ds (xr.Dataset): Input dataset.
@@ -177,10 +200,11 @@ def make_dataloader(
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
     Returns:
-        xr.Dataset: Dataset with dimensions (sample, time, other_dims).
+        DataLoader: DataLoader for training the model wrapping a XarrayDataset.
     """
 
     input_vars = state_init_vars + param_vars
+    ds = ds[input_vars + targ_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_var=time_var, how="any", subset=input_vars)
@@ -196,7 +220,9 @@ def make_dataloader(
     sample_ds = next(
         iter(xbatcher.BatchGenerator(ds, input_dims=input_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True))
     )
-    time_dim_sample_ds = f"{time_var_dim}_input"  # By convention, the BatchGenerator adds "_input" to the time dimension.
+
+    # By convention, the BatchGenerator adds "_input" to the time dimension.
+    time_dim_sample_ds = f"{time_var_dim}_input"
 
     # Drop samples where the data is all NaN.
     sample_ds = sample_ds.dropna("sample", how="all", subset=input_vars + targ_vars)
@@ -215,9 +241,9 @@ def make_dataloader(
             sample_dim="sample",
             param_vars=param_vars,
             targ_vars=targ_vars,
-            state_init_vars=state_init_vars,
-            time_var=time_var,
-            time_dim=time_dim_sample_ds,
+            time_dep_metadata=XarrayDataset.TimeDepMetadata(
+                state_init_vars=state_init_vars, time_var=time_var, time_dim=time_dim_sample_ds
+            ),
         ),
         backend="jax",
         batch_size=batch_size,
