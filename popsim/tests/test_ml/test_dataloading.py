@@ -56,8 +56,8 @@ def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size,
 
     dl = make_dataloader(
         ds=ds,
-        time_var="time",
-        episode_var="shot",
+        time_coord="time",
+        episode_coord="shot",
         state_init_vars=state_init_vars,
         param_vars=param_vars,
         target_vars=target_vars,
@@ -82,8 +82,8 @@ def test_make_time_indep_dataloader(reduced_cmod_test_dataset, batch_size, shuff
     expected_n_samps = 151046 # Manually checked the dataset.
     dl = make_time_indep_dataloader(
         ds=ds,
-        time_var="time",
-        episode_var="shot",
+        time_coord="time",
+        episode_coord="shot",
         input_vars=["p_rad", "ip", "n_e"],
         target_vars=["Wmhd"],
         batch_size=batch_size,

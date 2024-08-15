@@ -16,14 +16,16 @@ def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
 
 
 class XarrayPreppedDataset(Dataset):
+    """Wraps a xr.Dataset that has been prepared for training a model and provides an interface to DataLoader."""
+
     @dataclass
     class TimeDepMetadata:
         state_init_vars: list[str]
-        time_var: str
+        time_coord: str
         time_dim: str
 
     ds: xr.Dataset
-    sample_var: str
+    sample_coord: str
     sample_dim: str
     param_vars: list[str]
     target_vars: list[str]
@@ -32,14 +34,14 @@ class XarrayPreppedDataset(Dataset):
     def __init__(
         self,
         ds: xr.Dataset,
-        sample_var: str,
+        sample_coord: str,
         sample_dim: str,
         param_vars: list[str],
         target_vars: list[str],
         time_dep_metadata: typing.Optional[TimeDepMetadata] = None,
     ):
         self.ds = ds
-        self.sample_var = sample_var
+        self.sample_coord = sample_coord
         self.sample_dim = sample_dim
         self.param_vars = param_vars
         self.target_vars = target_vars
@@ -52,7 +54,7 @@ class XarrayPreppedDataset(Dataset):
         ds_slice = self.ds.isel({self.sample_dim: idx})
         return XarrayPreppedDataset(
             ds=ds_slice,
-            sample_var=self.sample_var,
+            sample_coord=self.sample_coord,
             sample_dim=self.sample_dim,
             param_vars=self.param_vars,
             target_vars=self.target_vars,
@@ -92,8 +94,8 @@ class XarrayPreppedDataset(Dataset):
     def to_eval_input(self) -> EvalInput:
         # Forward fill to replace missing time values with the last known time value.
         time = (
-            self.ds[self.time_dep_metadata.time_var].ffill(dim=self.time_dep_metadata.time_dim).values
-            if self.time_var is not None
+            self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim).values
+            if self.time_coord is not None
             else None
         )
         eval_input = EvalInput(
@@ -119,29 +121,29 @@ def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, 
         tuple[str, str]: The dimension names of the episode and time variables.
     """
     # Extract the dimension of the episode variable and make sure it is one-dimensional.
-    episode_var = ds[episode_var_name]
-    episode_var_dims = list(episode_var.sizes.keys())
-    assert len(episode_var_dims) == 1, f"Expected one dimension for episode var {episode_var}"
+    episode_coord = ds[episode_var_name]
+    episode_var_dims = list(episode_coord.sizes.keys())
+    assert len(episode_var_dims) == 1, f"Expected one dimension for episode var {episode_coord}"
     episode_var_dim = episode_var_dims[0]
 
     # Extract the dimension of the time variable.
-    time_var = ds[time_var_name]
-    time_var_dims = set(time_var.sizes.keys())
+    time_coord = ds[time_var_name]
+    time_var_dims = set(time_coord.sizes.keys())
 
-    assert episode_var_name in time_var_dims, f"{episode_var} not in {time_var_dims}"
+    assert episode_var_name in time_var_dims, f"{episode_coord} not in {time_var_dims}"
     time_var_dims_minus_episode = [d for d in time_var_dims if d != episode_var_dim]
 
     assert (
         len(time_var_dims_minus_episode) == 1
-    ), f"For time var {time_var}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
+    ), f"For time var {time_coord}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
     time_var_dim = time_var_dims_minus_episode[0]
     return episode_var_dim, time_var_dim
 
 
 def make_time_indep_dataloader(
     ds: xr.Dataset,
-    time_var: str,
-    episode_var: str,
+    time_coord: str,
+    episode_coord: str,
     input_vars: list[str],
     target_vars: list[str],
     batch_size: typing.Optional[int] = None,
@@ -151,8 +153,8 @@ def make_time_indep_dataloader(
 
     Args:
         ds (xr.Dataset): Input dataset.
-        time_var (str): Name of the time variable.
-        episode_var (str): Name of the episode variable.
+        time_coord (str): Name of the time variable.
+        episode_coord (str): Name of the episode variable.
         input_vars (list[str]): Names of the input variables that go into the model.
         target_vars (list[str]): Names of the target variables that the model predicts.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
@@ -162,7 +164,7 @@ def make_time_indep_dataloader(
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
     ds = ds[input_vars + target_vars]
-    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
+    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
     sample_ds = ds.stack(sample=(episode_var_dim, time_var_dim)).dropna("sample", how="any")
 
     if batch_size is None:
@@ -171,7 +173,7 @@ def make_time_indep_dataloader(
     dl = DataLoader(
         XarrayPreppedDataset(
             ds=sample_ds,
-            sample_var="sample",
+            sample_coord="sample",
             sample_dim="sample",
             param_vars=input_vars,
             target_vars=target_vars,
@@ -186,8 +188,8 @@ def make_time_indep_dataloader(
 
 def make_dataloader(
     ds: xr.Dataset,
-    time_var: str,
-    episode_var: str,
+    time_coord: str,
+    episode_coord: str,
     state_init_vars: list[str],
     param_vars: list[str],
     target_vars: list[str],
@@ -216,9 +218,9 @@ def make_dataloader(
 
     input_vars = state_init_vars + param_vars
     ds = ds[input_vars + target_vars]
-    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
+    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
-    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_var=time_var, how="any", subset=input_vars)
+    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=input_vars)
 
     # Construct the input_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.
@@ -248,12 +250,12 @@ def make_dataloader(
     dl = DataLoader(
         XarrayPreppedDataset(
             ds=sample_ds,
-            sample_var="sample",
+            sample_coord="sample",
             sample_dim="sample",
             param_vars=param_vars,
             target_vars=target_vars,
             time_dep_metadata=XarrayPreppedDataset.TimeDepMetadata(
-                state_init_vars=state_init_vars, time_var=time_var, time_dim=time_dim_sample_ds
+                state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
             ),
         ),
         backend="jax",

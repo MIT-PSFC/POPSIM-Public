@@ -72,14 +72,14 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
 
 
 def shift_time_to_not_nan(
-    ds: xr.Dataset, episode_dim: str, time_var: str, how: str = "any", subset: typing.Optional[typing.Iterable[typing.Hashable]] = None
+    ds: xr.Dataset, episode_dim: str, time_coord: str, how: str = "any", subset: typing.Optional[typing.Iterable[typing.Hashable]] = None
 ) -> xr.Dataset:
     """For each episode in a dataset, shift the time dimension so that the first time slice is not NaN. Each episode is end-padded with NaNs. To specify that only a subset of the variables should be considered when determining the first non-NaN time slice, pass a list of variable names to the `subset` argument.
 
     Args:
         ds (xr.Dataset): dataset to be processed.
         episode_dim (str): name of the episode dimension (e.g. "shot").
-        time_var (str): name of the time variable (e.g. "time").
+        time_coord (str): name of the time variable (e.g. "time").
         how (str, optional): Either "any" or "ally". Forwarded to xr.Dataset.dropna . Defaults to "any".
         subset (typing.Optional[typing.Iterable[typing.Hashable]], optional): Forwarded to xr.Dataset.dropna . Defaults to None.
 
@@ -91,8 +91,8 @@ def shift_time_to_not_nan(
         # Remove extraneous dimensions.
         group = group.squeeze()
 
-        assert len(group[time_var].dims) == 1, "Unexpected number of dimensions for time variable."
-        time_dim = group[time_var].dims[0]
+        assert len(group[time_coord].dims) == 1, "Unexpected number of dimensions for time variable."
+        time_dim = group[time_coord].dims[0]
 
         # Drop NaNs across the 'time_slice' dimension.
         cleaned_group = group.dropna(time_dim, how=how, subset=subset)
@@ -103,8 +103,8 @@ def shift_time_to_not_nan(
 
         # Find the first time slice remaining in the cleaned group.
         # Find its index in the original group and shift the time dimension by that amount.
-        first_cleaned_slice = cleaned_group[time_var].isel({time_dim: 0})
-        time_index = np.where(group[time_var] == first_cleaned_slice)[0][0]
+        first_cleaned_slice = cleaned_group[time_coord].isel({time_dim: 0})
+        time_index = np.where(group[time_coord] == first_cleaned_slice)[0][0]
         n_shift = time_index
 
         # We want to shift the time dimension by n_shift, but .shift() does not shift

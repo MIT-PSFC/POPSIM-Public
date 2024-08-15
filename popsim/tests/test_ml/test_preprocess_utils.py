@@ -260,7 +260,7 @@ def test_test_mask_to_largest_group_cmod(cmod_data_with_energy_mask, multishot):
     ),
 ])
 def test_shift_time_to_not_nan(ds, how, subset, expected):
-    result = shift_time_to_not_nan(ds, episode_dim="shot", time_var="time", how=how, subset=subset)
+    result = shift_time_to_not_nan(ds, episode_dim="shot", time_coord="time", how=how, subset=subset)
     xr.testing.assert_identical(result, expected)
 
 @pytest.mark.parametrize("multishot", [True, False])
@@ -273,10 +273,10 @@ def test_shift_time_to_not_nan_cmod(cmod_data_with_energy_mask, multishot):
     expected_wmhds = (10135.40933778, 10013.27040793)
     ds = ds.where(ds["values_in_bounds"], drop=True)
     if multishot:
-        result = shift_time_to_not_nan(ds, episode_dim="shot", time_var="time", how="any", subset=["Wmhd"])
+        result = shift_time_to_not_nan(ds, episode_dim="shot", time_coord="time", how="any", subset=["Wmhd"])
         result = result.sel(shot=test_shot)
     else:
-        result = shift_time_to_not_nan(ds.sel(shot=test_shot), episode_dim="shot", time_var="time", how="any", subset=["Wmhd"])
+        result = shift_time_to_not_nan(ds.sel(shot=test_shot), episode_dim="shot", time_coord="time", how="any", subset=["Wmhd"])
     
     result = result.dropna('time_slice', how='all')
     # Check that the first and last times and Wmhd values are as expected.
