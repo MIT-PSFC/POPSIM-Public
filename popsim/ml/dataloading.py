@@ -221,6 +221,9 @@ def make_dataloader(
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
 
+    assert time_coord in ds.coords, f"Time coordinate {time_coord} not found in dataset."
+    assert episode_coord in ds.coords, f"Episode coordinate {episode_coord} not found in dataset."
+
     input_vars = state_init_vars + param_vars
     ds = ds[input_vars + target_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
