@@ -15,7 +15,7 @@ def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
     return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
 
 
-class XarrayDataset(Dataset):
+class XarrayPreppedDataset(Dataset):
     @dataclass
     class TimeDepMetadata:
         state_init_vars: list[str]
@@ -26,7 +26,7 @@ class XarrayDataset(Dataset):
     sample_var: str
     sample_dim: str
     param_vars: list[str]
-    targ_vars: list[str]
+    target_vars: list[str]
     time_dep_metadata: typing.Optional[TimeDepMetadata] = None
 
     def __init__(
@@ -35,39 +35,42 @@ class XarrayDataset(Dataset):
         sample_var: str,
         sample_dim: str,
         param_vars: list[str],
-        targ_vars: list[str],
+        target_vars: list[str],
         time_dep_metadata: typing.Optional[TimeDepMetadata] = None,
     ):
         self.ds = ds
         self.sample_var = sample_var
         self.sample_dim = sample_dim
         self.param_vars = param_vars
-        self.targ_vars = targ_vars
+        self.target_vars = target_vars
         self.time_dep_metadata = time_dep_metadata
 
     def __len__(self):
         return self.ds[self.sample_dim].size
 
-    def __getitem__(self, idx) -> "XarrayDataset":
+    def __getitem__(self, idx) -> "XarrayPreppedDataset":
         ds_slice = self.ds.isel({self.sample_dim: idx})
-        return XarrayDataset(
+        return XarrayPreppedDataset(
             ds=ds_slice,
             sample_var=self.sample_var,
             sample_dim=self.sample_dim,
             param_vars=self.param_vars,
-            targ_vars=self.targ_vars,
+            target_vars=self.target_vars,
             time_dep_metadata=self.time_dep_metadata,
         )
 
-    def __eq__(self, other: "XarrayDataset") -> bool:
+    def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires speical handling for equality comparison.
         ds_equals = self.ds.equals(other.ds)
 
         # Compare all other variables.
-        self_vars = vars(self)
-        other_vars = vars(other)
-        all_else_equals = all(self_vars[k] == other_vars[k] for k in self_vars if k != "ds")
+        all_else_equals = self.get_all_but_ds() == other.get_all_but_ds()
         return ds_equals and all_else_equals
+
+    def __repr__(self):
+        from pprint import pformat
+
+        return pformat(vars(self), indent=4, width=1)
 
     @property
     def is_time_dependent(self) -> bool:
@@ -77,6 +80,14 @@ class XarrayDataset(Dataset):
             bool: True if the dataset is for a time-dependent training task.
         """
         return self.time_dep_metadata is not None
+
+    def get_all_but_ds(self) -> dict[str, typing.Any]:
+        """Return all attributes of the class except the dataset.
+
+        Returns:
+            dict[str, typing.Any]: Dictionary of all attributes except the dataset.
+        """
+        return {k: v for k, v in vars(self).items() if k != "ds"}
 
     def to_eval_input(self) -> EvalInput:
         # Forward fill to replace missing time values with the last known time value.
@@ -91,7 +102,7 @@ class XarrayDataset(Dataset):
             if self.state_init_vars is not None
             else None,
             params=ds_to_dict_jnp(self.ds[self.param_vars]),
-            targs=ds_to_dict_jnp(self.ds[self.targ_vars]),
+            targs=ds_to_dict_jnp(self.ds[self.target_vars]),
         )
         return eval_input
 
@@ -132,7 +143,7 @@ def make_time_indep_dataloader(
     time_var: str,
     episode_var: str,
     input_vars: list[str],
-    targ_vars: list[str],
+    target_vars: list[str],
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
 ) -> DataLoader:
@@ -143,14 +154,14 @@ def make_time_indep_dataloader(
         time_var (str): Name of the time variable.
         episode_var (str): Name of the episode variable.
         input_vars (list[str]): Names of the input variables that go into the model.
-        targ_vars (list[str]): Names of the target variables that the model predicts.
+        target_vars (list[str]): Names of the target variables that the model predicts.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
     Returns:
-        DataLoader: DataLoader for training the model wrapping a XarrayDataset.
+        DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
-    ds = ds[input_vars + targ_vars]
+    ds = ds[input_vars + target_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
     sample_ds = ds.stack(sample=(episode_var_dim, time_var_dim)).dropna("sample", how="any")
 
@@ -158,12 +169,12 @@ def make_time_indep_dataloader(
         batch_size = len(sample_ds["sample"])
 
     dl = DataLoader(
-        XarrayDataset(
+        XarrayPreppedDataset(
             ds=sample_ds,
             sample_var="sample",
             sample_dim="sample",
             param_vars=input_vars,
-            targ_vars=targ_vars,
+            target_vars=target_vars,
             time_dep_metadata=None,
         ),
         backend="jax",
@@ -179,7 +190,7 @@ def make_dataloader(
     episode_var: str,
     state_init_vars: list[str],
     param_vars: list[str],
-    targ_vars: list[str],
+    target_vars: list[str],
     segment_length: int,
     segment_overlap: int = 0,
     batch_size: typing.Optional[int] = None,
@@ -193,18 +204,18 @@ def make_dataloader(
         episode_name (str): Name of the episode variable.
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
         param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
-        targ_vars (list[str]): Names of the target variables that the module predicts.
+        target_vars (list[str]): Names of the target variables that the module predicts.
         segment_length (int): Number of time steps used in each training segment.
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
     Returns:
-        DataLoader: DataLoader for training the model wrapping a XarrayDataset.
+        DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
 
     input_vars = state_init_vars + param_vars
-    ds = ds[input_vars + targ_vars]
+    ds = ds[input_vars + target_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_var, time_var)
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_var=time_var, how="any", subset=input_vars)
@@ -225,7 +236,7 @@ def make_dataloader(
     time_dim_sample_ds = f"{time_var_dim}_input"
 
     # Drop samples where the data is all NaN.
-    sample_ds = sample_ds.dropna("sample", how="all", subset=input_vars + targ_vars)
+    sample_ds = sample_ds.dropna("sample", how="all", subset=input_vars + target_vars)
 
     # Squeeze the sample_ds to get rid of extraneous dimensions.
     # For example, when "segment_length=1", we get rid of the "time" dimension.
@@ -235,13 +246,13 @@ def make_dataloader(
         batch_size = len(sample_ds["sample"])
 
     dl = DataLoader(
-        XarrayDataset(
+        XarrayPreppedDataset(
             ds=sample_ds,
             sample_var="sample",
             sample_dim="sample",
             param_vars=param_vars,
-            targ_vars=targ_vars,
-            time_dep_metadata=XarrayDataset.TimeDepMetadata(
+            target_vars=target_vars,
+            time_dep_metadata=XarrayPreppedDataset.TimeDepMetadata(
                 state_init_vars=state_init_vars, time_var=time_var, time_dim=time_dim_sample_ds
             ),
         ),
