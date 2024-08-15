@@ -78,7 +78,7 @@ def simulate(
 
     Args:
         module (ModuleBase): the dynamics module to simulate.
-        sim_input (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
+        sim_inputs (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
         interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
