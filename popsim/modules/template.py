@@ -2,13 +2,13 @@ import chex
 
 from popsim import ModuleBase
 
-"""
-An example template to copy and paste when creating a new module.
-"""
-
 
 @chex.dataclass
 class ExampleTemplate(ModuleBase):
+    """
+    An example template to copy and paste when creating a new module.
+    """
+
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.

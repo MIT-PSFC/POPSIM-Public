@@ -2,14 +2,13 @@ import chex
 
 from popsim import ModuleBase
 
-"""
-A model of a FINJ injector.
-"""
 # TODO: Include delays (should be cascade of FOPDT)
 
 
 @chex.dataclass
 class FinjInjector(ModuleBase):
+    """A model of a FINJ injector."""
+
     @chex.dataclass
     class Config:
         gas_temperature: float = 293  # [K]

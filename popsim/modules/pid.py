@@ -6,6 +6,8 @@ from popsim import ModuleBase, discrete_time_field
 
 @chex.dataclass
 class PIDController(ModuleBase):
+    """A Basic PID Controller."""
+
     @chex.dataclass
     class Config:
         Kp: float  # Propotional gain [-]

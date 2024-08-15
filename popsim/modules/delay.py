@@ -7,6 +7,8 @@ from popsim import ModuleBase, discrete_time_field
 
 @chex.dataclass
 class DelayBuffer(ModuleBase):
+    """A simple delay buffer that delays the input by a number of time steps equal to the buffer size."""
+
     @chex.dataclass
     class Config:
         pass

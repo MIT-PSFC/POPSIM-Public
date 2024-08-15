@@ -2,13 +2,13 @@ import chex
 
 from popsim import ModuleBase
 
-"""
-A model of an ICRH zone.
-"""
-
 
 @chex.dataclass
 class IcrhZone(ModuleBase):
+    """
+    A model of an ICRH zone.
+    """
+
     @chex.dataclass
     class Config:
         reflected_power_ratio: float = 0.1  # [-]

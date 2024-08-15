@@ -3,17 +3,18 @@ import jax.numpy as jnp
 
 from popsim import ModuleBase
 
-"""
-An implementation of Hmode dynamics using a low-pass filter approach where:
-    hmode_dot = (hmode_pass - hmode) / transition_characteristic_time
-and hmode_pass is 1 if the transition condition is met and 0 otherwise.
-If h_mode >= 0.5, we are in H-mode, otherwise we are in L-mode.
-"""
-
 CRITICAL_THRESHOLD = 0.5
 
 
+@chex.dataclass
 class HmodeDynamics(ModuleBase):
+    """An H-Mode dynamics module.
+
+    An implementation of Hmode dynamics using a low-pass filter approach where:
+            hmode_dot = (hmode_pass - hmode) / transition_characteristic_time
+    and hmode_pass is 1 if the transition condition is met and 0 otherwise. If h_mode >= 0.5, we are in H-mode, otherwise we are in L-mode.
+    """
+
     @chex.dataclass
     class Config:
         pass
