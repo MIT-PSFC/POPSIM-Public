@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Array, ArrayLike
 
 
 def jax_to_numpy_array(arr: jnp.ndarray) -> np.ndarray:
@@ -19,3 +20,19 @@ def jax_to_numpy_array(arr: jnp.ndarray) -> np.ndarray:
         arr = jax.random.key_data(arr)
 
     return arr
+
+
+def min_greater_than_thresh(arr: Array, thresh: ArrayLike) -> ArrayLike:
+    """Find the minimum value in an array that is greater than a threshold.
+
+    Args:
+        arr (Array): array to search.
+        thresh (ArrayLike): threshold to compare against.
+
+    Returns:
+        ArrayLike: The minimum value in the array that is greater than the threshold.
+    """
+    # Mask the array to keep only values greater than zero
+    positive_values = jnp.where(arr > thresh, arr, jnp.inf)
+    # Find the minimum value in the masked array
+    return jnp.min(positive_values)

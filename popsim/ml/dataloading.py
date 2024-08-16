@@ -84,6 +84,10 @@ class XarrayPreppedDataset(Dataset):
         """
         return self.time_dep_metadata is not None
 
+    @property
+    def sample_coords(self) -> Array:
+        return self.ds[self.sample_coord]
+
     def get_all_but_ds(self) -> dict[str, typing.Any]:
         """Return all attributes of the class except the dataset.
 
@@ -102,10 +106,13 @@ class XarrayPreppedDataset(Dataset):
         else:
             time = None
             state_init = None
+
+        params = ds_to_dict_jnp(self.ds[self.param_vars])
+
         sim_input = SimInput(
             time=time,
             initial_state=state_init,
-            params=ds_to_dict_jnp(self.ds[self.param_vars]),
+            params=params,
         )
         eval_input = EvalInput(
             sim_input=sim_input,

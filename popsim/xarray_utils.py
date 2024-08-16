@@ -78,6 +78,8 @@ def convert_enums(coord_list: list[Coords]) -> list[Coords]:
         coord_spec with enums converted to list of strings
     """
     for i, coord in enumerate(coord_list):
+        if not isinstance(coord, tuple):
+            continue
         coord_name, coord_labels = coord
         if isclass(coord_labels):
             if issubclass(coord_labels, Enum):
@@ -100,8 +102,9 @@ def tree_and_coords_to_xarray(tree: PyTree[Array], coord_tree: PyTree[typing.Opt
     def make_data_array(keypath: tuple[ptypes.PyTreeKey], array: Array, coord: list[Coords]) -> xr.DataArray:
         array = jax_to_numpy_array(array)
         if array.ndim == len(coord):
+            coord = convert_enums(coord)
             # If the array and the coord have the same number of dimensions, we can just make a DataArray.
-            return xr.DataArray(array, coords=convert_enums(coord))
+            return xr.DataArray(array, dims=("simulation", "time_idx"), coords=coord)
         else:
             warnings.warn(
                 f"Skipping variable {keypath_to_string(keypath)} in construction of xr.Dataset. Array and coord have different number of dimensions. Array shape: {array.shape}, coord shape: {len(coord)}.",
@@ -144,23 +147,23 @@ def time_and_pytree_to_xarray(
 
     if multi_simulation:
         assert time.ndim in (2, 1)
-        # If time is 1D, assume it applies to all simulations.
-        if time.ndim == 2:
-            # Currently we only support the case where the time array is the same for all simulations.
-            assert (time == time[0]).all()
-
         # Check that every array has the same number of simulations.
         nsims_tree = jax.tree.map(lambda x: x.shape[0], tree)
         tree_leaves = jax.tree.leaves(nsims_tree)
         if len(set(tree_leaves)) > 1:
             raise ValueError("In multi-simulation mode, all arrays must have the same number of simulations.")
-        nsims = tree_leaves[0]
+        tree_leaves[0]
+        time_coords = xr.DataArray(
+            time,
+            dims=("simulation", "time_idx"),
+            name="time",
+        )
+        simulation_coords = xr.DataArray(
+            list(range(time.shape[0])),
+            dims=("simulation",),
+        )
     else:
-        nsims = 1
-
-    # Define the time base for all dataarray instances.
-    time_base = time[0] if multi_simulation and time.ndim == 2 else time
-    time_base = time_base.squeeze()
+        time_coords = xr.DataArray(time, dims=["time"], name="time")
 
     def make_coords_for_array(_, extra_coords):
         # Why the dummy first argument?
@@ -180,10 +183,9 @@ def time_and_pytree_to_xarray(
             raise ValueError(f"extra_coords must be a tuple, list or None, got {type(extra_coords)}.")
 
         if multi_simulation:
-            simulation_numbers = range(nsims)
-            return [("simulation", simulation_numbers), ("time", time_base), *extra_coords]
+            return {"simulation": simulation_coords, "time": time_coords}
         else:
-            return [("time", time_base), *extra_coords]
+            return [time_coords, *extra_coords]
 
     # Construct the coordnates tree.
     extra_coord_tree = jax.tree.map(lambda _: None, tree) if extra_coord_tree is None else extra_coord_tree

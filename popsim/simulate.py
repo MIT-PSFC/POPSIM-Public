@@ -11,6 +11,7 @@ from jaxtyping import PyTree
 from loguru import logger
 
 from popsim import ModuleBase
+from popsim.array_utils import min_greater_than_thresh
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
@@ -156,16 +157,19 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
         out = {"state": y, "output": output, "params": params_resolved}
         return out
 
+    # Get the minimum time step that is greater than zero.
+    dt0 = min_greater_than_thresh(jnp.diff(sim_input.time), 0.0)
+
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),
         solver=diffrax.Euler(),
         t0=sim_input.time[0],
         t1=sim_input.time[-1],
-        dt0=jnp.min(jnp.diff(sim_input.time)),
+        dt0=dt0,
         y0=sim_input.initial_state,
         args=sim_input.params,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
-        max_steps=None,  # Allows indefinite number of steps.
+        max_steps=1073741824,  # Allows indefinite number of steps.
     )
     return sol
 
