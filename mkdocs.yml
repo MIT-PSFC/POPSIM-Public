@@ -65,7 +65,7 @@ nav:
             - 'Composite Modules: Controller Plus Sim': 'notebooks/controller_plus_sim.ipynb'
             - Randomness and Stochasticity: 'notebooks/intro_to_randomness.ipynb'
         - Training and Validation:
-            - Dataloading and Xarray-Based Pre-processing: 'notebooks/xarray_pipeline.ipynb'
+            - Dataloading and Xarray-Based Pre-processing: 'notebooks/module_eval_pipeline.ipynb'
     - Developing: 
         - Workflow Basics: 'development_workflow.md'
     - API:
