@@ -8,7 +8,7 @@ from popsim.logic_utils import select_w_tuples
 
 """
 Contains three example modules for automated testing and educational purposes.
-See popsim/demos/intro_to_modules.ipynb for a tutorial on how to use these modules.
+See docs/notebooks/intro_to_modules.ipynb for a tutorial on how to use these modules.
 """
 
 

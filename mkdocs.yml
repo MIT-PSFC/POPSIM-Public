@@ -58,14 +58,14 @@ plugins:
 nav:
     - 'index.md'
     - Getting Started:
-        - Using CometMirror: 'demos/comet_mirror.ipynb'
+        - Using CometMirror: 'notebooks/comet_mirror.ipynb'
     - Tutorials:
         - Building Modules:
-            - Introduction to Modules: 'demos/intro_to_modules.ipynb'
-            - 'Composite Modules: Controller Plus Sim': 'demos/controller_plus_sim.ipynb'
-            - Randomness and Stochasticity: 'demos/intro_to_randomness.ipynb'
+            - Introduction to Modules: 'notebooks/intro_to_modules.ipynb'
+            - 'Composite Modules: Controller Plus Sim': 'notebooks/controller_plus_sim.ipynb'
+            - Randomness and Stochasticity: 'notebooks/intro_to_randomness.ipynb'
         - Training and Validation:
-            - Dataloading and Xarray-Based Pre-processing: 'demos/xarray_pipeline.ipynb'
+            - Dataloading and Xarray-Based Pre-processing: 'notebooks/xarray_pipeline.ipynb'
     - Developing: 
         - Workflow Basics: 'development_workflow.md'
     - API:
