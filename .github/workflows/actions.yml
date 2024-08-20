@@ -111,4 +111,4 @@ jobs:
         run: poetry run pytest ./submodules/cfspopcon/cfspopcon/jax_compatible/tests/ -n=auto
 
       - name: Test Notebooks
-        run: poetry run pytest --nbmake docs/notebooks/ -n=auto -k 'not docs/notebooks/compare_comet_mirror_torax.ipynb'
+        run: poetry run pytest --nbmake docs/notebooks/ -n=auto -k 'not docs/notebooks/doc_ignore/'
