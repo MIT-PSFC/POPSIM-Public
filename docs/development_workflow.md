@@ -60,3 +60,11 @@ You can also run just one specific test, for example: `poetry run pytest popsim/
 When you are ready to merge your code back into `main`, you should create a pull request (PR) on Github. For those new to PRs, follow [this tutorial](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
 If you would like to indicate that you are not quite ready to merge your code into `main`, but you would like to share the code with others for the purposes of generating discussion and/or soliciting feedback, you should create a "Draft PR" which can be easily done by following the instructions [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request#creating-the-pull-request).
+
+
+## Building the Documentation
+To preview the documentation locally, you can simply run a:
+```bash
+poetry run EXEC_MKNOTEBOOKS=false mkdocs serve
+```
+where we recommend setting `EXEC_MKNOTEBOOKS=false` to avoid running the notebooks, which can be slow, until you want to check that the notebook outputs themselves. To see the full list of options for `mkdocs`, check out [their documentation](https://www.mkdocs.org/user-guide/cli/).

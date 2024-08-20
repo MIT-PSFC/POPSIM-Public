@@ -58,8 +58,9 @@ plugins:
         exclude:
             - "notebooks/doc_ignore/"
     - mknotebooks:
-        execute: !ENV [EXEC_MKNOTEBOOKS, false]
+        execute: !ENV [EXEC_MKNOTEBOOKS, true]
         allow_errors: false
+        enable_default_jupyter_cell_styling: false
     - mkdocstrings
 nav:
     - 'index.md'
