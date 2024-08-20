@@ -18,6 +18,9 @@ jobs:
           submodules: "recursive"
           token: ${{ secrets.POPSIM_PAT }}
 
+      - name: Git LFS Pull
+        run: git lfs pull
+
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python - --version 1.5.1
 
