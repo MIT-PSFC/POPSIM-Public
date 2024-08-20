@@ -53,7 +53,13 @@ extra_javascript:
 plugins:
     - search  # default search plugin; needs manually re-enabling when using any other plugins
     - autorefs  # Cross-links to headings
-    - mknotebooks
+    - include_exclude_files:
+        include:
+        exclude:
+            - "notebooks/doc_ignore/"
+    - mknotebooks:
+        execute: !ENV [EXEC_MKNOTEBOOKS, false]
+        allow_errors: false
     - mkdocstrings
 nav:
     - 'index.md'

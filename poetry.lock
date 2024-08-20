@@ -2726,6 +2726,20 @@ platformdirs = ">=2.2.0"
 pyyaml = ">=5.1"
 
 [[package]]
+name = "mkdocs-include-exclude-files"
+version = "0.0.1"
+description = "Modify which files MkDocs includes or excludes."
+optional = false
+python-versions = "~=3.8"
+files = [
+    {file = "mkdocs_include_exclude_files-0.0.1-py3-none-any.whl", hash = "sha256:3fce8a6da46cdc1337c344b401cca0ef2234f91cae1f804abd7b4c43a5598d85"},
+    {file = "mkdocs_include_exclude_files-0.0.1.tar.gz", hash = "sha256:5bdf064604884b50402ab180c22d3eeb6088c5eebae6507e0b848edb6ded5581"},
+]
+
+[package.dependencies]
+mkdocs = ">=1.2.3"
+
+[[package]]
 name = "mkdocs-material"
 version = "9.5.31"
 description = "Documentation that simply works"
@@ -5340,4 +5354,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "b940dd99ccae828809f67c40fa9a66efba946428e089cdfa9c0270620fe23a1a"
+content-hash = "850f7f259a92df0d38147b4806f90388c2f8c4116c821a3a6677b4b5d3e3e595"
