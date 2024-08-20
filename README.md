@@ -1,12 +1,12 @@
 # POPSIM: Plasma OPerational SIMulation
-POPSIM is a control-oriented tokamak plasma simulation toolbox built in the machine-learning framework [JAX](https://github.com/google/jax). Thus, it is JIT-compilable, massively parallelizable on GPU, and auto-differentiable.
+POPSIM is a control-oriented simulation toolbox built in the machine-learning framework [JAX](https://github.com/google/jax). Thus, it is JIT-compilable, massively parallelizable on GPU, and auto-differentiable. While it is designed with tokamaks in mind, it's core library can be applied to simulating any controlled dynamical system.
 
 It's role is to enable:
 1) Sensitivity analysis and off-normal simulation via massively parallelized Monte Carlo simulation on GPU and automatic differentiation
 2) Uncertainty-aware optimization of scenarios, trajectories, and controllers via techniques from optimal control + reinforcement learning
 3) Parameter estimation and learning unknown and computationally expensive dynamics from data
 
-POPSIM is not a single simulator, but rather a set of tools to allow you to define simulation "modules". Each module is, itself, a stand-alone simulator that can be simulated using a common `simulate` function. More complex simulators can be built by chaining modules together. 
+POPSIM is not a single simulator, but rather a set of tools to allow you to define simulation "modules". Each module is, itself, a stand-alone simulator that can be simulated using a common `simulate` function. More complex simulators can be built by chaining modules together.
 
 
 ## Installation
