@@ -73,8 +73,7 @@ nav:
             - Randomness and Stochasticity: 'notebooks/intro_to_randomness.ipynb'
         - Training and Validation:
             - Dataloading and Xarray-Based Pre-processing: 'notebooks/module_eval_pipeline.ipynb'
-    - Developing: 
-        - Workflow Basics: 'development_workflow.md'
+        - Dev Workflow Basics: 'development_workflow.md'
     - API:
         - 'api/simulate.md'
         - 'api/module_base.md'
