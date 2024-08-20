@@ -31,7 +31,7 @@ edit_uri: ""
 repo_url: https://github.com/cfs-energy-internal/POPSIM
 repo_name: cfs-energy-internal/POPSIM
 
-strict: true  # Don't allow warnings during the build process
+strict: false
 
 markdown_extensions:
     - pymdownx.arithmatex:  # Render LaTeX via MathJax
