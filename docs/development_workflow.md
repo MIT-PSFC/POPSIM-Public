@@ -65,6 +65,6 @@ If you would like to indicate that you are not quite ready to merge your code in
 ## Building the Documentation
 To preview the documentation locally, you can simply run a:
 ```bash
-poetry run EXEC_MKNOTEBOOKS=false mkdocs serve
+EXEC_MKNOTEBOOKS=false poetry run mkdocs serve
 ```
 where we recommend setting `EXEC_MKNOTEBOOKS=false` to avoid running the notebooks, which can be slow, until you want to check that the notebook outputs themselves. To see the full list of options for `mkdocs`, check out [their documentation](https://www.mkdocs.org/user-guide/cli/).
