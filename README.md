@@ -18,7 +18,7 @@ POPSIM is not a single simulator, but rather a set of tools to allow you to defi
 
    b. To install with development dependencies, run `poetry install --with dev`
 4. CFSPOPCON currently requires a bit of manual work to get working. Follow the instructions [here](https://cfspopcon.readthedocs.io/en/latest/doc_sources/Usage.html)
-5. Install git lfs and do a `git lfs init` and a `git lfs pull` to get the necessary data files.
+5. Install git lfs and do a `git lfs install` and a `git lfs pull` to get the necessary data files.
 6. Be sure to use either `poetry shell` or prefix all of your commands with `poetry run`. If you are confused, check out the [poetry docs](https://python-poetry.org/docs/basic-usage/)
 
 ## Development Workflow
