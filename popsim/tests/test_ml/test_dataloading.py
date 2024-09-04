@@ -34,7 +34,7 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length = N
         if segment_length is not None:
             assert dict(batch.ds.sizes) == {'sample': expected_sample_size, 'time_slice_input': segment_length}
         else:
-            assert dict(batch.ds.sizes) == {'sample': expected_sample_size}
+            assert batch.ds.sizes["sample"] == expected_sample_size
         first_batches.append(deepcopy(batch))
 
     # Iterate through the dataloader again to check that the "shuffle" flag works as intended.
@@ -45,7 +45,8 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length = N
     else:
         assert first_batches == second_round_batches
 
-@pytest.mark.parametrize("segmenting_case", [{"seg_length": 250, "seg_overlap": 25, "expected_n_samps" : 724}, {"seg_length": 250, "seg_overlap": 0, "expected_n_samps" : 655}])
+@pytest.mark.parametrize("segmenting_case", [{"seg_length": 250, "seg_overlap": 25, "expected_n_samps" : 724}, {"seg_length": 250, "seg_overlap": 0, "expected_n_samps" : 655},
+                                             {"seg_length": None, "seg_overlap": 0, "expected_n_samps" : 99}])
 @pytest.mark.parametrize("batch_size", [None, 1, 64, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("shuffle", [True, False])
 def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size, shuffle):
@@ -53,7 +54,6 @@ def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size,
 
     # expected_n_samps were determined by manually checking the dataset.
     segment_length, segment_overlap, expected_n_samps = segmenting_case["seg_length"], segmenting_case["seg_overlap"], segmenting_case["expected_n_samps"]
-
     dl = make_dataloader(
         ds=ds,
         time_coord="time",

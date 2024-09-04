@@ -7,13 +7,8 @@ import xbatcher
 from jax_dataloader import DataLoader, Dataset
 from jaxtyping import Array
 
+from popsim.ml.envs import ModuleEvalEnvInput
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
-from popsim.ml.types import EvalInput
-from popsim.simulate import SimInput
-
-
-def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
-    return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
 
 
 class XarrayPreppedDataset(Dataset):
@@ -53,7 +48,7 @@ class XarrayPreppedDataset(Dataset):
 
     def __getitem__(self, idx) -> "XarrayPreppedDataset":
         ds_slice = self.ds.isel({self.sample_dim: idx})
-        return XarrayPreppedDataset(
+        xrpds = XarrayPreppedDataset(
             ds=ds_slice,
             sample_coord=self.sample_coord,
             sample_dim=self.sample_dim,
@@ -61,6 +56,7 @@ class XarrayPreppedDataset(Dataset):
             target_vars=self.target_vars,
             time_dep_metadata=self.time_dep_metadata,
         )
+        return xrpds
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires special handling for equality comparison.
@@ -96,29 +92,36 @@ class XarrayPreppedDataset(Dataset):
         """
         return {k: v for k, v in vars(self).items() if k != "ds"}
 
-    def to_eval_input(self) -> EvalInput:
-        if self.is_time_dependent:
-            # Forward fill to replace missing time values with the last known time value.
-            time = self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim).values
-
-            # Grab the first time slice to get the initial state.
-            state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
-        else:
-            time = None
-            state_init = None
-
+    def prep_inputs_and_targets(self) -> tuple[ModuleEvalEnvInput, dict[str, Array]]:
         params = ds_to_dict_jnp(self.ds[self.param_vars])
+        targets = ds_to_dict_jnp(self.ds[self.target_vars])
 
-        sim_input = SimInput(
+        if not self.is_time_dependent:
+            return params, targets
+
+        # Forward fill to replace missing time values with the last known time value.
+        time = self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim)
+
+        # If "sample" is not in the time dimension, expand time to include the sample dimension.
+        if self.sample_coord not in time.dims:
+            time = time.expand_dims({self.sample_coord: self.sample_coords})
+
+        time = jnp.asarray(time.values)
+
+        # Grab the first time slice to get the initial state.
+        state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
+
+        env_input = ModuleEvalEnvInput(
             time=time,
             initial_state=state_init,
             params=params,
         )
-        eval_input = EvalInput(
-            sim_input=sim_input,
-            targets=ds_to_dict_jnp(self.ds[self.target_vars]),
-        )
-        return eval_input
+
+        return env_input, targets
+
+
+def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
+    return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
 
 
 def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str) -> tuple[str, str]:
@@ -205,7 +208,7 @@ def make_dataloader(
     state_init_vars: list[str],
     param_vars: list[str],
     target_vars: list[str],
-    segment_length: int,
+    segment_length: typing.Optional[int] = None,
     segment_overlap: int = 0,
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
@@ -219,7 +222,7 @@ def make_dataloader(
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
         param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
-        segment_length (int): Number of time steps used in each training segment.
+        segment_length (typing.Optional[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment. Defaults to None.
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
@@ -231,6 +234,9 @@ def make_dataloader(
     assert time_coord in ds.coords, f"Time coordinate {time_coord} not found in dataset."
     assert episode_coord in ds.coords, f"Episode coordinate {episode_coord} not found in dataset."
 
+    if segment_length is None and segment_overlap != 0:
+        raise ValueError("segment_overlap should be 0 when segment_length is None.")
+
     input_vars = state_init_vars + param_vars
     ds = ds[input_vars + target_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
@@ -241,6 +247,11 @@ def make_dataloader(
     # We want the model to see a fixed number of time steps and data from a single episode.
     # However, we want to keep all other dimensions the same.
     non_episode_time_dims = {k: v for k, v in ds.sizes.items() if k not in [episode_var_dim, time_var_dim]}
+
+    if segment_length is None:
+        # If the segment length is not specified, use the full episode as the segment.
+        segment_length = ds.sizes[time_var_dim]
+
     input_dims = {time_var_dim: segment_length} | non_episode_time_dims
 
     # Use a first call to Xbatcher to segment the episodes to the desired length and create a dataset with dimensions

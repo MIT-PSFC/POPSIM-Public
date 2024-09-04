@@ -1,58 +1,127 @@
+import typing
+from typing import NamedTuple
+
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 import xarray as xr
 from jax_dataloader import DataLoader
+from jaxtyping import Array, PyTree
 
-from popsim import interp
+from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv
-from popsim.ml.types import EvalInput
-from popsim.ml.utils import _repeat_time_hack
-from popsim.simulate import SimInput, _diffrax_simulate, _vec_simulate
+from popsim.ml.loss import IntegralLoss, Loss
 from popsim.xarray_utils import solution_to_xarray
 
 
-@eqx.filter_jit
-def prep_batch(env: ModuleEvalEnv, eval_input: EvalInput):
-    params_struct = env.create_params(data=eval_input.sim_input.params)
-    params_struct_spec = jax.tree.map(lambda _: 0, params_struct)
+class EvalFnInput(NamedTuple):
+    model: TrainableModel  # The model to train.
+    dataloader: DataLoader  # DataLoader that was used to evaluate the module.
+    output_ds: xr.Dataset  # Output dataset from the module evaluation.
 
-    def interp_params_one_episode(t, p):
-        return interp.interp(_repeat_time_hack(t), p, interp.InterpType.RECTILINEAR)
-
-    params_interped = jax.vmap(interp_params_one_episode, in_axes=(0, params_struct_spec))(eval_input.sim_input.time, params_struct)
-
-    sim_input = SimInput(
-        time=eval_input.sim_input.time,
-        initial_state=env.create_state(data=eval_input.sim_input.initial_state),
-        params=params_interped,
-    )
-    return sim_input
+    @property
+    def input_ds(self):
+        """
+        Get the xarray dataset that was used as input to the module evaluation.
+        """
+        return self.dataloader.dataloader.dataset.ds
 
 
-def simulate_batch(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
-    eval_input = dataset.to_eval_input()
-    sim_input = prep_batch(env, eval_input)
-    sol = _vec_simulate(env.module, sim_input, _diffrax_simulate)
+# An evaluation function is a function that takes an EvalFnInput and returns a value.
+EvaluationFn = typing.Callable[[EvalFnInput], typing.Any]
 
-    ds = solution_to_xarray(sol, multi_simulation=True)
-    ds = ds.rename({"simulation": "sample"})
-    ds = ds.assign_coords(sample=dataset.sample_coords)
-    return ds
+# An evaluation suite is defined as a dictionary of evaluation functions
+EvaluationSuite = dict[str, typing.Callable[[xr.Dataset, xr.Dataset], typing.Any]]
 
 
-def eval_module_on_dataset(env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite=None) -> xr.Dataset:
+def eval_module_on_dataset(
+    env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite: typing.Optional[EvaluationSuite] = None
+) -> tuple[xr.Dataset, dict[str, typing.Any]]:
     if evaluation_suite is None:
         evaluation_suite = {}
-    sim_outs_and_batches = [(simulate_batch(env, batch), batch) for batch in dataloader]
-    batches_in = [batch.ds for _, batch in sim_outs_and_batches]
+
+    def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
+        inputs, _ = dataset.prep_inputs_and_targets()
+        inputs_spec = jax.tree_map(lambda _: 0, inputs)
+        sol = jax.vmap(env, in_axes=(inputs_spec,))(inputs)
+        ds_out = solution_to_xarray(sol, multi_simulation=True)
+        ds_out = ds_out.rename({"simulation": "sample"})
+        ds_out = ds_out.assign_coords(sample=dataset.sample_coords)
+        return ds_out
+
+    sim_outs_and_batches = [(eval_env_return_xarray(env, batch), batch) for batch in dataloader]
     sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
-    ds_data = xr.concat(batches_in, dim="sample")
+
+    # The evaluation process can get the order of the samples wrong, so we need to reindex the output dataset.
     ds_sim = xr.concat(sim_outs, dim="sample")
-    out = {
-        "ds_data": ds_data,
-        "ds_sim": ds_sim,
-    }
-    for key, eval_fn in evaluation_suite.items():
-        out[key] = eval_fn(ds_data, ds_sim)
+    ds_sim = ds_sim.reindex_like(dataloader.dataloader.dataset.ds)
+
+    eval_fn_input = EvalFnInput(model=env, dataloader=dataloader, output_ds=ds_sim)
+
+    out = {key: eval_fn(eval_fn_input) for key, eval_fn in evaluation_suite.items()}
     return out
+
+
+@eqx.filter_jit
+def model_eval_and_loss(
+    model: TrainableModel,
+    loss_fn: Loss,
+    inputs: PyTree[Array],
+    targets: PyTree[Array],
+) -> float:
+    if isinstance(model, ModuleEvalEnv):
+        eqx.error_if(
+            loss_fn, not isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
+        )
+        # When using a ModuleEvalEnv, the loss function is an IntegralLoss, which requires special handling.
+        output = model(inputs)  # Output is a diffrax solution.
+        loss = loss_fn(output.ys["output"], targets, output.ts)
+    else:
+        output = model(inputs)
+        loss = loss_fn(output, targets)
+    return loss
+
+
+@eqx.filter_jit
+def batched_model_eval_and_loss(
+    model: TrainableModel,
+    loss_fn: Loss,
+    inputs: PyTree[Array],
+    targets: PyTree[Array],
+) -> Array:
+    inputs_spec, targets_spec = jax.tree.map(lambda _: 0, (inputs, targets))
+    losses = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))(model, loss_fn, inputs, targets)
+    return losses
+
+
+@eqx.filter_value_and_grad
+def batch_loss_and_grad(
+    trainable: TrainableModel,
+    static: TrainableModel,
+    loss_fn: Loss,
+    inputs: PyTree[Array],
+    targets: PyTree[Array],
+) -> float:
+    model = eqx.combine(trainable, static)
+    losses = batched_model_eval_and_loss(model, loss_fn, inputs, targets)
+    return losses.mean()
+
+
+def make_val_loss_eval_fn(
+    loss_fn: Loss,
+):
+    def eval_fn(inp: EvalFnInput) -> float:
+        loss_vecs = []
+        for batch in inp.dataloader:
+            inputs, targets = batch.prep_inputs_and_targets()
+            loss_vec = batched_model_eval_and_loss(
+                inp.model,
+                loss_fn,
+                inputs,
+                targets,
+            )
+            loss_vecs.append(loss_vec)
+        return jnp.concatenate(loss_vecs).mean()
+
+    return eval_fn
