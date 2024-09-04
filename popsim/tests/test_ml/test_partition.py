@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from popsim.ml.partition import make_partition_pytree_by_members, partition_by_arraylike
+from popsim.ml.partition import make_partition_by_members, partition_by_arraylike
 from jaxtyping import Array
 import chex
 
@@ -9,7 +9,7 @@ class DummyClass:
     y: dict[str, Array]
 
 
-def test_make_partition_pytree_by_members():
+def test_make_partition_by_members():
     # Test with a simple PyTree that contains a single array and a dictionary of arrays
     # We want a partition of tree0 where the first partition contains tree0.x and tree0.y["a"].
     tree0 = DummyClass(x=jnp.zeros(3), y={"a": jnp.arange(10), "b": jnp.ones(5)})
@@ -21,7 +21,7 @@ def test_make_partition_pytree_by_members():
     expected_tree0a = DummyClass(x=jnp.zeros(3), y={"a": jnp.arange(10), "b": None})
     expected_tree0b = DummyClass(x=None, y={"a": None, "b": jnp.ones(5)})
 
-    partition_fn = make_partition_pytree_by_members(items_to_partition_by)
+    partition_fn = make_partition_by_members(items_to_partition_by)
 
     tree0a, tree0b = partition_fn(tree0)
     chex.assert_trees_all_equal(tree0a, expected_tree0a)

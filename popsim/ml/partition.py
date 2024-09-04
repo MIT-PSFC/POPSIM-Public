@@ -4,7 +4,11 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 """
-Partition functions and helpers.
+Partition functions and helpers. A partition function is a function that takes in a PyTree and splits that PyTree into two disjoint PyTrees. That is:
+    f(tree) -> (tree1, tree2)
+where the union of tree1 and tree2 is equal to tree, and tree1 and tree2 are disjoint.
+
+This operation is very helpful for situations where you want to train only a subset of the model's parameters, or when you want to apply different transformations to different parts of the model.
 """
 
 
@@ -25,7 +29,7 @@ def partition_by_arraylike(pytree: PyTree) -> tuple[PyTree, PyTree]:
     return eqx.partition(pytree, eqx.is_array_like)
 
 
-def make_partition_pytree_by_members(pytree_item_getter: typing.Callable[[PyTree], tuple[object]]) -> PartitionFn:
+def make_partition_by_members(pytree_item_getter: typing.Callable[[PyTree], tuple[object]]) -> PartitionFn:
     """Generate a partition function that partitions a PyTree into two PyTrees based on a set of members of the PyTree.
     The set of members is specified by a "pytree_item_getter" function that takes a PyTree and returns a tuple of
     objects that are members of the PyTree. The partition function will return two PyTrees: one containing the members
@@ -35,7 +39,7 @@ def make_partition_pytree_by_members(pytree_item_getter: typing.Callable[[PyTree
         pytree_item_getter (typing.Callable[[PyTree], tuple[object]]): A function that takes a PyTree and returns a tuple of objects that are members of the PyTree.
 
     Returns:
-        PartitionFn: A function that partitions a PyTree into two PyTrees based on the set of members specified by the "pytree_item_getter" function.
+        PartitionFn: A partition function that returns (tree_with_members, tree_without_members).
     """
 
     def partition_fn(pytree: PyTree):
