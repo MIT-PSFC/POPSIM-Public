@@ -15,12 +15,19 @@ InstantaneousLoss = typing.Callable[[PyTree[ArrayLike], PyTree[ArrayLike]], floa
 
 
 class IntegralLoss(eqx.Module):
-    """
-    A wrapper to compute the integral of an instantaneous loss function over a time range.
+    r"""
+    A wrapper class to compute the integral of a given loss function over a time range using the trapezoidal rule.
 
-    This class uses the trapezoidal rule to integrate a given instantaneous loss
-    function over a specified time range. It can handle various strategies for
-    dealing with NaN values in the loss calculations.
+    Given a loss function $l(\mathfb{y}, \hat{\mathfb{y}})$ that computes the instantaneous loss between predictions, $\mathfb{y}$, and targets, $\hat{\mathfb{y}}$, wrapping $l$ with this class results in the following loss function:
+
+    $$
+    L(\mathfb{y}, \hat{\mathfb{y}}, \mathbf{t}) = \int_\mathbf{t} l(\mathbf{t}(t), \hat{\mathbf{t}}(t)) dt
+    $$
+
+    where $\mathbf{t}$ is a vector of time points.
+
+    nan_strategy determines how to handle NaNs in the computed instantaneous loss values.
+
 
     Attributes:
         instantaneous_loss (InstantaneousLoss): An instance of a class that computes
