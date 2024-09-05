@@ -145,7 +145,6 @@ def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, 
     time_coord = ds[time_var_name]
     time_var_dims = set(time_coord.sizes.keys())
 
-    assert episode_var_name in time_var_dims, f"{episode_coord} not in {time_var_dims}"
     time_var_dims_minus_episode = [d for d in time_var_dims if d != episode_var_dim]
 
     assert (

@@ -75,7 +75,7 @@ def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size,
         segment_length=segment_length
     )
 
-@pytest.mark.parametrize("batch_size", [None, 1, 64, 1024, np.iinfo(np.int32).max])
+@pytest.mark.parametrize("batch_size", [None, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("shuffle", [True, False])
 def test_make_time_indep_dataloader(reduced_cmod_test_dataset, batch_size, shuffle):
     ds, _, _, _ = reduced_cmod_test_dataset

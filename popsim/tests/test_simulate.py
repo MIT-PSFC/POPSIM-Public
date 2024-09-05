@@ -87,7 +87,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     
     
     # After 10 seconds, expect a significant amount of exponential decay of the state.
-    assert (jnp.abs(sol["state.x"].isel(time_idx=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x)).all()
+    assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x)).all()
 
     # Expect that y is the absolute value of x.
     assert jnp.allclose(sol["output.y"].values, jnp.abs(sol["state.x"].values))
