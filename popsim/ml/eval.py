@@ -43,7 +43,7 @@ def eval_module_on_dataset(
 
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
         inputs, _ = dataset.prep_inputs_and_targets()
-        inputs_spec = jax.tree_map(lambda _: 0, inputs)
+        inputs_spec = jax.tree.map(lambda _: 0, inputs)
         sol = jax.vmap(env, in_axes=(inputs_spec,))(inputs)
         ds_out = solution_to_xarray(sol, multi_simulation=True)
         ds_out = ds_out.rename({"simulation": "sample"})

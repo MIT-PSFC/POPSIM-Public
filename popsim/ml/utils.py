@@ -5,16 +5,16 @@ from jaxtyping import Array
 
 def _count_repeat_elements(times: Array) -> Array:
     """Given an array of times that is sorted in ascending order and may contain repeat elements at
-    the end, count the number of times each element is repeated at the ith index.
+    the end, count the cumulative number of times an element is repeated.
 
     Example:
         jnp.array([0, 1, 2, 3, 4, 4, 4]) -> jnp.array([0, 0, 0, 0, 0, 1, 2])
 
     Args:
         times (Array): array of times in ascending order possibly with repeat elements at the end.
+
     Returns:
-        Array: Given an array of times that is sorted in ascending order and may contain repeat elements at
-        the end, count the number of times each element is repeated at the ith index.
+        Array: the cumulative number of times an element is repeated.
     """
 
     def scan_func(carry, current):
