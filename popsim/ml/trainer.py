@@ -117,7 +117,7 @@ class Trainer:
     def __init__(
         self,
         model: TrainableModel,
-        trainable_params_getter: typing.Callable[[TrainableModel], PyTree[Array]],
+        trainable_getter: typing.Callable[[TrainableModel], PyTree[Array]],
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
         logger: typing.Optional[LoggerBase] = None,
@@ -126,7 +126,7 @@ class Trainer:
         if isinstance(model, ModuleEvalEnv):
             assert isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
 
-        self.partition_fn = make_partition_by_members(trainable_params_getter)
+        self.partition_fn = make_partition_by_members(trainable_getter)
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
