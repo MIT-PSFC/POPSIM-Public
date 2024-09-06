@@ -1,6 +1,8 @@
 import typing
+from collections.abc import Callable
 
 import equinox as eqx
+import jax
 from jaxtyping import PyTree
 
 """
@@ -29,25 +31,63 @@ def partition_by_arraylike(pytree: PyTree) -> tuple[PyTree, PyTree]:
     return eqx.partition(pytree, eqx.is_array_like)
 
 
-def make_partition_by_members(pytree_item_getter: typing.Callable[[PyTree], tuple[object]]) -> PartitionFn:
-    """Generate a partition function that partitions a PyTree into two PyTrees based on a set of members of the PyTree.
-    The set of members is specified by a "pytree_item_getter" function that takes a PyTree and returns a tuple of
-    objects that are members of the PyTree. The partition function will return two PyTrees: one containing the members
-    specified by the "pytree_item_getter" function and the other containing the remaining members of the PyTree.
+def make_partition_by_members(
+    member_getter: typing.Callable[[PyTree], PyTree],
+    leaf_filter: Callable[[typing.Any], bool] = eqx.is_inexact_array_like,
+) -> PartitionFn:
+    """Generate a partition function that partitions a PyTree into two PyTrees, where the first contains the user specified members and the second contains everything else. The primary use case of this function is to allow the user to specify subsets of a model to train (e.g. perhaps you only want to tune some of the coefficients in a power law, but not all of them).
+
+    More precisely, the user specifies the members that belong to the first tree using the "member_getter" function and the "leaf_filter" function. The "member_getter" function takes a PyTree and returns a tuple of objects that are members of the first output PyTree. The "leaf_filter" function exists because, at times, the user will want to specify that a whole subtree is "trainable", but the subtree may contain values that are fundamentally not trainable. One common example is a neural network which contains both trainable components (e.g. weights and biases) and non-trainable components (e.g. activations). One option is for the user to put in more work to specify "member_getter", the code would look like this:
+    ```python
+    pytree = {"a": 0, "b": nn}
+
+    def member_getter(pytree):
+        leaves_of_nn = jax.tree.leaves(pytree["b"])
+        floats_of_nn = eqx.filter(leaves_of_nn, eqx.is_inexact_array_like)
+        return floats_of_nn
+
+    partition_fn = make_partition_by_members(member_getter)
+    ```
+    However, this is a bit more work than the user should have to do. Instead, we can provide a "leaf_filter" which filters out values from all of the leaves specified by "member_getter". Thus, the user can instead just write:
+
+    ```python
+    pytree = {"a": 0, "b": nn}
+
+    def member_getter(pytree):
+        return pytree["b"]
+
+    partition_fn = make_partition_by_members(member_getter, leaf_filter=eqx.is_inexact_array_like)
+    ```
 
     Args:
-        pytree_item_getter (typing.Callable[[PyTree], tuple[object]]): A function that takes a PyTree and returns a tuple of objects that are members of the PyTree.
+        member_getter (typing.Callable[[PyTree], PyTree]): A function that takes a PyTree and returns a PyTree of objects that specify what the first output PyTree should contain.
+        leaf_filter (Callable[[typing.Any], bool], optional): A function that filters out values from the leaves specified by "member_getter". Defaults to eqx.is_inexact_array_like.
 
     Returns:
         PartitionFn: A partition function that returns (tree_with_members, tree_without_members).
     """
 
-    def partition_fn(pytree: PyTree):
-        targ_ids = [id(t) for t in pytree_item_getter(pytree)]
+    if not isinstance(member_getter, Callable):
+        raise TypeError("member_getter must be callable.")
+
+    def fn(pytree: PyTree):
+        # The items may be leaves or PyTree nodes. We want to get the leaves.
+        items = member_getter(pytree)
+
+        if not isinstance(items, PyTree):
+            raise TypeError("Specified member_getter must return a PyTree.")
+
+        # Filter the leaves based on the leaf_filter.
+        leaves = jax.tree.leaves(items)
+
+        leaves = eqx.filter(leaves, leaf_filter)
+
+        targ_ids = [id(t) for t in leaves]
 
         def partition_spec(x):
             return id(x) in targ_ids
 
-        return eqx.partition(pytree, partition_spec)
+        trainable, static = eqx.partition(pytree, partition_spec)
+        return trainable, static
 
-    return partition_fn
+    return fn
