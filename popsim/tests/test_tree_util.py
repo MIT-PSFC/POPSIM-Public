@@ -59,3 +59,21 @@ def test_leaves_as_array():
 
     # Check that keys are indeed ordered.
     assert list(ordered_dict.keys()) == labels
+
+@chex.dataclass
+class EmptyDataclass:
+    pass
+
+@pytest.mark.parametrize("tree, has_nans", [
+    ({"a": jnp.array([1.0, 2.0, 3.0]), "b": jnp.array([4.0, 5.0, 6.0])}, False),
+    ({"a": jnp.array([1.0, jnp.nan, 3.0]), "b": jnp.array([4.0, 5.0, 6.0])}, True),
+    (jnp.array([1.0, 2.0, 3.0]), False),
+    (jnp.array([1.0, jnp.nan, 3.0]), True),
+    (jnp.array([]), False),  # Empty array
+    ({}, False),  # Empty dict
+    ((), False),  # Empty tuple
+    (EmptyDataclass(), False),  # Empty dataclass
+])
+def test_any_nans_and_no_nans(tree, has_nans):
+    assert tree_util.any_nans(tree) == has_nans
+    assert tree_util.no_nans(tree) == (not has_nans)

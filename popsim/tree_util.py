@@ -108,3 +108,32 @@ def get_key(key: typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]) -> typ
         return key.name
     else:
         raise ValueError(f"Key type {type(key)} not recognized.")
+
+
+def no_nans(tree: PyTree[ArrayLike]) -> bool:
+    """Check for any NaNs in a PyTree's leaves.
+
+    Args:
+        tree (PyTree[ArrayLike]): the tree to check.
+
+    Returns:
+        bool: whether any NaNs are present.
+    """
+    # A tree with leaves that are True if the leaf is not NaN.
+    not_nan_leaf_tree = jax.tree.map(lambda x: jnp.all(jnp.logical_not(jnp.isnan(x))), tree)
+
+    leaves = jax.tree.leaves(not_nan_leaf_tree)
+
+    return jnp.all(jnp.array(leaves))
+
+
+def any_nans(tree: PyTree[typing.Any]) -> bool:
+    """Check for any NaNs in a PyTree's leaves.
+
+    Args:
+        tree (PyTree[typing.Any]): the tree to check.
+
+    Returns:
+        bool: whether any NaNs are present.
+    """
+    return jnp.logical_not(no_nans(tree))
