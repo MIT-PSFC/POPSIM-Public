@@ -7,8 +7,7 @@ import jax.numpy as jnp
 from jax.scipy.integrate import trapezoid
 from jaxtyping import Array, ArrayLike, PyTree
 
-# A loss function is a function that takes in a prediction and a target and returns a scalar loss.
-Loss = typing.Callable[[PyTree[Array], PyTree[Array]], float]
+from popsim.ml.utils import _repeat_time_hack
 
 # An instantaneous loss function is a function takes in a prediction and a target for a single time slice and returns a scalar loss.
 InstantaneousLoss = typing.Callable[[PyTree[ArrayLike], PyTree[ArrayLike]], float]
@@ -66,11 +65,11 @@ class IntegralLoss(eqx.Module):
         return _integral_loss(predictions, targets, time, self.instantaneous_loss, self.nan_strategy)
 
 
-Loss = typing.Union[InstantaneousLoss, IntegralLoss]
+LossFunction = typing.Union[InstantaneousLoss, IntegralLoss]
 
 
 def _forward_fill_nans(ts: Array, ys: Array) -> Array:
-    ts2, ys2 = diffrax.rectilinear_interpolation(ts, ys)
+    ts2, ys2 = diffrax.rectilinear_interpolation(_repeat_time_hack(ts), ys)
 
     # For whatever reason, left=False still leaves the last value as a nan or inf.
     # To fix this, we add an extra point at the end with the maximum time and the last value.

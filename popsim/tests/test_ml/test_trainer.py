@@ -95,7 +95,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
 
     trainer = Trainer(
         model=env,
-        partition_fn=partition_by_arraylike,
+        trainable_params_getter=lambda _env: (_env.module.config.nn),
         loss_fn=IntegralLoss(loss),
         optimizer=optax.adabelief(5e-3),
     )

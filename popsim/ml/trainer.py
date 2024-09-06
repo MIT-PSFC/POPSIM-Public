@@ -14,8 +14,8 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.envs import ModuleEvalEnv
 from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_dataset, make_val_loss_eval_fn
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
-from popsim.ml.loss import InstantaneousLoss, IntegralLoss, Loss
-from popsim.ml.partition import PartitionFn
+from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
+from popsim.ml.partition import PartitionFn, make_partition_by_members
 
 
 @chex.dataclass
@@ -92,6 +92,7 @@ def train_epoch(
         logger.log(
             {
                 "train/loss": loss_value,
+                "train/step": train_state.step,
                 "train/step_time": tend_step - tstart_step,
             }
         )
@@ -109,15 +110,15 @@ class Trainer:
     train_state: TrainState
     optimizer: optax.GradientTransformation
     partition_fn: PartitionFn
-    loss_fn: Loss
+    loss_fn: LossFunction
     logger: LoggerBase
     checkpoint_manager: ocp.CheckpointManager
 
     def __init__(
         self,
         model: TrainableModel,
-        partition_fn: PartitionFn,
-        loss_fn: Loss,
+        trainable_params_getter: typing.Callable[[TrainableModel], PyTree[Array]],
+        loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
         logger: typing.Optional[LoggerBase] = None,
         checkpoint_manager: typing.Optional[ocp.CheckpointManager] = None,
@@ -125,9 +126,9 @@ class Trainer:
         if isinstance(model, ModuleEvalEnv):
             assert isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
 
-        self.train_state = TrainState.create_new(model, partition_fn, optimizer)
+        self.partition_fn = make_partition_by_members(trainable_params_getter)
+        self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
-        self.partition_fn = partition_fn
         self.loss_fn = loss_fn
         self.logger = logger or ConsoleLogger()
         self.checkpoint_manager = checkpoint_manager

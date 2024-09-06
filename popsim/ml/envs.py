@@ -33,7 +33,7 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
         env_input (ModuleEvalEnvInput):
 
     Returns:
-        diffrax.Solution: _description_
+        diffrax.Solution: the solution.
     """
     # Construct the initial State and Params objects.
     create_state_input = env_input.initial_state | env_input.params

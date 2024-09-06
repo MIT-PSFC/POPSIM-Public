@@ -11,7 +11,7 @@ from jaxtyping import Array, PyTree
 from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv
-from popsim.ml.loss import IntegralLoss, Loss
+from popsim.ml.loss import IntegralLoss, LossFunction
 from popsim.xarray_utils import solution_to_xarray
 
 
@@ -66,7 +66,7 @@ def eval_module_on_dataset(
 @eqx.filter_jit
 def model_eval_and_loss(
     model: TrainableModel,
-    loss_fn: Loss,
+    loss_fn: LossFunction,
     inputs: PyTree[Array],
     targets: PyTree[Array],
 ) -> float:
@@ -76,7 +76,7 @@ def model_eval_and_loss(
         )
         # When using a ModuleEvalEnv, the loss function is an IntegralLoss, which requires special handling.
         output = model(inputs)  # Output is a diffrax solution.
-        loss = loss_fn(output.ys["output"], targets, output.ts)
+        loss = loss_fn(output.ys["output"], targets, inputs.time)
     else:
         output = model(inputs)
         loss = loss_fn(output, targets)
@@ -86,7 +86,7 @@ def model_eval_and_loss(
 @eqx.filter_jit
 def batched_model_eval_and_loss(
     model: TrainableModel,
-    loss_fn: Loss,
+    loss_fn: LossFunction,
     inputs: PyTree[Array],
     targets: PyTree[Array],
 ) -> Array:
@@ -99,7 +99,7 @@ def batched_model_eval_and_loss(
 def batch_loss_and_grad(
     trainable: TrainableModel,
     static: TrainableModel,
-    loss_fn: Loss,
+    loss_fn: LossFunction,
     inputs: PyTree[Array],
     targets: PyTree[Array],
 ) -> float:
@@ -109,7 +109,7 @@ def batch_loss_and_grad(
 
 
 def make_val_loss_eval_fn(
-    loss_fn: Loss,
+    loss_fn: LossFunction,
 ):
     def eval_fn(inp: EvalFnInput) -> float:
         loss_vecs = []
