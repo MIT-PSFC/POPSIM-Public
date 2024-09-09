@@ -7,15 +7,15 @@ import jax
 import xarray as xr
 
 
-def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> Sequence[int]:
-    """Convert a list of fractions to a list of lengths.
+def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
+    """Convert a sequence of fractions to a list of lengths. Intended as a helper function for splitting datasets by fractions.
 
     Args:
         n_data (int): number of data points.
         fracs (Sequence[float]): sequence of fractions.
 
     Returns:
-        Sequence[int]: sequence of lengths that should add up to n_data.
+        list[int]: list of lengths that should add up to n_data.
     """
     if not isinstance(n_data, int) or n_data <= 0:
         raise ValueError("n_data must be a positive integer.")
