@@ -5,7 +5,7 @@ import jax
 import pytest
 import jax.numpy as jnp
 
-from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_by_coords
+from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_along_dim
 from popsim.tests.fixtures import cmod_test_dataset
 
 def test_fracs_to_lengths():
@@ -61,10 +61,10 @@ def test_random_split():
     assert len(idx_sets[1]) == lengths[1]
     assert len(idx_sets[2]) == lengths[2]
 
-def test_split_dataset_by_coords(cmod_test_dataset):
+def test_split_dataset_along_dim(cmod_test_dataset):
     ds = cmod_test_dataset
     split_fracs = [0.68, 0.21, 0.11]
-    split_datasets = split_dataset_by_coords(ds, split_fracs, "shot", jax.random.PRNGKey(42))
+    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", jax.random.PRNGKey(42))
     
     assert len(split_datasets) == 3
     # Check that the lengths of the splits are correct
@@ -80,4 +80,4 @@ def test_split_dataset_by_coords(cmod_test_dataset):
 
     # Check that the function errors if the split fractions do not sum to 1
     with pytest.raises(ValueError):
-        split_dataset_by_coords(ds, [0.5, 0.5, 0.01], "shot", jax.random.PRNGKey(42))
+        split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", jax.random.PRNGKey(42))

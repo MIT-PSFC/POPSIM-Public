@@ -70,18 +70,18 @@ def random_split(
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_by_coords(ds: xr.Dataset, fracs: Sequence[float], coord: str, key: jax.random.PRNGKey) -> Sequence[xr.Dataset]:
-    """Split a dataset into non-overlapping new datasets based on a coordinate.
+def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, key: jax.random.PRNGKey) -> Sequence[xr.Dataset]:
+    """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
     Args:
         ds (xr.Dataset): dataset to be split.
         fracs (Sequence[float]): fractions of splits to be produced.
-        coord (str): coordinate to split the dataset by.
+        coord (str): dimension to split the dataset along.
         key (jax.random.PRNGKey): key to use for random number generation.
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
     """
-    n_data = len(ds[coord])
+    n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({coord: idxs}) for idxs in random_split(n_data, lengths, key)]
+    return [ds.isel({dim: idxs}) for idxs in random_split(n_data, lengths, key)]
