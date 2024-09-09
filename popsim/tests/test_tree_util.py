@@ -34,18 +34,48 @@ def test_get_instances_from_tree_leaves(tree, type_, expected):
     assert result == expected
 
 
+@pytest.mark.parametrize("input_tree, expected_output", [
+    # Test case 1: List of PyTrees to PyTree of arrays
+    (
+        [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}],
+        {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
+    ),
+    # Test case 2: PyTree of arrays to list of PyTrees
+    (
+        {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])},
+        [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
+    ),
+    # Test case 3: Empty list
+    ([], {}),
+    # Test case 4: Single element list
+    ([{"a": 1.0, "b": 2.0}], {"a": jnp.array([1.0]), "b": jnp.array([2.0])}),
+    # Test case 5: Nested PyTree
+    (
+        [{"a": {"x": 1.0, "y": 2.0}, "b": 3.0}, {"a": {"x": 4.0, "y": 5.0}, "b": 6.0}],
+        {"a": {"x": jnp.array([1.0, 4.0]), "y": jnp.array([2.0, 5.0])}, "b": jnp.array([3.0, 6.0])}
+    ),
+    # Test case 6: PyTree with different array shapes
+    (
+        {"a": jnp.array([[1.0, 2.0], [3.0, 4.0]]), "b": jnp.array([5.0, 6.0])},
+        [{"a": jnp.array([1.0, 2.0]), "b": 5.0}, {"a": jnp.array([3.0, 4.0]), "b": 6.0}]
+    ),
+    # Test case 7: PyTree with empty arrays
+    (
+        {"a": jnp.array([]), "b": jnp.array([])},
+        [{"a": jnp.array([]), "b": jnp.array([])}]
+    ),
+])
+def test_tree_transpose(input_tree, expected_output):
+    transposed = tree_util.tree_transpose(input_tree)
+    chex.assert_trees_all_close(transposed, expected_output)
 
-def test_tree_transpose():
-    def make_tree(x):
-        return {"foo": {"a": x + 1.0, "b": x + 2.0}, "bar": x + 3.0}
+    # Expect that if we transpose twice, we get back the original tree.
+    double_transposed = tree_util.tree_transpose(transposed)
+    chex.assert_trees_all_close(double_transposed, input_tree)
 
-    seq_of_pytrees = [make_tree(x) for x in range(3)]
-    pytree_of_arrays = tree_util.tree_transpose(seq_of_pytrees)
-
-    assert jnp.all(pytree_of_arrays["foo"]["a"] == jnp.array([1.0, 2.0, 3.0]))
-    assert jnp.all(pytree_of_arrays["foo"]["b"] == jnp.array([2.0, 3.0, 4.0]))
-    assert jnp.all(pytree_of_arrays["bar"] == jnp.array([3.0, 4.0, 5.0]))
-
+def test_tree_transpose_invalid_input():
+    with pytest.raises(ValueError):
+        tree_util.tree_transpose({"a": jnp.array([1.0, 2.0]), "b": jnp.array([3.0, 4.0, 5.0])})
 
 def test_leaves_as_array():
     labels = ["b", "a", "c"]

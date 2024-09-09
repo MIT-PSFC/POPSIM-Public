@@ -49,24 +49,72 @@ def tree_transpose_and_squeeze(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> Py
     return jax.tree.map(lambda x: jnp.squeeze(x), tree_transposed)
 
 
-def tree_transpose(seq_of_trees: Sequence[PyTree[ScalarLike]]) -> PyTree[ArrayLike]:
-    """Transpose a sequence of pytrees into a single PyTree of arrays.
-        Consider the following super simple example:
-            seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
-        This is a sequence (list) of two PyTrees (in this case just dictionaries).
-        Applying this function will produce:
-            tree_of_arrays = tree_transpose(seq_of_trees)
-        where:
-            tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
-    /home/awang/repos/POPSIM/popsim/interfaces
-        Args:
-            seq_of_trees (Sequence[PyTree[ScalarLike]]):
-
-        Returns:
-            PyTree[ArrayLike]: PyTree of arrays where the ith element of each array
-                corresponds to the ith element of the input sequence.
+def tree_transpose(
+    tree: typing.Union[list[PyTree[ArrayLike]], PyTree[Array]],
+) -> typing.Union[PyTree[Array], list[PyTree[ArrayLike]]]:
     """
-    return jax.tree.map(lambda *xs: jnp.array(xs), *seq_of_trees)
+    Transpose back and forth between a list of PyTrees and a single PyTree of arrays.
+
+    This function handles both the forward and inverse cases:
+        1. (Forward) A list of PyTrees -> PyTree of arrays
+        2. (Inverse) PyTree of arrays -> list of PyTrees
+
+    It will automatically determine the input type and perform the appropriate transposition. Note that in the Inverse case, it is required that all leaves have the same size in the leading dimension.
+
+    Args:
+        tree: either a list of PyTrees or a PyTree of arrays
+
+    Returns:
+        Either a PyTree[ArrayLike] or a List[PyTree[ScalarLike]], depending on the input
+
+    Examples:
+        # List of PyTrees to PyTree of arrays
+        seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
+        tree_of_arrays = tree_transpose(seq_of_trees)
+        # Result: {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
+
+        # PyTree of arrays to list of PyTrees
+        tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
+        seq_of_trees = tree_transpose(tree_of_arrays)
+        # Result: [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
+    """
+    # Check if the input is a sequence of PyTrees
+    if isinstance(tree, list):
+        if len(tree) == 0:
+            return {}
+        return jax.tree.map(lambda *xs: jnp.array(xs).squeeze(), *tree)
+
+    # If not a sequence, assume it's a PyTree of arrays
+    elif isinstance(tree, PyTree):
+        # Expect all leaves to have the same size in the leading dimension
+        leaves = jax.tree.leaves(tree)
+
+        # If there are no leaves, return an empty list.
+        if len(leaves) == 0:
+            return []
+
+        # If all leaves are scalars, return the original tree in a list.
+        if all(leaf.ndim == 0 for leaf in leaves):
+            return [tree]
+
+        # Check that all leaves have the same size in the leading dimension
+        leaf_leading_sizes = [x.shape[0] for x in leaves]
+
+        if not all(size == leaf_leading_sizes[0] for size in leaf_leading_sizes):
+            raise ValueError("All leaves must have the same size in the leading dimension.")
+
+        # Get the nummber of trees we need to create.
+        n_trees = leaf_leading_sizes[0]
+
+        if n_trees == 0:
+            return [tree]
+
+        # Create a function to extract the i-th tree.
+        def extract_ith_element(i, tree):
+            return jax.tree_util.tree_map(lambda x: x[i], tree)
+
+        # Use a list comprehension to create a list of trees
+        return [extract_ith_element(i, tree) for i in range(n_trees)]
 
 
 def leaves_as_array(tree: PyTree[ArrayLike]) -> Array:
