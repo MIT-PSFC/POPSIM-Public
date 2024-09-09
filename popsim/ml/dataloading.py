@@ -63,8 +63,8 @@ class XarrayPreppedDataset(Dataset):
         )
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
-        # xr.Dataset requires speical handling for equality comparison.
-        ds_equals = self.ds.equals(other.ds)
+        # xr.Dataset requires special handling for equality comparison.
+        ds_equals = xr.testing.assert_identical(self.ds, other.ds)
 
         # Compare all other variables.
         all_else_equals = self.get_all_but_ds() == other.get_all_but_ds()

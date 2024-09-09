@@ -4,7 +4,7 @@ from popsim.ml.dataloading import make_dataloader, make_time_indep_dataloader, X
 import numpy as np
 from copy import deepcopy
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reduced_cmod_test_dataset(cmod_test_dataset):
     # Downsample to 100 shots for faster testing.
     ds = cmod_test_dataset

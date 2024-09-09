@@ -10,8 +10,8 @@ def load_cmod_test_dataset():
         ds = xr.open_dataset(path_to_data)
         return ds
     except:
-        raise FileNotFoundError(f"Could not find the CMOD test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
+        raise ValueError(f"Could not find the CMOD test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cmod_test_dataset():
     return load_cmod_test_dataset()
