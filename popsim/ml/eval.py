@@ -92,6 +92,7 @@ def batched_model_eval_and_loss(
 ) -> Array:
     inputs_spec, targets_spec = jax.tree.map(lambda _: 0, (inputs, targets))
     losses = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))(model, loss_fn, inputs, targets)
+    eqx.error_if(losses, jnp.any(jnp.isnan(losses)), "NaN values found in loss values.")
     return losses
 
 

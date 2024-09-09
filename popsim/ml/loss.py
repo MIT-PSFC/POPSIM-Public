@@ -103,6 +103,8 @@ def _integral_loss(
         return trapezoid(filled, x=time)
     elif nan_strategy == "forward_fill":
         filled = _forward_fill_nans(time, instantaneous_values)
+        eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
+        eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
         return trapezoid(filled, x=time)
     else:
         raise ValueError(f"Unknown nan_strategy: {nan_strategy}")
