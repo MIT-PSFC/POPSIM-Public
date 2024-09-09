@@ -18,6 +18,6 @@ def patched_error_if(x, pred, msg):
     flat = jax.tree.leaves(x)
     if len(flat) == 0:
         sentinel_x = jnp.array(True)
-        eqx.error_if(sentinel_x, pred, msg)
+        return eqx.error_if(sentinel_x, pred, msg)
     else:
-        eqx.error_if(x, pred, msg)
+        return eqx.error_if(x, pred, msg)

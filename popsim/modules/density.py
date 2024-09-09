@@ -34,7 +34,7 @@ class Density(ModuleBase):
             leaves = jax.tree_util.tree_leaves(self.vol_avg_ion)
             leaves = jax.tree.map(jnp.atleast_1d, leaves)  # Promote scalars.
             n_t = leaves[0].size  # Number of time steps.
-            eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
+            leaves = eqx.error_if(leaves, any(leaf.size != n_t for leaf in leaves), "All species must have the same size.")
             if n_t > 1:
                 # Do a separate computation for each time step.
                 return jax.vmap(lambda x: jnp.sum(leaves_as_array(x)))(self.vol_avg_ion)

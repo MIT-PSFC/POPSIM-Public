@@ -71,7 +71,7 @@ def model_eval_and_loss(
     targets: PyTree[Array],
 ) -> float:
     if isinstance(model, ModuleEvalEnv):
-        eqx.error_if(
+        loss_fn = eqx.error_if(
             loss_fn, not isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
         )
         # When using a ModuleEvalEnv, the loss function is an IntegralLoss, which requires special handling.

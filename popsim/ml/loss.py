@@ -97,14 +97,16 @@ def _integral_loss(
     instantaneous_values = jax.vmap(instantaneous_loss, in_axes=(pred_spec, targ_spec))(predictions, targets)
 
     if nan_strategy == "raise":
-        eqx.error_if(instantaneous_values, jnp.isnan(instantaneous_values), "NaN values found in instantaneous loss values.")
+        instantaneous_values = eqx.error_if(
+            instantaneous_values, jnp.isnan(instantaneous_values), "NaN values found in instantaneous loss values."
+        )
     elif nan_strategy == "zero":
         filled = jnp.nan_to_num(instantaneous_values, nan=0.0)
         return trapezoid(filled, x=time)
     elif nan_strategy == "forward_fill":
         filled = _forward_fill_nans(time, instantaneous_values)
-        eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
-        eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
+        filled = eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
+        time = eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
         return trapezoid(filled, x=time)
     else:
         raise ValueError(f"Unknown nan_strategy: {nan_strategy}")
