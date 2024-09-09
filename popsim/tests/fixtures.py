@@ -15,7 +15,6 @@ def load_cmod_test_dataset():
     except:
         raise ValueError(f"Could not find the CMOD test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
-@pytest.fixture(scope="session")
 def load_mast_thomson_test_dataset():
     path_to_data = os.path.join(popsim.DATA_DIR, "mast/mast_thomson_small_sample.nc")
     ds = xr.open_dataset(path_to_data)
@@ -46,7 +45,7 @@ def generate_oscillator_dataset():
     sols = jax.vmap(lambda key: generate_solution(key))(keys)
     return solution_to_xarray(sols, multi_simulation=True)
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cmod_test_dataset():
     return load_cmod_test_dataset()
 
@@ -54,6 +53,6 @@ def cmod_test_dataset():
 def mast_thomson_test_dataset():
     return load_mast_thomson_test_dataset()
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def oscillator_dataset():
     return generate_oscillator_dataset()

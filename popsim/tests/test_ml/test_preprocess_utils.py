@@ -6,7 +6,7 @@ from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to
 from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cmod_data_with_energy_mask(cmod_test_dataset):
     ds = cmod_test_dataset
     energy_bounds = (1e4, 2.5e5)
