@@ -60,7 +60,7 @@ plugins:
         exclude:
             - "notebooks/doc_ignore/"
     - mknotebooks:
-        execute: !ENV [EXEC_MKNOTEBOOKS, true]
+        execute: !ENV [EXEC_MKNOTEBOOKS, false] # TODO(allenw): enable notebook execution once readthedocs issues are sorted.
         allow_errors: false
         enable_default_jupyter_cell_styling: false
     - mkdocstrings
