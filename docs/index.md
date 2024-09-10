@@ -1,5 +1,12 @@
 # Welcome to Plasma OPerational SIMulation (POPSIM)!
 
+!!! warning
+
+    The documentation (and this package overall) is still in an early stage of development. If you have any questions and/or problems, please reach out to the developers.
+
+    Note that Jupyter Notebooks are currently not being executed when the documentation is built.
+
+
 POPSIM is a control-oriented simulation toolbox built in the machine-learning framework [JAX](https://github.com/google/jax). Thus, it is JIT-compilable, massively parallelizable on GPU, and auto-differentiable. While it is designed with tokamaks in mind, it's core library can be applied to simulating any controlled dynamical system.
 
 It's role is to enable:
