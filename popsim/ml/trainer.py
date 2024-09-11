@@ -54,6 +54,7 @@ def train_step(
     # Compute the loss value and the gradient of loss w.r.t. the trainable parts of the model.
     loss_value, grads = batch_loss_and_grad(trainable, static, loss_fn, inputs, targets)
 
+    loss_value = eqx.error_if(loss_value, jnp.isnan(loss_value), "NaN value found in loss.")
     grads = eqx.error_if(grads, any_nans(grads), "NaN values found in gradients.")
 
     # Update the optimizer and the model.

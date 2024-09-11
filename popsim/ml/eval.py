@@ -39,7 +39,7 @@ def eval_module_on_dataset(
     env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite: typing.Optional[EvaluationSuite] = None
 ) -> tuple[xr.Dataset, dict[str, typing.Any]]:
     if evaluation_suite is None:
-        evaluation_suite = {}
+        evaluation_suite = {"eval_fn_inputs": lambda eval_fn_input: eval_fn_input}
 
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
         inputs, _ = dataset.prep_inputs_and_targets()
@@ -92,7 +92,6 @@ def batched_model_eval_and_loss(
 ) -> Array:
     inputs_spec, targets_spec = jax.tree.map(lambda _: 0, (inputs, targets))
     losses = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))(model, loss_fn, inputs, targets)
-    eqx.error_if(losses, jnp.any(jnp.isnan(losses)), "NaN values found in loss values.")
     return losses
 
 
@@ -123,6 +122,12 @@ def make_val_loss_eval_fn(
                 targets,
             )
             loss_vecs.append(loss_vec)
-        return jnp.concatenate(loss_vecs).mean()
+        loss_vec = jnp.concatenate(loss_vecs)
+        out = {
+            "mean": loss_vec.mean(),
+            "vec": loss_vec,
+        }
+
+        return out
 
     return eval_fn

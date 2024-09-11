@@ -111,4 +111,5 @@ def _integral_loss(
     else:
         raise ValueError(f"Unknown nan_strategy: {nan_strategy}")
 
-    return trapezoid(instantaneous_values, x=time)
+    out = trapezoid(instantaneous_values, x=time)
+    return out

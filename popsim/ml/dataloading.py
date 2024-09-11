@@ -93,8 +93,10 @@ class XarrayPreppedDataset(Dataset):
         return {k: v for k, v in vars(self).items() if k != "ds"}
 
     def prep_inputs_and_targets(self) -> tuple[ModuleEvalEnvInput, dict[str, Array]]:
-        params = ds_to_dict_jnp(self.ds[self.param_vars])
-        targets = ds_to_dict_jnp(self.ds[self.target_vars])
+        ds_ffil = self.ds.ffill(dim=self.time_dep_metadata.time_dim)
+
+        params = ds_to_dict_jnp(ds_ffil[self.param_vars])
+        targets = ds_to_dict_jnp(ds_ffil[self.target_vars])
 
         if not self.is_time_dependent:
             return params, targets
@@ -109,12 +111,12 @@ class XarrayPreppedDataset(Dataset):
         time = jnp.asarray(time.values)
 
         # Grab the first time slice to get the initial state.
-        state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
+        state_init = ds_to_dict_jnp(ds_ffil[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
 
         env_input = ModuleEvalEnvInput(
-            time=time,
             initial_state=state_init,
             params=params,
+            time=time,
         )
 
         return env_input, targets

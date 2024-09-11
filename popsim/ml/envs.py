@@ -52,7 +52,7 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
     return sol
 
 
-class ModuleEvalEnv(ABC, eqx.Module):
+class ModuleEvalEnv(ABC):
     module: ModuleBase
 
     def __init__(self, module: ModuleBase):
