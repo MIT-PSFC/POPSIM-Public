@@ -163,9 +163,9 @@ class Tearing(ModuleBase):
     class State:
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
-        W: dict[tuple[int, int], float]  # m, Nxm
-        F: dict[tuple[int, int], float]  # Hz
-        mode_phase: dict[tuple[int, int], float]  # rad``
+        W: dict[tuple[int, int], float]  # [m], Nxm
+        F: dict[tuple[int, int], float]  # [Hz]
+        mode_phase: dict[tuple[int, int], float]  # [rad]
 
     @chex.dataclass
     class Params:

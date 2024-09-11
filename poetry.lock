@@ -1060,7 +1060,7 @@ files = [
 [package.dependencies]
 fsspec = {version = "*", optional = true, markers = "extra == \"epath\""}
 importlib_resources = {version = "*", optional = true, markers = "extra == \"epath\""}
-typing_extensions = {version = "*", optional = true, markers = "extra == \"epy\""}
+typing_extensions = {version = "*", optional = true, markers = "extra == \"epath\" or extra == \"epy\""}
 zipp = {version = "*", optional = true, markers = "extra == \"epath\""}
 
 [package.extras]
@@ -5019,6 +5019,39 @@ files = [
     {file = "toolz-1.0.0-py3-none-any.whl", hash = "sha256:292c8f1c4e7516bf9086f8850935c799a874039c8bcf959d47b600e4c44a6236"},
     {file = "toolz-1.0.0.tar.gz", hash = "sha256:2c86e3d9a04798ac556793bced838816296a2f085017664e4995cb40a1047a02"},
 ]
+
+[[package]]
+name = "torax"
+version = "0.1.0"
+description = "Differentiable 1D tokamak plasma transport simulator in JAX"
+optional = false
+python-versions = ">=3.10"
+files = []
+develop = false
+
+[package.dependencies]
+absl-py = ">=2.0.0"
+chex = ">=0.1.85"
+equinox = {git = "https://github.com/patrick-kidger/equinox", rev = "1e601672d38d2c4d483535070a3572d8e8508a20"}
+fancyflags = ">=1.2"
+flax = ">=0.7.5"
+h5py = ">=3.10.0"
+immutabledict = ">=1.0.0"
+jax = ">=0.4.20"
+jaxlib = ">=0.4.20"
+jaxopt = ">=0.8.2"
+matplotlib = ">=3.3.0"
+numpy = ">=1.24.1"
+PyYAML = ">=6.0.1"
+setuptools = {version = "*", markers = "python_version >= \"3.10\""}
+typing_extensions = ">=4.2.0"
+xarray = ">=2023.12.0"
+
+[package.source]
+type = "git"
+url = "git@github.com:google-deepmind/torax.git"
+reference = "0fa2a592b3757886ba62e4156912d1eaac43e41e"
+resolved_reference = "0fa2a592b3757886ba62e4156912d1eaac43e41e"
 
 [[package]]
 name = "tornado"
