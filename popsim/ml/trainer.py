@@ -4,6 +4,7 @@ import typing
 import chex
 import equinox as eqx
 import jax.numpy as jnp
+import numpy as np
 import optax
 import orbax.checkpoint as ocp
 from jax_dataloader import DataLoader
@@ -152,7 +153,7 @@ class Trainer:
         if "loss" not in eval_suite:
             eval_suite["loss"] = make_val_loss_eval_fn(self.loss_fn)
 
-        val_loss_history = []
+        val_loss_history = np.array([])
 
         # epoch_range accounts for restarting training from a checkpoint.
         epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs + 1)
@@ -177,11 +178,11 @@ class Trainer:
                 tend_val = time.time()
 
                 val_loss = val_results["loss"]
-                val_loss_history.append(val_loss)
+                val_loss_history = np.append(val_loss_history, val_loss)
 
                 # Check for early stopping.
                 # If the validation loss has not decreased for the last `patience` number of evaluations, stop training.
-                if patience is not None and len(val_loss_history) > patience and jnp.all(jnp.diff(val_loss_history[-patience:]) >= 0.0):
+                if patience is not None and len(val_loss_history) > patience and np.all(np.diff(val_loss_history[-patience:]) >= 0.0):
                     break
 
                 # Pre-pend "val/" to the keys in the val_results dictionary.
