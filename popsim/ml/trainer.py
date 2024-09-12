@@ -127,7 +127,6 @@ class Trainer:
         trainable_getter: typing.Callable[[TrainableModel], PyTree[Array]],
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
-        logger: typing.Optional[LoggerBase] = None,
         checkpoint_manager: typing.Optional[ocp.CheckpointManager] = None,
     ):
         if isinstance(model, ModuleEvalEnv):
@@ -137,7 +136,6 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.logger = logger or ConsoleLogger()
         self.checkpoint_manager = checkpoint_manager
 
     def train(
@@ -148,7 +146,9 @@ class Trainer:
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
         patience: typing.Optional[int] = None,
+        logger: typing.Optional[LoggerBase] = None,
     ):
+        logger = logger or ConsoleLogger()
         eval_suite = eval_suite or {}
         if "loss" not in eval_suite:
             eval_suite["loss"] = make_val_loss_eval_fn(self.loss_fn)
@@ -161,11 +161,11 @@ class Trainer:
         for epoch in tqdm(epoch_range, desc="Epochs", initial=epoch_range[0], total=epoch_range[-1]):
             tstart_epoch = time.time()
 
-            self.train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, self.logger)
+            self.train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger)
 
             tend_epoch = time.time()
 
-            self.logger.log(
+            logger.log(
                 {
                     "train/epoch": epoch,
                     "train/epoch_time": tend_epoch - tstart_epoch,
@@ -188,7 +188,7 @@ class Trainer:
                 # Pre-pend "val/" to the keys in the eval_results dictionary.
                 eval_results = {f"val/{k}": v for k, v in eval_results.items()}
 
-                self.logger.log(
+                logger.log(
                     {
                         "val/epoch": epoch,
                         "val/evaluation_time": tend_val - tstart_val,
