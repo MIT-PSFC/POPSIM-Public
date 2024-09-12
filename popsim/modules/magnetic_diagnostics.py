@@ -118,6 +118,29 @@ class BFieldPoloidalProbes(ModuleBase):
 
         return out
 
+    def default_setup():
+        """Get a standard instance of the B Field Poloidal Probes module."""
+
+        probe_details = [
+            {
+                "area": 0.1,
+                "identifier": "sample_probe_identifier",
+                "name": "sample_probe_name",
+                "poloidal_angle": 0.0,
+                "position": {"phi": 0.0, "r": 1.0, "z": 0.0},
+                "type": {"index": 2},
+            }
+        ]
+        R0 = 1.0
+        # TODO(ZanderKeith): again, should really be reading from the device description
+        _, func_Bp_per_A = load_lown_config()
+
+        b_field_poloidal_probes_config = BFieldPoloidalProbes.Config(func_Bp_per_A=func_Bp_per_A, probe_details=probe_details, R0=R0)
+
+        b_field_poloidal_probes_module = BFieldPoloidalProbes(config=b_field_poloidal_probes_config)
+
+        return b_field_poloidal_probes_module
+
 
 """
 Low-N Array, for measuring the toroidal mode number of any type of magnetic perturbation using a differenced array of probes.
@@ -304,3 +327,15 @@ class LowNArray(ModuleBase):
         )
 
         return out
+
+    def default_setup():
+        """Get a standard instance of the Low-N array module."""
+        probe_connections, func_Bp_per_A = load_lown_config()
+
+        lown_array_config = LowNArray.Config(
+            func_Bp_per_A=func_Bp_per_A, probe_connections=probe_connections, reconstructed_modes=[1, 2, 3]
+        )
+
+        lown_array_module = LowNArray(config=lown_array_config)
+
+        return lown_array_module

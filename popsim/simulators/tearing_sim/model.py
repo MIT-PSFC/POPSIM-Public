@@ -1,5 +1,3 @@
-import dataclasses
-
 import chex
 from jaxtyping import ArrayLike, PyTree
 
@@ -17,7 +15,7 @@ class TearingSim(ModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
-        tearing_module: Tearing = dataclasses.field(default_factory=lambda: Tearing())
+        tearing_module: Tearing
         b_field_poloidal_probes_module: BFieldPoloidalProbes
         lown_array_module: LowNArray
 
