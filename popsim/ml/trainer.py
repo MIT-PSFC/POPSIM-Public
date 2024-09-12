@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.envs import ModuleEvalEnv
-from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_dataset, make_val_loss_eval_fn
+from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_data, make_val_loss_eval_fn
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
@@ -174,10 +174,10 @@ class Trainer:
 
             if val_dl and epoch % epochs_per_val == 0:
                 tstart_val = time.time()
-                val_results = eval_module_on_dataset(self.train_state.model, val_dl, eval_suite)
+                eval_results = self.run_evals(val_dl, eval_suite)
                 tend_val = time.time()
 
-                val_loss = val_results["loss"]
+                val_loss = np.asarray(eval_results["loss"]).item()
                 val_loss_history = np.append(val_loss_history, val_loss)
 
                 # Check for early stopping.
@@ -185,21 +185,25 @@ class Trainer:
                 if patience is not None and len(val_loss_history) > patience and np.all(np.diff(val_loss_history[-patience:]) >= 0.0):
                     break
 
-                # Pre-pend "val/" to the keys in the val_results dictionary.
-                val_results = {f"val/{k}": v for k, v in val_results.items()}
+                # Pre-pend "val/" to the keys in the eval_results dictionary.
+                eval_results = {f"val/{k}": v for k, v in eval_results.items()}
 
                 self.logger.log(
                     {
                         "val/epoch": epoch,
                         "val/evaluation_time": tend_val - tstart_val,
                     }
-                    | val_results
+                    | eval_results
                 )
 
                 # TODO(allenw): add checkpointing.
 
+    def run_evals(self, dataloader: DataLoader, eval_suite: EvaluationSuite) -> dict[str, typing.Any]:
+        eval_results = eval_module_on_data(self.train_state.model, dataloader, eval_suite)
+        return eval_results
+
     def compute_loss(self, dataloader: DataLoader) -> float:
         loss_eval_fn = make_val_loss_eval_fn(self.loss_fn)
         eval_suite = {"loss": loss_eval_fn}
-        results = eval_module_on_dataset(self.train_state.model, dataloader, eval_suite)
+        results = eval_module_on_data(self.train_state.model, dataloader, eval_suite)
         return results["loss"]

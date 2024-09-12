@@ -35,7 +35,7 @@ EvaluationFn = typing.Callable[[EvalFnInput], typing.Any]
 EvaluationSuite = dict[str, typing.Callable[[xr.Dataset, xr.Dataset], typing.Any]]
 
 
-def eval_module_on_dataset(
+def eval_module_on_data(
     env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite: typing.Optional[EvaluationSuite] = None
 ) -> tuple[xr.Dataset, dict[str, typing.Any]]:
     if evaluation_suite is None:
