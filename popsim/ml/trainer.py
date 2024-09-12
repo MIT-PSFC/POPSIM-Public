@@ -155,7 +155,7 @@ class Trainer:
         val_loss_history = []
 
         # epoch_range accounts for restarting training from a checkpoint.
-        epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs)
+        epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs + 1)
 
         for epoch in tqdm(epoch_range, desc="Epochs", initial=epoch_range[0], total=epoch_range[-1]):
             tstart_epoch = time.time()

@@ -48,6 +48,7 @@ def eval_module_on_dataset(
         ds_out = solution_to_xarray(sol, multi_simulation=True)
         ds_out = ds_out.rename({"simulation": "sample"})
         ds_out = ds_out.assign_coords(sample=dataset.sample_coords)
+        ds_out = ds_out.rename_dims({"time": dataset.time_dep_metadata.time_dim})
         return ds_out
 
     sim_outs_and_batches = [(eval_env_return_xarray(env, batch), batch) for batch in dataloader]

@@ -36,7 +36,10 @@ class XarrayPreppedDataset(Dataset):
         target_vars: list[str],
         time_dep_metadata: typing.Optional[TimeDepMetadata] = None,
     ):
-        self.ds = ds
+        # TODO(allenw): this forward filling is a temporary hack.
+        _ds = ds.ffill(dim=time_dep_metadata.time_dim)
+        _ds[time_dep_metadata.time_coord] = _ds[time_dep_metadata.time_coord].ffill(dim=time_dep_metadata.time_dim)
+        self.ds = _ds
         self.sample_coord = sample_coord
         self.sample_dim = sample_dim
         self.param_vars = param_vars
@@ -84,6 +87,10 @@ class XarrayPreppedDataset(Dataset):
     def sample_coords(self) -> Array:
         return self.ds[self.sample_coord]
 
+    @property
+    def time_coords(self) -> Array:
+        return self.ds[self.time_dep_metadata.time_coord]
+
     def get_all_but_ds(self) -> dict[str, typing.Any]:
         """Return all attributes of the class except the dataset.
 
@@ -93,16 +100,14 @@ class XarrayPreppedDataset(Dataset):
         return {k: v for k, v in vars(self).items() if k != "ds"}
 
     def prep_inputs_and_targets(self) -> tuple[ModuleEvalEnvInput, dict[str, Array]]:
-        ds_ffil = self.ds.ffill(dim=self.time_dep_metadata.time_dim)
-
-        params = ds_to_dict_jnp(ds_ffil[self.param_vars])
-        targets = ds_to_dict_jnp(ds_ffil[self.target_vars])
+        params = ds_to_dict_jnp(self.ds[self.param_vars])
+        targets = ds_to_dict_jnp(self.ds[self.target_vars])
 
         if not self.is_time_dependent:
             return params, targets
 
         # Forward fill to replace missing time values with the last known time value.
-        time = self.ds[self.time_dep_metadata.time_coord].ffill(dim=self.time_dep_metadata.time_dim)
+        time = self.ds[self.time_dep_metadata.time_coord]
 
         # If "sample" is not in the time dimension, expand time to include the sample dimension.
         if self.sample_coord not in time.dims:
@@ -111,7 +116,7 @@ class XarrayPreppedDataset(Dataset):
         time = jnp.asarray(time.values)
 
         # Grab the first time slice to get the initial state.
-        state_init = ds_to_dict_jnp(ds_ffil[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
+        state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
 
         env_input = ModuleEvalEnvInput(
             initial_state=state_init,
