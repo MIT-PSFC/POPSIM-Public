@@ -240,10 +240,29 @@ class Tearing(ModuleBase):
         )
         return state_dot, out
 
-    def default_setup():
-        """Get a standard instance, initial state, and params for the Tearing module."""
+    def default_setup(empty: bool = False):
+        """Get a standard instance, initial state, and params for the Tearing module.
 
-        modes = [(2, 1), (3, 1)]
+        Args:
+        -----
+        empty : bool, optional (default=False)
+            If True, the modes will be empty.
+
+        Returns:
+        --------
+        tearing_module : Tearing
+
+        tearing_initial_state : Tearing.State
+
+        tearing_params : Tearing.Params
+
+        time_base : np.ndarray
+        """
+
+        if empty:
+            modes = []
+        else:
+            modes = [(2, 1), (3, 1)]
         tearing_config = Tearing.Config(
             modes=modes,
         )
@@ -270,4 +289,4 @@ class Tearing(ModuleBase):
 
         tearing_module = Tearing(config=tearing_config)
 
-        return tearing_module, tearing_initial_state, tearing_params
+        return tearing_module, tearing_initial_state, tearing_params, time_base

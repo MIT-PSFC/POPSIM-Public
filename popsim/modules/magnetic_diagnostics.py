@@ -39,10 +39,9 @@ def measure_magnetic_field(
         poloidal_mode_number = mode[0]
         toroidal_mode_number = mode[1]
         for j, probe in enumerate(probe_details):
-            probe_theta = probe[
-                "theta"
-            ]  # Again, expecting something cylindrical-ish for right now. Also a little spaghetti because expects this to be added elsewhere.
-            probe_phi = probe["phi"]
+            # Again, expecting something cylindrical-ish for right now. Also a little spaghetti because expects this to be added elsewhere.
+            probe_theta = probe["position"]["theta"]
+            probe_phi = probe["position"]["phi"]
             poloidal_phase_shift = (probe_theta - mode_phase) * poloidal_mode_number
             toroidal_phase_shift = (probe_phi - mode_phase) * toroidal_mode_number
             mode_perturbation = mode_mag * jnp.cos(poloidal_phase_shift + toroidal_phase_shift)
@@ -89,10 +88,11 @@ class BFieldPoloidalProbes(ModuleBase):
         # For each entry in the config, if there is no "theta" key under "position", calculate it and add it
         # Note that this is the angle from the midplane with the minor radius as the hypotenuse
         # Just pre-computing this to make the cylindrical and circular toroidal math more efficient later
-        for probe in self.config.probe_details:
+        for i, probe in enumerate(self.config.probe_details):
             if "theta" not in probe["position"]:
                 magnetic_axis_r = probe["position"]["r"] - self.config.R0
                 probe["position"]["theta"] = jnp.arctan2(probe["position"]["z"], magnetic_axis_r)
+                self.config.probe_details[i] = probe
 
     def __call__(self, state: State, params: Params) -> Output:
         """Measure the magnetic field at each probe in the B Field Poloidal Probes module.
@@ -112,25 +112,33 @@ class BFieldPoloidalProbes(ModuleBase):
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
         filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in params.modes}
 
-        measured_signals = measure_magnetic_field(self.config.probe_details, filtered_signals, mode_phases, params.modes)
+        measured_signals_array = measure_magnetic_field(self.config.probe_details, filtered_signals, mode_phases, params.modes)
+
+        # Turn measured signals into a dictionary
+        measured_signals = {
+            self.config.probe_details[i]["identifier"]: measured_signals_array[i] for i in range(len(measured_signals_array))
+        }
 
         out = BFieldPoloidalProbes.Output(Bp=measured_signals)
 
         return out
 
-    def default_setup():
+    def default_setup(empty: bool = False):
         """Get a standard instance of the B Field Poloidal Probes module."""
 
-        probe_details = [
-            {
-                "area": 0.1,
-                "identifier": "sample_probe_identifier",
-                "name": "sample_probe_name",
-                "poloidal_angle": 0.0,
-                "position": {"phi": 0.0, "r": 1.0, "z": 0.0},
-                "type": {"index": 2},
-            }
-        ]
+        if empty:
+            probe_details = []
+        else:
+            probe_details = [
+                {
+                    "area": 0.1,
+                    "identifier": "sample_probe_identifier",
+                    "name": "sample_probe_name",
+                    "poloidal_angle": 0.0,
+                    "position": {"phi": 0.0, "r": 1.0, "z": 0.0},
+                    "type": {"index": 2},
+                }
+            ]
         R0 = 1.0
         # TODO(ZanderKeith): again, should really be reading from the device description
         _, func_Bp_per_A = load_lown_config()
@@ -328,9 +336,13 @@ class LowNArray(ModuleBase):
 
         return out
 
-    def default_setup():
+    def default_setup(empty: bool = False):
         """Get a standard instance of the Low-N array module."""
-        probe_connections, func_Bp_per_A = load_lown_config()
+        if empty:
+            _, func_Bp_per_A = load_lown_config()
+            probe_connections = []
+        else:
+            probe_connections, func_Bp_per_A = load_lown_config()
 
         lown_array_config = LowNArray.Config(
             func_Bp_per_A=func_Bp_per_A, probe_connections=probe_connections, reconstructed_modes=[1, 2, 3]

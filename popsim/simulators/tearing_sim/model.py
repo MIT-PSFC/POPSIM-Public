@@ -1,5 +1,4 @@
 import chex
-from jaxtyping import ArrayLike, PyTree
 
 from popsim import ModuleBase
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray
@@ -28,7 +27,9 @@ class TearingSim(ModuleBase):
     @chex.dataclass
     class Output:
         # Define the output variables that will be returned by the module.
-        locals: PyTree[ArrayLike]
+        # locals: PyTree[ArrayLike]
+        lown_array_out: LowNArray.Output
+        b_field_poloidal_probes_out: BFieldPoloidalProbes.Output
 
     @chex.dataclass
     class Params:
@@ -47,9 +48,17 @@ class TearingSim(ModuleBase):
         # Make a state_dot.
         state_dot = TearingSim.State(tearing_state=tearing_state_dot)
 
-        # Build the parameters for the LowNArray module.
+        # Build the parameters for the diagnostic modules.
         lown_array_params = LowNArray.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
+        b_field_poloidal_probes_params = BFieldPoloidalProbes.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
 
         lown_array_out = self.config.lown_array_module(None, lown_array_params)
-        out = TearingSim.Output(locals=lown_array_out)
+        b_field_poloidal_probes_out = self.config.b_field_poloidal_probes_module(None, b_field_poloidal_probes_params)
+
+        # # Filter out any non-array-like variables
+        # aux_data = eqx.filter(locals(), eqx.is_array_like)
+        # # Promote any scalar-like variables to arrays
+        # aux_data = jax.tree.map(jnp.asarray, aux_data)
+
+        out = TearingSim.Output(lown_array_out=lown_array_out, b_field_poloidal_probes_out=b_field_poloidal_probes_out)
         return state_dot, out
