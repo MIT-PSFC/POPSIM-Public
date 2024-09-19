@@ -70,7 +70,7 @@ def tree_dim_and_coords_to_xarray(
     da_tree = jax.tree_util.tree_map_with_path(_make_data_array, tree, extra_dim_and_coord_tree)
 
     # Get a list of the resulting DataArrays.
-    dataarrays = jax.tree_util.tree_leaves(da_tree)
+    dataarrays = jax.tree_util.tree_leaves(da_tree, is_leaf=lambda x: isinstance(x, xr.DataArray))
 
     # Convert to a Dataset.
     ds = xr.merge(dataarrays)

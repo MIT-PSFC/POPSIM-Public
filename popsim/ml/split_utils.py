@@ -4,6 +4,7 @@ from itertools import accumulate
 from typing import Union
 
 import jax
+import numpy as np
 import xarray as xr
 
 
@@ -84,4 +85,4 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, ke
     """
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({dim: idxs}) for idxs in random_split(n_data, lengths, key)]
+    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, key)]
