@@ -16,7 +16,7 @@ from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
-from popsim.patches import patched_error_if
+from popsim.patches import error_if
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
@@ -142,13 +142,13 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 def call_module_with_nan_checks(module: ModuleBase, state: "State", params: "Params") -> tuple["State", "Output"]:  # type: ignore # noqa: F821, PGH003
     """Call the module with NaN checks."""
-    patched_error_if(state, any_nans(state), "State contains NaNs.")
-    patched_error_if(params, any_nans(params), "Params contain NaNs.")
+    state = error_if(state, any_nans(state), "State contains NaNs.")
+    params = error_if(params, any_nans(params), "Params contain NaNs.")
 
     state_out, output = module(state, params)
 
-    patched_error_if(state_out, any_nans(state_out), "State output from the module contains NaNs.")
-    patched_error_if(output, any_nans(output), "Output contains NaNs.")
+    state_out = error_if(state_out, any_nans(state_out), "State output from the module contains NaNs.")
+    output = error_if(output, any_nans(output), "Output contains NaNs.")
     return state_out, output
 
 
