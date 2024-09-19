@@ -1,5 +1,4 @@
-import copy
-from dataclasses import field, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 
 import chex
 import equinox as eqx
@@ -31,27 +30,33 @@ def is_discrete_time(f: field) -> bool:
     return f.metadata.get("discrete_state", False)
 
 
-def create_discrete_state_filter_spec(obj: chex.dataclass) -> chex.dataclass:
+def create_discrete_state_filter_spec(obj: dataclass) -> dataclass:
     """Given a dataclass, create a new dataclass with the same structure,
     but with the fields replaced by whether they are discrete time states.
 
     Args:
-        obj (chex.dataclass): dataclass to create the filter spec for.
+        obj (dataclass): dataclass to create the filter spec for.
 
     Returns:
-        chex.dataclass: filter spec.
+        dataclass: filter spec.
     """
     if not is_dataclass(obj):
         return obj
 
-    new_obj = copy.copy(obj)
-    for f in fields(obj):
-        if is_dataclass(getattr(obj, f.name)):
-            setattr(new_obj, f.name, create_discrete_state_filter_spec(getattr(obj, f.name)))
-        else:
-            setattr(new_obj, f.name, is_discrete_time(f))
+    def is_static_field(f: field) -> bool:
+        return f.metadata.get("static", False)
 
-    return new_obj
+    non_static_fields = [f for f in fields(obj) if not is_static_field(f)]
+
+    field_filter_spec = {
+        f.name: create_discrete_state_filter_spec(getattr(obj, f.name)) if is_dataclass(getattr(obj, f.name)) else is_discrete_time(f)
+        for f in non_static_fields
+    }
+
+    return replace(
+        obj,
+        **field_filter_spec,
+    )
 
 
 def partition_discrete_cont(obj: chex.dataclass) -> tuple[chex.dataclass, chex.dataclass]:
