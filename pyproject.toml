@@ -10,7 +10,7 @@ packages = [{include = "popsim"}]
 python = ">=3.10,<3.12"
 diffrax = "^0.5.0"
 equinox = "^0.11.2"
-jax = "0.4.31"
+jax = "0.4.33"
 cfspopcon = { path = "./submodules/cfspopcon", develop = true }
 interpax = {git = "https://github.com/f0uriest/interpax.git"}
 optimistix = "^0.0.6"
@@ -47,7 +47,7 @@ mkdocs-include-exclude-files = "^0.0.1"
 optional = true
 
 [tool.poetry.group.gpu.dependencies]
-jax = {version = "0.4.31", extras=["cuda12"]}
+jax = {version = "0.4.33", extras=["cuda12"]}
 
 
 [tool.poetry.group.torax]
