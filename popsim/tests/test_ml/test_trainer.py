@@ -3,7 +3,7 @@ from popsim.ml.trainer import Trainer
 from popsim.ml.dataloading import make_dataloader
 from popsim.ml.envs import ModuleEvalEnv
 from popsim.ml.loss import IntegralLoss
-from popsim.ml.partition import partition_by_arraylike
+from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_along_dim
 from popsim import ModuleBase
 import chex
@@ -14,49 +14,52 @@ import jax.numpy as jnp
 import optax
 import pytest
 
+
+@chex.dataclass
+class NeuralODE(ModuleBase):
+    @chex.dataclass
+    class Config:
+        nn: eqx.Module
+    
+    @chex.dataclass
+    class State:
+        state: dict[str, float]
+    
+    @chex.dataclass
+    class Params:
+        pass
+
+    @chex.dataclass
+    class Output:
+        state: dict[str, float]
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+    
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+        state_flat = jnp.asarray(jax.tree.leaves(state.state))
+        state_dot_flat = self.config.nn(state_flat)
+        state_dot = NeuralODE.State(state=dict(zip(state.state.keys(), state_dot_flat)))
+        output = NeuralODE.Output(state=state.state)
+        return state_dot, output
+@chex.dataclass
+class NeuralODEEnv(ModuleEvalEnv):
+    module: NeuralODE
+    @staticmethod
+    def create_state(data):
+        return NeuralODE.State(state={"y0": data["y0"], "y1": data["y1"]})
+    
+    @staticmethod
+    def create_params(data):
+        return NeuralODE.Params()
+
 @pytest.mark.parametrize("use_val", [True, False])
 @pytest.mark.parametrize("train_seg_length", [None, 50])
 def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
     ds = oscillator_dataset
 
-    @chex.dataclass
-    class NeuralODE(ModuleBase):
-        @chex.dataclass
-        class Config:
-            nn: eqx.Module
-        
-        @chex.dataclass
-        class State:
-            state: dict[str, float]
-        
-        @chex.dataclass
-        class Params:
-            pass
-
-        @chex.dataclass
-        class Output:
-            state: dict[str, float]
-
-        config: Config
-
-        def __init__(self, config):
-            self.config = config
-        
-        def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-            state_flat = jnp.asarray(jax.tree.leaves(state.state))
-            state_dot_flat = self.config.nn(state_flat)
-            state_dot = NeuralODE.State(state=dict(zip(state.state.keys(), state_dot_flat)))
-            output = NeuralODE.Output(state=state.state)
-            return state_dot, output
-
-    class NeuralODEEnv(ModuleEvalEnv):
-        @staticmethod
-        def create_state(data):
-            return NeuralODE.State(state={"y0": data["y0"], "y1": data["y1"]})
-        
-        @staticmethod
-        def create_params(data):
-            return NeuralODE.Params()
     
     nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=64, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
     module = NeuralODE(config=NeuralODE.Config(nn=nn))
@@ -82,7 +85,6 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
     else:
         val_dl = None
 
-
     dl = make_dataloader(
         ds,
         time_coord="time",
@@ -93,9 +95,12 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
         segment_length=train_seg_length
     )
 
+    def trainable_getter(_env):
+        return _env.module.config.nn
+
     trainer = Trainer(
         model=env,
-        trainable_getter=lambda _env: (_env.module.config.nn),
+        trainable_getter=trainable_getter,
         loss_fn=IntegralLoss(loss),
         optimizer=optax.adabelief(5e-3),
     )

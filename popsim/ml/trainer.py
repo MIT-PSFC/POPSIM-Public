@@ -3,6 +3,7 @@ import typing
 
 import chex
 import equinox as eqx
+import jax.numpy as jnp
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
@@ -16,6 +17,7 @@ from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
+from popsim.tree_util import any_nans
 
 
 @chex.dataclass
@@ -53,8 +55,13 @@ def train_step(
     # Compute the loss value and the gradient of loss w.r.t. the trainable parts of the model.
     loss_value, grads = batch_loss_and_grad(trainable, static, loss_fn, inputs, targets)
 
+    loss_value = eqx.error_if(loss_value, jnp.isnan(loss_value), "Loss is NaN!")
+    grads = eqx.error_if(grads, any_nans(grads), "Gradients contain NaNs!")
+
     # Update the optimizer and the model.
     model_updates, opt_state = optimizer.update(grads, opt_state, trainable)
+
+    model_updates = eqx.error_if(model_updates, any_nans(model_updates), "Model updates contain NaNs!")
 
     # Apply the updates to the trainable part of the model.
     trainable = eqx.apply_updates(trainable, model_updates)
