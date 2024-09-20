@@ -1,5 +1,4 @@
 import typing
-from dataclasses import dataclass
 
 import jax.numpy as jnp
 import xarray as xr
@@ -7,124 +6,35 @@ import xbatcher
 from jax_dataloader import DataLoader, Dataset
 from jaxtyping import Array
 
-from popsim.ml.envs import ModuleEvalEnvInput
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
+from popsim.xarray_accessors import TrainingMetadata
 
 
 class XarrayPreppedDataset(Dataset):
-    """Wraps a xr.Dataset that has been prepared for training a model and provides an interface to DataLoader."""
-
-    @dataclass
-    class TimeDepMetadata:
-        state_init_vars: list[str]
-        time_coord: str
-        time_dim: str
+    """A thin wrapper around an xr.Dataset that implements the Dataset interface for jax_dataloader."""
 
     ds: xr.Dataset
-    sample_coord: str
-    sample_dim: str
-    param_vars: list[str]
-    target_vars: list[str]
-    time_dep_metadata: typing.Optional[TimeDepMetadata] = None
 
     def __init__(
         self,
         ds: xr.Dataset,
-        sample_coord: str,
-        sample_dim: str,
-        param_vars: list[str],
-        target_vars: list[str],
-        time_dep_metadata: typing.Optional[TimeDepMetadata] = None,
     ):
-        # TODO(allenw): this forward filling is a temporary hack.
-        _ds = ds.ffill(dim=time_dep_metadata.time_dim)
-        _ds[time_dep_metadata.time_coord] = _ds[time_dep_metadata.time_coord].ffill(dim=time_dep_metadata.time_dim)
-        self.ds = _ds
-        self.sample_coord = sample_coord
-        self.sample_dim = sample_dim
-        self.param_vars = param_vars
-        self.target_vars = target_vars
-        self.time_dep_metadata = time_dep_metadata
+        if ds.popsim_ml.training_metadata is None:
+            raise ValueError("xr.Dataset must have training metadata to be used with XarrayPreppedDataset.")
+        self.ds = ds
 
     def __len__(self):
-        return self.ds[self.sample_dim].size
+        return self.ds.popsim_ml.n_samples
 
     def __getitem__(self, idx) -> "XarrayPreppedDataset":
-        ds_slice = self.ds.isel({self.sample_dim: idx})
-        xrpds = XarrayPreppedDataset(
-            ds=ds_slice,
-            sample_coord=self.sample_coord,
-            sample_dim=self.sample_dim,
-            param_vars=self.param_vars,
-            target_vars=self.target_vars,
-            time_dep_metadata=self.time_dep_metadata,
-        )
-        return xrpds
+        sample_dim = self.ds.popsim_ml.sample_dim
+        ds_slice = self.ds.isel({sample_dim: idx})
+        return XarrayPreppedDataset(ds_slice)
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires special handling for equality comparison.
         ds_equals = self.ds.equals(other.ds)
-
-        # Compare all other variables.
-        all_else_equals = self.get_all_but_ds() == other.get_all_but_ds()
-        return ds_equals and all_else_equals
-
-    def __repr__(self):
-        from pprint import pformat
-
-        return pformat(vars(self), indent=4, width=1)
-
-    @property
-    def is_time_dependent(self) -> bool:
-        """Check if the dataset is for a time-dependent training task.
-
-        Returns:
-            bool: True if the dataset is for a time-dependent training task.
-        """
-        return self.time_dep_metadata is not None
-
-    @property
-    def sample_coords(self) -> Array:
-        return self.ds[self.sample_coord]
-
-    @property
-    def time_coords(self) -> Array:
-        return self.ds[self.time_dep_metadata.time_coord]
-
-    def get_all_but_ds(self) -> dict[str, typing.Any]:
-        """Return all attributes of the class except the dataset.
-
-        Returns:
-            dict[str, typing.Any]: Dictionary of all attributes except the dataset.
-        """
-        return {k: v for k, v in vars(self).items() if k != "ds"}
-
-    def prep_inputs_and_targets(self) -> tuple[ModuleEvalEnvInput, dict[str, Array]]:
-        params = ds_to_dict_jnp(self.ds[self.param_vars])
-        targets = ds_to_dict_jnp(self.ds[self.target_vars])
-
-        if not self.is_time_dependent:
-            return params, targets
-
-        # Forward fill to replace missing time values with the last known time value.
-        time = self.ds[self.time_dep_metadata.time_coord]
-
-        # If "sample" is not in the time dimension, expand time to include the sample dimension.
-        if self.sample_coord not in time.dims:
-            time = time.expand_dims({self.sample_coord: self.sample_coords})
-
-        time = jnp.asarray(time.values)
-
-        # Grab the first time slice to get the initial state.
-        state_init = ds_to_dict_jnp(self.ds[self.time_dep_metadata.state_init_vars].isel({self.time_dep_metadata.time_dim: 0}))
-
-        env_input = ModuleEvalEnvInput(
-            initial_state=state_init,
-            params=params,
-            time=time,
-        )
-
-        return env_input, targets
+        return ds_equals
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
@@ -279,17 +189,20 @@ def make_dataloader(
     if batch_size is None:
         batch_size = len(sample_ds["sample"])
 
-    dl = DataLoader(
-        XarrayPreppedDataset(
-            ds=sample_ds,
-            sample_coord="sample",
-            sample_dim="sample",
-            param_vars=param_vars,
-            target_vars=target_vars,
-            time_dep_metadata=XarrayPreppedDataset.TimeDepMetadata(
-                state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
-            ),
+    train_meta = TrainingMetadata(
+        sample_coord="sample",
+        sample_dim="sample",
+        param_vars=param_vars,
+        target_vars=target_vars,
+        time_dep_metadata=TrainingMetadata.TimeDepMetadata(
+            state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
         ),
+    )
+
+    sample_ds.popsim_ml.training_metadata = train_meta
+
+    dl = DataLoader(
+        XarrayPreppedDataset(ds=sample_ds),
         backend="jax",
         batch_size=batch_size,
         shuffle=shuffle,

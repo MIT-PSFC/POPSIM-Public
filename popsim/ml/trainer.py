@@ -80,7 +80,7 @@ def train_epoch(
     logger: LoggerBase,
 ) -> TrainState:
     for batch in train_dl:
-        inputs, targets = batch.prep_inputs_and_targets()
+        inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()
 
         tstart_step = time.time()
 

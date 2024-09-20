@@ -42,13 +42,14 @@ def eval_module_on_data(
         evaluation_suite = {"eval_fn_inputs": lambda eval_fn_input: eval_fn_input}
 
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
-        inputs, _ = dataset.prep_inputs_and_targets()
+        ds = dataset.ds
+        inputs, _ = ds.popsim_ml.prep_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         sol = jax.vmap(env, in_axes=(inputs_spec,))(inputs)
         ds_out = solution_to_xarray(sol, multi_simulation=True)
         ds_out = ds_out.rename({"simulation": "sample"})
-        ds_out = ds_out.assign_coords(sample=dataset.sample_coords)
-        ds_out = ds_out.rename_dims({"time": dataset.time_dep_metadata.time_dim})
+        ds_out = ds_out.assign_coords(sample=ds.popsim_ml.sample_coord)
+        ds_out = ds_out.rename_dims({"time": ds.popsim_ml.training_metadata.time_dep_metadata.time_dim})
         return ds_out
 
     sim_outs_and_batches = [(eval_env_return_xarray(env, batch), batch) for batch in dataloader]
@@ -115,7 +116,7 @@ def make_val_loss_eval_fn(
     def eval_fn(inp: EvalFnInput) -> float:
         loss_vecs = []
         for batch in inp.dataloader:
-            inputs, targets = batch.prep_inputs_and_targets()
+            inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()
             loss_vec = batched_model_eval_and_loss(
                 inp.model,
                 loss_fn,
