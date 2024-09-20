@@ -19,7 +19,7 @@ def jax_to_numpy_array(arr: jnp.ndarray) -> np.ndarray:
     if jax.dtypes.issubdtype(arr.dtype, jax.dtypes.prng_key):
         arr = jax.random.key_data(arr)
 
-    return arr
+    return np.asarray(arr)
 
 
 def min_greater_than_thresh(arr: Array, thresh: ArrayLike) -> ArrayLike:
