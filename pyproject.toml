@@ -27,6 +27,7 @@ flox = "^0.9.9"
 jax-dataloader = "^0.1.2"
 bottleneck = "^1.4.0"
 plotly = "^5.24.1"
+xarray_jax = {git = "git@github.com:allen-adastra/xarray_jax.git", branch = "main"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -48,14 +49,6 @@ optional = true
 
 [tool.poetry.group.gpu.dependencies]
 jax = {version = "0.4.33", extras=["cuda12"]}
-
-
-[tool.poetry.group.torax]
-optional = true
-
-[tool.poetry.group.torax.dependencies]
-torax = { git = "git@github.com:google-deepmind/torax.git", rev = "0fa2a592b3757886ba62e4156912d1eaac43e41e" }
-
 
 [[tool.poetry.source]]
 name = "PyPI"
