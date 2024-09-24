@@ -1,4 +1,4 @@
-import popsim.xarray_accessors as xa
+import popsim.ml.xarray_accessor as xa
 from popsim.tests.fixtures import cmod_test_dataset
 import pytest
 

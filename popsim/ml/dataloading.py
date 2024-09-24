@@ -7,7 +7,7 @@ from jax_dataloader import DataLoader, Dataset
 from jaxtyping import Array
 
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
-from popsim.xarray_accessors import TrainingMetadata
+from popsim.ml.xarray_accessor import TrainingMetadata
 
 
 class XarrayPreppedDataset(Dataset):
