@@ -182,12 +182,24 @@ def load_lown_config():
     resp_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/21_mode_resp_data.txt")
     out = np.loadtxt(resp_fullpath, skiprows=1)
 
-    freq = out[:, 0]
+    freqs = out[:, 0]
     Bp_per_A = out[:, 1]  # Bp (poloidal field) per Amp of tearing mode current
+
+    # If the maximum frequency is less than 100 kHz, extrapolate to higher frequencies and print a warning
+    # TODO(ZanderKeith), should ask Ryan if we have higher frequency response data for magnetics
+    max_freq = max(freqs)
+    if max_freq < 100e3:
+        print(f"Warning: Maximum frequency in response data is {max_freq / 1e3} kHz. Repeating response up to 100 kHz.")
+        freqs = np.append(freqs, [100e3])
+        Bp_per_A = np.append(Bp_per_A, [Bp_per_A[-1]])
+
+    # Mirror the transfer function for negative frequencies
+    freqs = np.concatenate((-freqs[::-1], freqs))
+    Bp_per_A = np.concatenate((Bp_per_A[::-1], Bp_per_A))
 
     # Make Jax-compatible interpolators to determine
     # measured field per Amp of tearing mode current at arbitrary rotation frequencies
-    func_Bp_per_A = Interpolator1D(freq, Bp_per_A)
+    func_Bp_per_A = Interpolator1D(freqs, Bp_per_A)
 
     return probe_connections, func_Bp_per_A
 
