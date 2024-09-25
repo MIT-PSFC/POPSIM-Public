@@ -43,7 +43,7 @@ def test_fracs_to_lengths():
 def test_random_split():
     n_data = 10
     fracs = [0.7, 0.2, 0.1]
-    key = jax.random.PRNGKey(42)
+    key = 42
     idx_sets = random_split(n_data, fracs, key)
     for frac, idx_set in zip(fracs, idx_sets):
         assert round(frac * n_data) - len(idx_set) <= 1
@@ -64,7 +64,7 @@ def test_random_split():
 def test_split_dataset_along_dim(cmod_test_dataset):
     ds = cmod_test_dataset
     split_fracs = [0.68, 0.21, 0.11]
-    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", jax.random.PRNGKey(42))
+    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42)
     
     assert len(split_datasets) == 3
     # Check that the lengths of the splits are correct
@@ -80,4 +80,4 @@ def test_split_dataset_along_dim(cmod_test_dataset):
 
     # Check that the function errors if the split fractions do not sum to 1
     with pytest.raises(ValueError):
-        split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", jax.random.PRNGKey(42))
+        split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", 42)

@@ -76,7 +76,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
 
 
     if use_val:
-        ds, val_ds = split_dataset_along_dim(ds, (0.8, 0.2), "simulation", key=jax.random.PRNGKey(0))
+        ds, val_ds = split_dataset_along_dim(ds, (0.8, 0.2), "simulation", 42)
         val_dl = make_dataloader(
             val_ds,
             time_coord="time",
