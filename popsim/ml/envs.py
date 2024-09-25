@@ -1,9 +1,9 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import chex
 import diffrax
 import equinox as eqx
-from jaxtyping import Array, ArrayLike
+from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import ModuleBase, interp
 from popsim.ml.utils import _repeat_time_hack
@@ -52,11 +52,8 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
     return sol
 
 
-class ModuleEvalEnv(ABC):
+class ModuleEvalEnv(eqx.Module):
     module: ModuleBase
-
-    def __init__(self, module: ModuleBase):
-        self.module = module
 
     @staticmethod
     @abstractmethod
@@ -71,3 +68,9 @@ class ModuleEvalEnv(ABC):
     @eqx.filter_jit
     def __call__(self, env_input: ModuleEvalEnvInput) -> diffrax.Solution:
         return call_module_eval_env(self, env_input)
+
+
+class ModuleTrainingEnv(ModuleEvalEnv):
+    @abstractmethod
+    def get_trainable(self) -> PyTree | tuple[PyTree]:
+        raise NotImplementedError

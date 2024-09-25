@@ -10,7 +10,7 @@ from jaxtyping import Array, PyTree
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import XarrayPreppedDataset
-from popsim.ml.envs import ModuleEvalEnv
+from popsim.ml.envs import ModuleEvalEnv, ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
 from popsim.xarray_utils import solution_to_xarray
 
@@ -72,11 +72,11 @@ def model_eval_and_loss(
     inputs: PyTree[Array],
     targets: PyTree[Array],
 ) -> float:
-    if isinstance(model, ModuleEvalEnv):
+    if isinstance(model, ModuleTrainingEnv):
         loss_fn = eqx.error_if(
             loss_fn, not isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
         )
-        # When using a ModuleEvalEnv, the loss function is an IntegralLoss, which requires special handling.
+        # When using a ModuleTrainingEnv, the loss function is an IntegralLoss, which requires special handling.
         output = model(inputs)  # Output is a diffrax solution.
         loss = loss_fn(output.ys["output"], targets, inputs.time)
     else:

@@ -2,7 +2,7 @@ import typing
 
 import equinox as eqx
 
-from popsim.ml.envs import ModuleEvalEnv
+from popsim.ml.envs import ModuleTrainingEnv
 
 # Define models that are considered trainable.
-TrainableModel = typing.Union[eqx.Module, ModuleEvalEnv]
+TrainableModel = typing.Union[eqx.Module, ModuleTrainingEnv]

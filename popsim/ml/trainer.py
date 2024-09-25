@@ -12,7 +12,7 @@ from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
-from popsim.ml.envs import ModuleEvalEnv
+from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_data, make_val_loss_eval_fn
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
@@ -93,7 +93,6 @@ def train_epoch(
             inputs,
             targets,
         )
-
         tend_step = time.time()
 
         logger.log(
@@ -124,15 +123,17 @@ class Trainer:
     def __init__(
         self,
         model: TrainableModel,
-        trainable_getter: typing.Callable[[TrainableModel], PyTree[Array]],
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
         checkpoint_manager: typing.Optional[ocp.CheckpointManager] = None,
     ):
-        if isinstance(model, ModuleEvalEnv):
-            assert isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
+        if isinstance(model, ModuleTrainingEnv):
+            assert isinstance(loss_fn, IntegralLoss), "When using a ModuleTrainingEnv, the loss function must be an IntegralLoss."
+            partition_fn = make_partition_by_members(lambda m: m.get_trainable())
+        else:
+            raise NotImplementedError("Only ModuleTrainingEnv is supported for now.")
 
-        self.partition_fn = make_partition_by_members(trainable_getter)
+        self.partition_fn = partition_fn
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn

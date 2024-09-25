@@ -1,7 +1,8 @@
+from jaxtyping import PyTree
 from popsim.tests.fixtures import oscillator_dataset
 from popsim.ml.trainer import Trainer
 from popsim.ml.dataloading import make_dataloader
-from popsim.ml.envs import ModuleEvalEnv
+from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_along_dim
@@ -44,8 +45,8 @@ class NeuralODE(ModuleBase):
         state_dot = NeuralODE.State(state=dict(zip(state.state.keys(), state_dot_flat)))
         output = NeuralODE.Output(state=state.state)
         return state_dot, output
-@chex.dataclass
-class NeuralODEEnv(ModuleEvalEnv):
+
+class NeuralODEEnv(ModuleTrainingEnv):
     module: NeuralODE
     @staticmethod
     def create_state(data):
@@ -54,6 +55,9 @@ class NeuralODEEnv(ModuleEvalEnv):
     @staticmethod
     def create_params(data):
         return NeuralODE.Params()
+    
+    def get_trainable(self):
+        return self.module.config.nn
 
 @pytest.mark.parametrize("use_val", [True, False])
 @pytest.mark.parametrize("train_seg_length", [None, 50])
@@ -95,12 +99,8 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
         segment_length=train_seg_length
     )
 
-    def trainable_getter(_env):
-        return _env.module.config.nn
-
     trainer = Trainer(
         model=env,
-        trainable_getter=trainable_getter,
         loss_fn=IntegralLoss(loss),
         optimizer=optax.adabelief(5e-3),
     )
