@@ -125,9 +125,9 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
         "simulation": sim_coord,
     }
 
-    def process_tree_leaf(path, data: Array | xr.DataArray | xr.Variable) -> xr.DataArray:
+    def process_tree_leaf(path, data: np.ndarray | Array | xr.DataArray | xr.Variable) -> xr.DataArray:
         name = ptu.keypath_to_string(path)
-        if isinstance(data, Array):
+        if isinstance(data, (np.ndarray, Array)):
             return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
         elif isinstance(data, xr.Variable):
             data.dims = (*base_dims, *data.dims)
