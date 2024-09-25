@@ -39,13 +39,13 @@ class RTNewSpecMirror(ModuleBase):
         # The last nsamples of magnetic probe data
         probe1_data: jnp.ndarray = discrete_time_field(default=jnp.zeros(FFT_SAMPLES))
         probe2_data: jnp.ndarray = discrete_time_field(default=jnp.zeros(FFT_SAMPLES))
-        previous_rms: float = discrete_time_field(default=0.0)
-        time_until_next_report: float = discrete_time_field(default=0.0)
+        #previous_rms: float = discrete_time_field(default=0.0)
+        #time_until_next_report: float = discrete_time_field(default=0.0)
         uninitialized: bool = discrete_time_field(default=True)
 
     @chex.dataclass
     class Output:
-        n1rms: float
+        rms: dict[int, float] # Mode number to RMS value
 
     @chex.dataclass
     class Params:
@@ -69,24 +69,64 @@ class RTNewSpecMirror(ModuleBase):
         # But that isn't really jax-like...
         # Maybe with jax.lax.cond?
 
-        returned_rms = jax.lax.cond(
-            state.time_until_next_report <= 0.0,
-            lambda _: self.calculate_rms(probe1_data, probe2_data),
-            lambda _: state.previous_rms,
-            operand=None,
+        # returned_rms = jax.lax.cond(
+        #     state.time_until_next_report <= 0.0,
+        #     lambda _: self.calculate_rms(probe1_data, probe2_data),
+        #     lambda _: state.previous_rms,
+        #     operand=None,
+        # )
+        rms_values = self.calculate_rms(probe1_data, probe2_data)
+
+        state = RTNewSpecMirror.State(
+            probe1_data=probe1_data,
+            probe2_data=probe2_data,
+            uninitialized=False
+        )
+        output = RTNewSpecMirror.Output(
+            rms=rms_values
         )
 
-        # Update the time until the next report
-        time_until_next_report = state.time_until_next_report - 1 / self.config.f_report
-        # Return stuff, woohaa!
+        return state, output
 
     def calculate_rms(self, probe1_data, probe2_data):
-        # Calculate the RMS of the signal
-        n1rms = self.calculate_rms_for_mode(probe1_data)
-        n2rms = self.calculate_rms_for_mode(probe2_data)
+        # Calculate the RMS of the signal in a similar way to rtnewspec
+        # 1. Take FFT of both signals
+        # 2. Get auto spectrup of probe 1, smooth based on nsmth with a boxcar average
+        # 3. Calculate cross spectrum of probe 1 and probe 2
+        # 4. Find coherence of probe 1 and probe 2 signals
+        # 5. Filter cross spectrum to only have data where the coherence is above a threshold, and the phase matches an n-th mode
 
-        return n1rms, n2rms
+        probe1_fft = jnp.fft.fft(probe1_data)
+        probe2_fft = jnp.fft.fft(probe2_data)
 
+        # Calculate the auto spectrum of probe 1
+        auto_spectrum = jnp.abs(probe1_fft) ** 2
 
+        # Smooth the auto spectrum
+        boxcar = jnp.ones(self.config.nsmth) / self.config.nsmth
+        smoothed_auto_spectrum = jnp.convolve(auto_spectrum, boxcar, mode='same')
 
+        # Calculate the cross spectrum of probe 1 and probe 2
+        complex_cross_spectrum = probe1_fft * jnp.conj(probe2_fft)
+        cross_phase = jnp.angle(complex_cross_spectrum)
 
+        # Calculate coherence and set up 95% confidence interval
+        coherence = jnp.abs(complex_cross_spectrum) ** 2 / (auto_spectrum * jnp.abs(probe2_fft) ** 2)
+        c95 = 1.96/jnp.sqrt(2.0*self.config.nsmth - 2.0)
+        c95 = (jnp.exp(c95)-jnp.exp(-c95))/(jnp.exp(c95)+jnp.exp(-c95))
+        c95 = c95*c95
+
+        rms_values = {}
+
+        # For each mode, filter the auto spectrum based on coherence and phase
+        for mode in range(1, self.config.max_modes + 1):
+            filtered_spectrum = jnp.where(
+                (coherence > c95) & (jnp.cos(cross_phase - mode * self.config.d_theta) > 0),
+                smoothed_auto_spectrum,
+                0.0
+            )
+            # Get the highest value in the filtered spectrum
+            rms = jnp.max(filtered_spectrum)*self.config.alpha
+            rms_values[mode] = rms
+
+        return rms_values
