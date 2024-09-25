@@ -20,110 +20,60 @@ ExtraDimAndCoordSpec = typing.Union[ExtraDimAndCoord, typing.Sequence[ExtraDimAn
 def make_data_array(
     name: str,
     array: Array,
-    base_dims: list[str],
-    base_coords: dict[str, xr.DataArray],
-    extra_dim_and_coord_spec: ExtraDimAndCoordSpec,
+    dims: list[str],
+    coords: dict[str, xr.DataArray],
 ) -> xr.DataArray:
-    extra_dims, extra_coords = make_extra_dims_and_coords(extra_dim_and_coord_spec)
-    specified_dims = base_dims + extra_dims
-    coords = base_coords | extra_coords
+    """Construct an xarray DataArray given the name, array, dimensions, and coordinates.
+    If the number of dimensions in the array exceeds the number of specified dims, extra dimensions will be generated with default names.
 
+    Args:
+        name (str): _description_
+        array (Array): _description_
+        dims (list[str]): _description_
+        coords (dict[str, xr.DataArray]): _description_
+
+    Returns:
+        xr.DataArray: _description_
+    """
     array = jax_to_numpy_array(array)
 
-    if array.ndim == len(specified_dims):
+    if array.ndim == len(dims):
         # If the number of dimensions in the array matches the number of specified dims, we can just create the DataArray.
-        return xr.DataArray(array, dims=specified_dims, coords=coords, name=name)
-    elif array.ndim > len(specified_dims) and len(extra_dims) == 0:
+        return xr.DataArray(array, dims=dims, coords=coords, name=name)
+    elif array.ndim > len(dims):
         # If the array has more dimensions than the number of specified dims, and there was no attempt to specify additional dimensions, we can add extra dimensions with default names.
-        n_missing_dims = array.ndim - len(specified_dims)
+        n_missing_dims = array.ndim - len(dims)
 
         logger.info(
-            f"Variable {name} has more dimensions, {array.ndim}, than the number of specified dimensions, {len(specified_dims)}. {n_missing_dims} extra dimensions will be generated with names {name}_extra_dim_i."
+            f"Variable {name} has more dimensions, {array.ndim}, than the number of specified dimensions, {len(dims)}. {dims} extra dimensions will be generated with names {name}_extra_dim_i."
         )
 
         # Auto-generate names for the extra dimensions.
         extra_generated_dims = [f"{name}_extra_dim_{i}" for i in range(n_missing_dims)]
-
-        all_dims = specified_dims + extra_generated_dims
-        return xr.DataArray(array, dims=all_dims, coords=coords, name=name)
+        return xr.DataArray(array, dims=dims + extra_generated_dims, coords=coords, name=name)
     else:
         warnings.warn(
-            f"Skipping variable {name} due to mismatch between the number of dimensions of the array ({array.ndim}) and the number of specified dimensions ({len(specified_dims)}).",
+            f"Skipping variable {name} due to mismatch between the number of dimensions of the array ({array.ndim}) and the number of specified dimensions ({len(dims)}).",
             stacklevel=2,
         )
         return None
 
 
-def tree_dim_and_coords_to_xarray(
-    tree: PyTree[Array],
-    base_dims: list[str],
-    base_coords: dict[str, xr.DataArray],
-    extra_dim_and_coord_tree: PyTree[typing.Optional[ExtraDimAndCoordSpec]],
-) -> xr.Dataset:
-    def _make_data_array(keypath, array, extra_dim_and_coord_spec):
-        name = ptu.keypath_to_string(keypath)
-        return make_data_array(
-            name=name, array=array, base_dims=base_dims, base_coords=base_coords, extra_dim_and_coord_spec=extra_dim_and_coord_spec
-        )
-
-    # Construct a tree of DataArrays.
-    da_tree = jax.tree_util.tree_map_with_path(_make_data_array, tree, extra_dim_and_coord_tree)
-
-    # Get a list of the resulting DataArrays.
-    dataarrays = jax.tree_util.tree_leaves(da_tree, is_leaf=lambda x: isinstance(x, xr.DataArray))
-
-    # Convert to a Dataset.
-    ds = xr.merge(dataarrays)
-    return ds
-
-
-def make_extra_dims_and_coords(coord_spec: ExtraDimAndCoordSpec) -> tuple[list[str], dict[str, xr.DataArray]]:
-    """Given a specification of extra dimensions and coordinates, return the list of extra dimensions and a dictionary of extra coordinates in the form of xarray DataArrays.
-
-    Args:
-        coord_spec (ExtraDimAndCoordSpec): A specification of extra dimensions and coordinates.
-
-    Raises:
-        ValueError: If coord_spec is not a tuple, list or None.
-
-    Returns:
-        tuple[list[str], dict[str, xr.DataArray]]: first element is a list of extra dimensions, second element is a dictionary of extra coordinates.
-    """
-    if coord_spec is None:
-        return [], {}
-    elif isinstance(coord_spec, tuple):
-        name, coord = coord_spec
-        return [name], {
-            name: xr.DataArray(coord, dims=[name], name=name),
-        }
-    elif isinstance(coord_spec, list):
-        extra_dims = [name for name, _ in coord_spec]
-        extra_coords = {name: xr.DataArray(coord, dims=[name], name=name) for name, coord in coord_spec}
-        return extra_dims, extra_coords
-    else:
-        raise ValueError(f"coord_spec must be a tuple, list or None, got {type(coord_spec)}.")
-
-
-def solution_to_xarray(sol: diffrax.Solution, coord_tree: PyTree = None, multi_simulation: bool = False) -> xr.Dataset:
+def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) -> xr.Dataset:
     """Convert a diffrax.Solution to an xarray. Thin wrapper around time_and_pytree_to_xarray.
 
     Args:
         sol (diffrax.Solution): diffrax.Solution object.
-        coord_tree (PyTree[typing.Optional[list[Coords]]]): shadowing the tree, a PyTree of lists of tuples containing coordinate specifications.
-                                                            Note the ith element of the list corresponds to the ith dimension of the array.
-
         multi_simulation (bool): Whether the solution contains multiple simulations.
 
     Returns:
         xr.Dataset: An xarray dataset.
     """
-    return time_and_pytree_to_xarray(sol.ts, sol.ys, coord_tree, multi_simulation)
+    return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
-def time_and_pytree_to_xarray(
-    time: Array, tree: PyTree[Array], extra_dim_and_coord_tree: PyTree[ExtraDimAndCoordSpec] = None, multi_simulation: bool = False
-) -> xr.Dataset:
-    """Convert a time array and a PyTree of arrays to an xarray dataset. In the multi-simulation case, assign numbered names to the simulations.
+def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
+    """Convert a time array and a PyTree of arrays, xr.Variable, and xr.DataArray instances to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
 
     Args:
         time (Array): time array. In the multi-simulation case, this can be either a 1D or 2D array. In the single-simulation case, this is a 1D array.
@@ -158,7 +108,7 @@ def time_and_pytree_to_xarray(
             np.arange(nsims),
             dims=("simulation"),
         )
-        base_dimensions = ["simulation", "time"]
+        base_dims = ["simulation", "time"]
     else:
         # In the single-simulation case, expect a 1D time array.
         assert time.ndim == 1
@@ -166,7 +116,7 @@ def time_and_pytree_to_xarray(
         # Build the time and simulation coordinates and the list of dimensions.
         time_coord = xr.DataArray(time, dims=("time"))
         sim_coord = xr.DataArray(0)
-        base_dimensions = [
+        base_dims = [
             "time",
         ]
 
@@ -175,11 +125,26 @@ def time_and_pytree_to_xarray(
         "simulation": sim_coord,
     }
 
-    # Construct the coordnates tree.
-    extra_dim_and_coord_tree = jax.tree.map(lambda _: None, tree) if extra_dim_and_coord_tree is None else extra_dim_and_coord_tree
+    def process_tree_leaf(path, data: Array | xr.DataArray | xr.Variable) -> xr.DataArray:
+        name = ptu.keypath_to_string(path)
+        if isinstance(data, Array):
+            return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
+        elif isinstance(data, xr.Variable):
+            data.dims = (*base_dims, *data.dims)
+            da = xr.DataArray(data, coords=base_coords, name=name)
+            return da
+        elif isinstance(data, xr.DataArray):
+            data.variable.dims = (*base_dims, *data.variable.dims)
+            data = data.assign_coords(base_coords)
+            data.name = name
+            return data
+        else:
+            raise ValueError("Expected Array, xr.Variable, or xr.DataArray.")
 
-    # Construct the dataset.
-    ds = tree_dim_and_coords_to_xarray(
-        tree, base_dims=base_dimensions, base_coords=base_coords, extra_dim_and_coord_tree=extra_dim_and_coord_tree
-    )
+    # Construct a tree of DataArrays.
+    paths_and_leaves = jax.tree_util.tree_leaves_with_path(tree, is_leaf=lambda x: isinstance(x, (xr.DataArray, xr.Variable, Array)))
+
+    dataarrays = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
+
+    ds = xr.merge(dataarrays)
     return ds

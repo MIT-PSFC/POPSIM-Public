@@ -7,40 +7,42 @@ import jax.numpy as jnp
 import jax
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray
 from popsim.simulate import SimInput
+import xarray as xr
+
+@chex.dataclass
+class ContinuousTimeModule(ModuleBase):
+    @chex.dataclass
+    class Config:
+        pass
+
+    @chex.dataclass
+    class State:
+        x1: float
+        x2: float
+
+    @chex.dataclass
+    class Output:
+        y: float
+
+    @chex.dataclass
+    class Params:
+        z: float = 0.0
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+        state_dot = ContinuousTimeModule.State(x1=-state.x1, x2=-1.0 * xr.apply_ufunc(jnp.square, state.x2))
+        out = ContinuousTimeModule.Output(y=xr.apply_ufunc(jnp.abs, state.x1))
+        return state_dot, out
 
 @pytest.fixture
 def pure_continuous_time_module():
-    @chex.dataclass
-    class ContinuousTimeModule(ModuleBase):
-        @chex.dataclass
-        class Config:
-            pass
-
-        @chex.dataclass
-        class State:
-            x: float
-
-        @chex.dataclass
-        class Output:
-            y: float
-
-        @chex.dataclass
-        class Params:
-            z: float = 0.0
-
-        config: Config
-
-        def __init__(self, config):
-            self.config = config
-
-        def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-            state_dot = ContinuousTimeModule.State(x=-state.x)
-            out = ContinuousTimeModule.Output(y=jnp.abs(state.x))
-            return state_dot, out
-        
-    initial_state = ContinuousTimeModule.State(x=-1.0)
-    
-    return ContinuousTimeModule, initial_state
+    module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
+    initial_state = ContinuousTimeModule.State(x1=-1.0, x2=1.0)
+    return module, initial_state
 
 @pytest.fixture
 def pure_discrete_time_module():
@@ -59,13 +61,17 @@ def hybrid_time_module():
     params = HybridExample.Params(speed=1.0, ylims=({0.0: -1.0, 10.0: -final_lim_mag}, {0.0: 1.0, 10.0: final_lim_mag}))
     return module, time_base, initial_state, params
 
+@pytest.fixture
+def xarray_partial_state():
+    module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
+    initial_state = ContinuousTimeModule.State(x1=-1.0, x2=xr.DataArray(jnp.array([1.0, 2.0]), dims=["dim1"]))
+    return module, initial_state
+
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, stepper_type, multi_sim):
-    ContinuousTimeModule, initial_state = pure_continuous_time_module
-
-    module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
+    module, initial_state = pure_continuous_time_module
 
     time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
 
@@ -87,10 +93,10 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     
     
     # After 10 seconds, expect a significant amount of exponential decay of the state.
-    assert (jnp.abs(sol["state.x"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x)).all()
+    assert (jnp.abs(sol["state.x1"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x1)).all()
 
     # Expect that y is the absolute value of x.
-    assert jnp.allclose(sol["output.y"].values, jnp.abs(sol["state.x"].values))
+    assert jnp.allclose(sol["output.y"].values, jnp.abs(sol["state.x1"].values))
 
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
@@ -162,3 +168,22 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
         assert "simulation" in sol.dims
+
+@pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
+@pytest.mark.parametrize("multi_sim", [True, False])
+def test_xarray_partial_state(xarray_partial_state,  stepper_type, multi_sim):
+    module, initial_state = xarray_partial_state
+    time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
+    if multi_sim:
+        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0)), SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=1.0))]
+    else:
+        sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0))
+
+    sol = simulate.simulate(module, sim_inputs, return_xarray=True, stepper_type=stepper_type)
+
+    if multi_sim:
+        assert sol["state.x1"].dims == ("simulation", "time")
+        assert sol["state.x2"].dims == ("simulation", "time", "dim1")
+    else:
+        assert sol["state.x1"].dims == ("time", )
+        assert sol["state.x2"].dims == ("time", "dim1")
