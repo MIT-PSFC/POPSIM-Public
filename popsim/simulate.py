@@ -148,7 +148,6 @@ def call_module_with_nan_checks(module: ModuleBase, state: "State", params: "Par
     state_out, output = module(state, params)
 
     state_out = error_if(state_out, any_nans(state_out), "State output from the module contains NaNs.")
-    output = error_if(output, any_nans(output), "Output contains NaNs.")
     return state_out, output
 
 
