@@ -44,80 +44,125 @@ def test_make_data_array(arr, expected_dims, expected_output, expect_warning):
     
     assert expected_output(out)
 
-
-
-def test_time_and_pytree_to_xarray():
-    # Helper function to create a simple tree
-    def create_tree(shape):
-        return {
-            'a': np.random.rand(*shape),
-            'b': {
-                'c': np.random.rand(*shape),
-                'd': np.random.rand(*shape)
-            }
+# Helper function to create a simple tree
+def create_tree(shape):
+    return {
+        'a': np.random.rand(*shape),
+        'b': {
+            'c': np.random.rand(*shape),
+            'd': np.random.rand(*shape)
         }
+    }
 
-    # Case 1: Single simulation, 1D time array
-    def test_single_simulation_1d_time():
-        time = np.arange(10)
-        tree = create_tree((10,))
-        result = time_and_pytree_to_xarray(time, tree)
-        
-        assert isinstance(result, xr.Dataset)
-        assert set(result.dims) == {'time'}
-        assert result.sizes['time'] == 10
-        assert 'simulation' not in result.dims
-        assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
 
-    # Case 2: Single simulation, 2D time array (expect failure)
-    def test_single_simulation_2d_time():
-        time = np.arange(20).reshape(2, 10)
-        tree = create_tree((10,))
-        
-        with pytest.raises(AssertionError):
-            time_and_pytree_to_xarray(time, tree)
+"""
+Tests for time_and_pytree_to_xarray function.
+"""
+# Case 1: Single simulation, 1D time array
+def test_single_simulation_1d_time():
+    time = np.arange(10)
+    tree = create_tree((10,))
+    result = time_and_pytree_to_xarray(time, tree)
+    
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'time'}
+    assert result.sizes['time'] == 10
+    assert 'simulation' not in result.dims
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
 
-    # Case 3: Multi simulation, 1D time array
-    def test_multi_simulation_1d_time():
-        time = np.arange(10)
-        tree = create_tree((3, 10))
-        result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
-        
-        assert isinstance(result, xr.Dataset)
-        assert set(result.dims) == {'simulation', 'time'}
-        assert result.sizes['time'] == 10
-        assert result.sizes['simulation'] == 3
-        assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
+# Case 2: Single simulation, 2D time array (expect failure)
+def test_single_simulation_2d_time():
+    time = np.arange(20).reshape(2, 10)
+    tree = create_tree((10,))
+    
+    with pytest.raises(AssertionError):
+        time_and_pytree_to_xarray(time, tree)
 
-    # Case 4: Multi simulation, 2D time array
-    def test_multi_simulation_2d_time():
-        time = np.arange(30).reshape(3, 10)
-        tree = create_tree((3, 10))
-        result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
-        
-        assert isinstance(result, xr.Dataset)
-        assert set(result.dims) == {'simulation', 'time'}
-        assert result.sizes['time'] == 10
-        assert result.sizes['simulation'] == 3
-        assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
-        np.testing.assert_array_equal(result.time.values, time)
+# Case 3: Multi simulation, 1D time array
+def test_multi_simulation_1d_time():
+    time = np.arange(10)
+    tree = create_tree((3, 10))
+    result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
+    
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'simulation', 'time'}
+    assert result.sizes['time'] == 10
+    assert result.sizes['simulation'] == 3
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
 
-    # Case 5: Multi simulation, 2D time array with all the same time values
-    def test_multi_simulation_2d_time_same_values():
-        time = np.tile(np.arange(10), (3, 1))
-        tree = create_tree((3, 10))
-        result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
-        
-        assert isinstance(result, xr.Dataset)
-        assert set(result.dims) == {'simulation', 'time'}
-        assert result.sizes['time'] == 10
-        assert result.sizes['simulation'] == 3
-        assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
-        np.testing.assert_array_equal(result.time.values, np.arange(10))
+# Case 4: Multi simulation, 2D time array
+def test_multi_simulation_2d_time():
+    time = np.arange(30).reshape(3, 10)
+    tree = create_tree((3, 10))
+    result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
+    
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'simulation', 'time'}
+    assert result.sizes['time'] == 10
+    assert result.sizes['simulation'] == 3
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
+    np.testing.assert_array_equal(result.time.values, time)
 
-    # Run all test cases
-    test_single_simulation_1d_time()
-    test_single_simulation_2d_time()
-    test_multi_simulation_1d_time()
-    test_multi_simulation_2d_time()
-    test_multi_simulation_2d_time_same_values()
+# Case 5: Multi simulation, 2D time array with all the same time values
+def test_multi_simulation_2d_time_same_values():
+    time = np.tile(np.arange(10), (3, 1))
+    tree = create_tree((3, 10))
+    result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
+    
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'simulation', 'time'}
+    assert result.sizes['time'] == 10
+    assert result.sizes['simulation'] == 3
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d'}
+    np.testing.assert_array_equal(result.time.values, np.arange(10))
+
+# Case 6: Single simulation, 1D time array with xr.Variable and xr.DataArray in the tree
+def test_single_simulation_1d_time_xr():
+    time = np.arange(10)
+    time_da = xr.DataArray(time, dims=("time",))
+    tree = create_tree((10,))
+
+    # We need to test a xr.Variable that has dimensions (time, spatial) in the array
+    # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
+    var_test = xr.Variable(data=np.random.rand(10, 5), dims=("time", "foo"))
+    var_test._dims = ("foo", )
+    da_test = xr.DataArray(np.random.rand(10, 5), dims=("time", "foo"), coords={"foo": np.arange(5)})
+    da_test.variable._dims = ("foo",)
+    tree["var"] = var_test
+    tree["da"] = da_test
+
+    result = time_and_pytree_to_xarray(time, tree)
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'time', 'foo'}
+    assert result.sizes['time'] == 10
+    assert 'simulation' not in result.dims
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d', 'var', 'da'}
+    assert result["var"].dims == ("time", "foo")
+    assert result["da"].dims == ("time", "foo")
+    assert set(result.coords.keys()) == {"simulation", "time", "foo"}
+
+# Case 7: like case 6, but multi-simulation.
+def test_multi_simulation_2d_time_xr():
+    time = np.arange(30).reshape(3, 10)
+    tree = create_tree((3, 10))
+
+    # We need to test a xr.Variable that has dimensions (time, spatial) in the array
+    # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
+    var_test = xr.Variable(data=np.random.rand(3, 10, 5), dims=('simulation', 'time', 'foo'))
+    var_test._dims = ("foo", )
+    da_test = xr.DataArray(np.random.rand(3, 10, 5), dims=("simulation", "time", "foo"), coords={"foo": np.arange(5)})
+    da_test.variable._dims = ("foo",)
+    tree["var"] = var_test
+    tree["da"] = da_test
+    
+    result = time_and_pytree_to_xarray(time, tree, multi_simulation=True)
+
+
+    assert isinstance(result, xr.Dataset)
+    assert set(result.dims) == {'simulation', 'time', "foo"}
+    assert set(result.coords.keys()) == {"simulation", "time", "foo"}
+    assert result.sizes['time'] == 10
+    assert result.sizes['simulation'] == 3
+    assert set(result.data_vars) == {'a', 'b.c', 'b.d', "var", "da"}
+    assert result["var"].dims == ("simulation", "time", "foo")
+    assert result["da"].dims == ("simulation", "time", "foo")

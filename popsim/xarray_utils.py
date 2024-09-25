@@ -72,6 +72,21 @@ def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) ->
     return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
+def _handle_xr_types(data: xr.DataArray | xr.Variable, base_dims, base_coords, name) -> xr.DataArray:
+    """A bit of a weird hack to account for the fact that running simulations currently does not add the dimensions corresponding to the simulation and time to the xarray objects. This function adds them."""
+    if isinstance(data, xr.Variable):
+        data._dims = (*base_dims, *data._dims)
+        da = xr.DataArray(data, coords=base_coords, name=name)
+        return da
+    elif isinstance(data, xr.DataArray):
+        data.variable._dims = (*base_dims, *data.variable._dims)
+        data = data.assign_coords(base_coords)
+        data.name = name
+        return data
+    else:
+        raise ValueError("xr.Variable, or xr.DataArray.")
+
+
 def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
     """Convert a time array and a PyTree of arrays, xr.Variable, and xr.DataArray instances to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
 
@@ -129,15 +144,8 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
         name = ptu.keypath_to_string(path)
         if isinstance(data, (np.ndarray, Array)):
             return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
-        elif isinstance(data, xr.Variable):
-            data.dims = (*base_dims, *data.dims)
-            da = xr.DataArray(data, coords=base_coords, name=name)
-            return da
-        elif isinstance(data, xr.DataArray):
-            data.variable.dims = (*base_dims, *data.variable.dims)
-            data = data.assign_coords(base_coords)
-            data.name = name
-            return data
+        elif isinstance(data, (xr.Variable, xr.DataArray)):
+            return _handle_xr_types(data, base_dims, base_coords, name)
         else:
             raise ValueError("Expected Array, xr.Variable, or xr.DataArray.")
 
