@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from popsim import ModuleBase, discrete_time_field
-from popsim.logic_utils import select_w_tuples
+from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes
 
 FFT_SAMPLES = 2048
 SAMPLING_FREQUENCY = 60e3 # Hz
@@ -19,18 +19,22 @@ Mirror of rtnewspec, used to calculate n1rms (and n2rms, n3rms, etc.) in real-ti
 class RTNewSpecMirror(ModuleBase):
     @chex.dataclass
     class Config:
+        # Toroidal angle between probes [deg]
+        d_theta: float
+        # Probe 1 identifier in the BFieldPoloidalProbes module
+        probe1_id: str
+        # Probe 2 identifier in the BFieldPoloidalProbes module
+        probe2_id: str
         # Number of probe samples to use for the FFT
         nsamples: int = dataclasses.field(default_factory=lambda: FFT_SAMPLES)
         # TODO(ZanderKeith): Some factor needs to be included to get [T] out of the FFT.
         alpha: float = dataclasses.field(default_factory=lambda: 1.0)
-        # Toroidal angle between probes [deg]
-        d_theta: float
         # Sample rate of the magnetic probes [Hz]
         f_probe: float = dataclasses.field(default_factory=lambda: SAMPLING_FREQUENCY)
         # Number of samples in frequency space to smooth over
         nsmth: int = dataclasses.field(default_factory=lambda: 3)
         # Maximum number of modes to look at.
-        max_modes: int = dataclasses.field(default_factory=lambda: 12)
+        max_modes: int = dataclasses.field(default_factory=lambda: 3)
         # The frequency of updating the calculated RMS values [Hz]
         f_report: float = dataclasses.field(default_factory=lambda: REPORT_FREQUENCY)
 

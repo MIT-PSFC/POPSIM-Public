@@ -3,6 +3,7 @@ import chex
 from popsim import ModuleBase
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray
 from popsim.modules.tearing import Tearing
+from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 
 """
 Simulation for tearing modes and all the diagnostics which can measure them.
@@ -17,12 +18,14 @@ class TearingSim(ModuleBase):
         tearing_module: Tearing
         b_field_poloidal_probes_module: BFieldPoloidalProbes
         lown_array_module: LowNArray
+        rtnewspec_mirror_module: RTNewSpecMirror
 
     @chex.dataclass
     class State:
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
         tearing_state: Tearing.State
+        rtnewspec_mirror_state: RTNewSpecMirror.State
 
     @chex.dataclass
     class Output:
@@ -30,6 +33,7 @@ class TearingSim(ModuleBase):
         # locals: PyTree[ArrayLike]
         lown_array_out: LowNArray.Output
         b_field_poloidal_probes_out: BFieldPoloidalProbes.Output
+        rtnewspec_mirror_out: RTNewSpecMirror.Output
 
     @chex.dataclass
     class Params:
@@ -45,9 +49,6 @@ class TearingSim(ModuleBase):
         # Compute the results of the Tearing module.
         tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, params.tearing_params)
 
-        # Make a state_dot.
-        state_dot = TearingSim.State(tearing_state=tearing_state_dot)
-
         # Build the parameters for the diagnostic modules.
         lown_array_params = LowNArray.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
         b_field_poloidal_probes_params = BFieldPoloidalProbes.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
@@ -55,13 +56,20 @@ class TearingSim(ModuleBase):
         lown_array_out = self.config.lown_array_module(None, lown_array_params)
         b_field_poloidal_probes_out = self.config.b_field_poloidal_probes_module(None, b_field_poloidal_probes_params)
 
+        rtnewspec_params = RTNewSpecMirror.Params(probe1_signal=b_field_poloidal_probes_out.Bp[self.config.rtnewspec_mirror_module.config.probe1_id], 
+                                                  probe2_signal=b_field_poloidal_probes_out.Bp[self.config.rtnewspec_mirror_module.config.probe2_id])
+        rtnewspec_mirror_state, rtnewspec_mirror_out = self.config.rtnewspec_mirror_module(state.rtnewspec_mirror_state, rtnewspec_params)
+
         # # Filter out any non-array-like variables
         # aux_data = eqx.filter(locals(), eqx.is_array_like)
         # # Promote any scalar-like variables to arrays
         # aux_data = jax.tree.map(jnp.asarray, aux_data)
 
-        out = TearingSim.Output(lown_array_out=lown_array_out, b_field_poloidal_probes_out=b_field_poloidal_probes_out)
-        return state_dot, out
+        # Make a state_dot.
+        state = TearingSim.State(tearing_state=tearing_state_dot,
+                                 rtnewspec_mirror_state=rtnewspec_mirror_state)
+        out = TearingSim.Output(lown_array_out=lown_array_out, b_field_poloidal_probes_out=b_field_poloidal_probes_out, rtnewspec_mirror_out=rtnewspec_mirror_out)
+        return state, out
 
     def add_to_ods(self, ods, sim_xarray):
         """Given an ods object and the simulation's xarray, fill the ods with the simulation's data.

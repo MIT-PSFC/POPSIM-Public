@@ -132,10 +132,18 @@ class BFieldPoloidalProbes(ModuleBase):
             probe_details = [
                 {
                     "area": 0.1,
-                    "identifier": "sample_probe_identifier",
-                    "name": "sample_probe_name",
+                    "identifier": "sample_probe_1_identifier",
+                    "name": "sample_probe_1_name",
                     "poloidal_angle": 0.0,
                     "position": {"phi": 0.0, "r": 1.0, "z": 0.0},
+                    "type": {"index": 2},
+                },
+                {
+                    "area": 0.1,
+                    "identifier": "sample_probe_2_identifier",
+                    "name": "sample_probe_2_name",
+                    "poloidal_angle": 0.0,
+                    "position": {"phi": 0.5, "r": 1.0, "z": 0.0},
                     "type": {"index": 2},
                 }
             ]
