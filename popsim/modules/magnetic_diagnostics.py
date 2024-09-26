@@ -145,7 +145,7 @@ class BFieldPoloidalProbes(ModuleBase):
                     "poloidal_angle": 0.0,
                     "position": {"phi": 0.5, "r": 1.0, "z": 0.0},
                     "type": {"index": 2},
-                }
+                },
             ]
         R0 = 1.0
         # TODO(ZanderKeith): again, should really be reading from the device description

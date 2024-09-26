@@ -1,8 +1,8 @@
-from popsim.modules.magnetic_diagnostics import LowNArray, BFieldPoloidalProbes, load_lown_config
+from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray, load_lown_config
+from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 from popsim.modules.tearing import DEFAULT_WDOT, Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory
 from popsim.simulate import make_time_base
 from popsim.simulators.tearing_sim.model import TearingSim
-from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 
 
 def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reconstructed_modes: list[int]):
@@ -67,9 +67,9 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
     b_field_poloidal_probes_module = BFieldPoloidalProbes.default_setup()
 
     rtnewspec_mirror_config = RTNewSpecMirror.Config(
-        probe1_id = "sample_probe_1_identifier",
-        probe2_id = "sample_probe_2_identifier",
-        d_theta=0.5, # TODO(ZanderKeith): Read from BFieldPoloidalProbes config
+        probe1_id="sample_probe_1_identifier",
+        probe2_id="sample_probe_2_identifier",
+        d_theta=0.5,  # TODO(ZanderKeith): Read from BFieldPoloidalProbes config
     )
     rtnewspec_mirror_module = RTNewSpecMirror(config=rtnewspec_mirror_config)
 
