@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import PyTree
 from loguru import logger
+from xarray_jax import var_change_on_unflatten
 
 from popsim import ModuleBase
 from popsim.array_utils import min_greater_than_thresh
@@ -24,7 +25,7 @@ from popsim.sim_utils import (
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
 from popsim.tree_util import any_nans, get_instances_from_tree_leaves, tree_transpose_and_squeeze
-from popsim.xarray_utils import solution_to_xarray, time_and_pytree_to_xarray
+from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, solution_to_xarray, time_and_pytree_to_xarray
 
 
 class StepperType(IntEnum):
@@ -111,11 +112,39 @@ def simulate(
     logger.info(f"Running {len(sim_inputs)} simulations.")
 
     # Perform the simulation.
-    sol = (
-        _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
-        if multi_sim
-        else simulate_fun(module, sim_inputs_vectorized)
-    )
+    # Use context managers to appropriately change xr.Variable instances to include time and simulation dimensions.
+    if multi_sim:
+
+        def var_change_fn(var: xr.Variable):
+            ndims = len(var._dims)
+            datadims = var._data.ndim
+            if ndims == datadims:
+                return var
+            elif ndims == datadims - 2:
+                newdims = (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, *var._dims)
+                var._dims = newdims
+                return var
+            else:
+                raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
+
+        with var_change_on_unflatten(var_change_fn):
+            sol = _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
+    else:
+
+        def var_change_fn(var: xr.Variable):
+            ndims = len(var._dims)
+            datadims = var._data.ndim
+            if ndims == datadims:
+                return var
+            elif ndims == datadims - 1:
+                newdims = (DEFAULT_TIME_DIM_NAME, *var._dims)
+                var._dims = newdims
+                return var
+            else:
+                raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
+
+        with var_change_on_unflatten(var_change_fn):
+            sol = simulate_fun(module, sim_inputs_vectorized)
 
     if stepper_type == StepperType.SIMPLE_EULER:
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol

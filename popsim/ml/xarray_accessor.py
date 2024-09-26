@@ -86,14 +86,16 @@ class PopsimMLAccessor:
 
     def prep_inputs_and_targets(self):
         """Prepare inputs and targets for training."""
-        params = ds_to_dict_jnp(self.ds[self.training_metadata.param_vars])
-        targets = ds_to_dict_jnp(self.ds[self.training_metadata.target_vars])
+
+        ds = self.ds
+        params = ds_to_dict_jnp(ds[self.training_metadata.param_vars])
+        targets = ds_to_dict_jnp(ds[self.training_metadata.target_vars])
 
         if not self.training_metadata.is_time_dependent:
             return params, targets
 
         # Forward fill to replace missing time values with the last known time value.
-        time = self.ds[self.training_metadata.time_dep_metadata.time_coord]
+        time = ds[self.training_metadata.time_dep_metadata.time_coord]
 
         # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
         if self.sample_dim not in time.dims:
@@ -103,7 +105,7 @@ class PopsimMLAccessor:
 
         # Grab the first time slice to get the initial state.
         state_init = ds_to_dict_jnp(
-            self.ds[self.training_metadata.time_dep_metadata.state_init_vars].isel({self.training_metadata.time_dep_metadata.time_dim: 0})
+            ds[self.training_metadata.time_dep_metadata.state_init_vars].isel({self.training_metadata.time_dep_metadata.time_dim: 0})
         )
 
         env_input = ModuleEvalEnvInput(

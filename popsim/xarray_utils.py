@@ -16,6 +16,9 @@ from popsim.array_utils import jax_to_numpy_array
 ExtraDimAndCoord = tuple[str, typing.Union[Array, np.ndarray]]
 ExtraDimAndCoordSpec = typing.Union[ExtraDimAndCoord, typing.Sequence[ExtraDimAndCoord], None]
 
+DEFAULT_SIM_DIM_NAME = "simulation"
+DEFAULT_TIME_DIM_NAME = "time"
+
 
 def make_data_array(
     name: str,
@@ -73,13 +76,10 @@ def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) ->
 
 
 def _handle_xr_types(data: xr.DataArray | xr.Variable, base_dims, base_coords, name) -> xr.DataArray:
-    """A bit of a weird hack to account for the fact that running simulations currently does not add the dimensions corresponding to the simulation and time to the xarray objects. This function adds them."""
     if isinstance(data, xr.Variable):
-        data._dims = (*base_dims, *data._dims)
         da = xr.DataArray(data, coords=base_coords, name=name)
         return da
     elif isinstance(data, xr.DataArray):
-        data.variable._dims = (*base_dims, *data.variable._dims)
         data = data.assign_coords(base_coords)
         data.name = name
         return data
@@ -117,27 +117,27 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
         # Build the time and simulation coordinates and the list of dimensions.
         time_coord = xr.DataArray(
             time,
-            dims=("simulation", "time") if time.ndim == 2 else ("time"),
+            dims=(DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME) if time.ndim == 2 else (DEFAULT_TIME_DIM_NAME),
         )
         sim_coord = xr.DataArray(
             np.arange(nsims),
-            dims=("simulation"),
+            dims=(DEFAULT_SIM_DIM_NAME),
         )
-        base_dims = ["simulation", "time"]
+        base_dims = [DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME]
     else:
         # In the single-simulation case, expect a 1D time array.
         assert time.ndim == 1
 
         # Build the time and simulation coordinates and the list of dimensions.
-        time_coord = xr.DataArray(time, dims=("time"))
+        time_coord = xr.DataArray(time, dims=(DEFAULT_TIME_DIM_NAME))
         sim_coord = xr.DataArray(0)
         base_dims = [
-            "time",
+            DEFAULT_TIME_DIM_NAME,
         ]
 
     base_coords = {
-        "time": time_coord,
-        "simulation": sim_coord,
+        DEFAULT_TIME_DIM_NAME: time_coord,
+        DEFAULT_SIM_DIM_NAME: sim_coord,
     }
 
     def process_tree_leaf(path, data: np.ndarray | Array | xr.DataArray | xr.Variable) -> xr.DataArray:

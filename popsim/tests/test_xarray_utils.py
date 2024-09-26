@@ -1,4 +1,4 @@
-from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray
+from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME
 import numpy as np
 import pytest
 import xarray as xr
@@ -8,14 +8,14 @@ import xarray as xr
     (
         # 2D array with simulation and time coordinates
         np.ones((2, 3)),
-        ("simulation", "time"),
+        (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME),
         lambda out: np.array_equal(out.values, np.ones((2, 3))),
         False
     ),
     (
         # 3D array with simulation and time coordinates and no extra coords
         np.ones((2, 3, 4)),
-        ("simulation", "time", "test_extra_dim_0"),
+        (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "test_extra_dim_0"),
         lambda out: np.array_equal(out.values, np.ones((2, 3, 4))),
         False
     ),
@@ -30,14 +30,14 @@ import xarray as xr
 def test_make_data_array(arr, expected_dims, expected_output, expect_warning):
     nsim = 2
     ntime = 3
-    coords = {"simulation": xr.DataArray(np.arange(nsim), dims=("simulation", )), "time": xr.DataArray(np.arange(ntime), dims=("time", ))}
+    coords = {DEFAULT_SIM_DIM_NAME: xr.DataArray(np.arange(nsim), dims=(DEFAULT_SIM_DIM_NAME, )), DEFAULT_TIME_DIM_NAME: xr.DataArray(np.arange(ntime), dims=(DEFAULT_TIME_DIM_NAME, ))}
 
 
     if expect_warning:
         with pytest.warns(UserWarning):
-            out = make_data_array("test", arr, dims=["simulation", "time"], coords = coords)
+            out = make_data_array("test", arr, dims=[DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME], coords = coords)
     else:
-        out = make_data_array("test", arr, dims=["simulation", "time"], coords = coords)
+        out = make_data_array("test", arr, dims=[DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME], coords = coords)
 
     if expected_dims is not None:
         assert out.dims == expected_dims
@@ -119,14 +119,14 @@ def test_multi_simulation_2d_time_same_values():
 # Case 6: Single simulation, 1D time array with xr.Variable and xr.DataArray in the tree
 def test_single_simulation_1d_time_xr():
     time = np.arange(10)
-    time_da = xr.DataArray(time, dims=("time",))
+    time_da = xr.DataArray(time, dims=(DEFAULT_TIME_DIM_NAME,))
     tree = create_tree((10,))
 
     # We need to test a xr.Variable that has dimensions (time, spatial) in the array
     # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
-    var_test = xr.Variable(data=np.random.rand(10, 5), dims=("time", "foo"))
+    var_test = xr.Variable(data=np.random.rand(10, 5), dims=(DEFAULT_TIME_DIM_NAME, "foo"))
     var_test._dims = ("foo", )
-    da_test = xr.DataArray(np.random.rand(10, 5), dims=("time", "foo"), coords={"foo": np.arange(5)})
+    da_test = xr.DataArray(np.random.rand(10, 5), dims=(DEFAULT_TIME_DIM_NAME, "foo"), coords={"foo": np.arange(5)})
     da_test.variable._dims = ("foo",)
     tree["var"] = var_test
     tree["da"] = da_test
@@ -137,9 +137,9 @@ def test_single_simulation_1d_time_xr():
     assert result.sizes['time'] == 10
     assert 'simulation' not in result.dims
     assert set(result.data_vars) == {'a', 'b.c', 'b.d', 'var', 'da'}
-    assert result["var"].dims == ("time", "foo")
-    assert result["da"].dims == ("time", "foo")
-    assert set(result.coords.keys()) == {"simulation", "time", "foo"}
+    assert result["var"].dims == (DEFAULT_TIME_DIM_NAME, "foo")
+    assert result["da"].dims == (DEFAULT_TIME_DIM_NAME, "foo")
+    assert set(result.coords.keys()) == {DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo"}
 
 # Case 7: like case 6, but multi-simulation.
 def test_multi_simulation_2d_time_xr():
@@ -150,7 +150,7 @@ def test_multi_simulation_2d_time_xr():
     # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
     var_test = xr.Variable(data=np.random.rand(3, 10, 5), dims=('simulation', 'time', 'foo'))
     var_test._dims = ("foo", )
-    da_test = xr.DataArray(np.random.rand(3, 10, 5), dims=("simulation", "time", "foo"), coords={"foo": np.arange(5)})
+    da_test = xr.DataArray(np.random.rand(3, 10, 5), dims=(DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo"), coords={"foo": np.arange(5)})
     da_test.variable._dims = ("foo",)
     tree["var"] = var_test
     tree["da"] = da_test
@@ -160,9 +160,9 @@ def test_multi_simulation_2d_time_xr():
 
     assert isinstance(result, xr.Dataset)
     assert set(result.dims) == {'simulation', 'time', "foo"}
-    assert set(result.coords.keys()) == {"simulation", "time", "foo"}
+    assert set(result.coords.keys()) == {DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo"}
     assert result.sizes['time'] == 10
     assert result.sizes['simulation'] == 3
     assert set(result.data_vars) == {'a', 'b.c', 'b.d', "var", "da"}
-    assert result["var"].dims == ("simulation", "time", "foo")
-    assert result["da"].dims == ("simulation", "time", "foo")
+    assert result["var"].dims == (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo")
+    assert result["da"].dims == (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo")

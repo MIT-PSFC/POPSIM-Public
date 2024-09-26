@@ -5,7 +5,7 @@ from popsim import ModuleBase, discrete_time_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
 import jax.numpy as jnp
 import jax
-from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray
+from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
 from popsim.simulate import SimInput
 import xarray as xr
 
@@ -100,7 +100,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
-        assert "simulation" in sol.dims
+        assert DEFAULT_SIM_DIM_NAME in sol.dims
 
 
 @pytest.mark.parametrize("return_xarray", [True, False])
@@ -167,7 +167,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
 
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
-        assert "simulation" in sol.dims
+        assert DEFAULT_SIM_DIM_NAME in sol.dims
 
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
@@ -184,8 +184,8 @@ def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
     sol = simulate.simulate(module, sim_inputs, return_xarray=True, stepper_type=stepper_type)
 
     if multi_sim:
-        assert sol["state.x1"].dims == ("simulation", "time")
-        assert sol["state.x2"].dims == ("simulation", "time", "dim1")
+        assert sol["state.x1"].dims == (DEFAULT_SIM_DIM_NAME, "time")
+        assert sol["state.x2"].dims == (DEFAULT_SIM_DIM_NAME, "time", "dim1")
     else:
         assert sol["state.x1"].dims == ("time", )
         assert sol["state.x2"].dims == ("time", "dim1")
