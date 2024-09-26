@@ -97,8 +97,7 @@ def batched_model_eval_and_loss(
     return losses
 
 
-@eqx.filter_value_and_grad
-def batch_loss_and_grad(
+def batch_loss(
     trainable: TrainableModel,
     static: TrainableModel,
     loss_fn: LossFunction,

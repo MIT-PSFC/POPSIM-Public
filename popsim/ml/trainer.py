@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.eval import EvaluationSuite, batch_loss_and_grad, eval_module_on_data, make_val_loss_eval_fn
+from popsim.ml.eval import EvaluationSuite, batch_loss, eval_module_on_data, make_val_loss_eval_fn
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
@@ -52,14 +52,17 @@ def train_step(
     # Partition the model into trainable and static parts.
     trainable, static = partition_fn(model)
 
+    def _batch_loss(_trainable: TrainableModel):
+        return batch_loss(_trainable, static, loss_fn, inputs, targets)
+
     # Compute the loss value and the gradient of loss w.r.t. the trainable parts of the model.
-    loss_value, grads = batch_loss_and_grad(trainable, static, loss_fn, inputs, targets)
+    loss_value, grads = eqx.filter_value_and_grad(_batch_loss)(trainable)
 
     loss_value = eqx.error_if(loss_value, jnp.isnan(loss_value), "Loss is NaN!")
     grads = eqx.error_if(grads, any_nans(grads), "Gradients contain NaNs!")
 
     # Update the optimizer and the model.
-    model_updates, opt_state = optimizer.update(grads, opt_state, trainable)
+    model_updates, opt_state = optimizer.update(grads, opt_state, trainable, value=loss_value, grad=grads, value_fn=_batch_loss)
 
     model_updates = eqx.error_if(model_updates, any_nans(model_updates), "Model updates contain NaNs!")
 

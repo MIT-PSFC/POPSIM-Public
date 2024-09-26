@@ -61,7 +61,8 @@ class NeuralODEEnv(ModuleTrainingEnv):
 
 @pytest.mark.parametrize("use_val", [True, False])
 @pytest.mark.parametrize("train_seg_length", [None, 50])
-def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
+@pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
+def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer):
     ds = oscillator_dataset
 
     
@@ -102,7 +103,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length):
     trainer = Trainer(
         model=env,
         loss_fn=IntegralLoss(loss),
-        optimizer=optax.adabelief(5e-3),
+        optimizer=optimizer,
     )
 
     loss_start = trainer.compute_loss(dl if not use_val else val_dl)
