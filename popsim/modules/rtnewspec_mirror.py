@@ -100,19 +100,21 @@ class RTNewSpecMirror(ModuleBase):
         # 4. Find coherence of probe 1 and probe 2 signals
         # 5. Filter cross spectrum to only have data where the coherence is above a threshold, and the phase matches an n-th mode
 
-        probe1_fft = jnp.fft.fft(probe1_data)
-        probe2_fft = jnp.fft.fft(probe2_data)
+        # Take FFTs and only keep the positive frequencies
+        probe1_fft = jnp.fft.fft(probe1_data)[:self.config.nsamples//2]
+        probe2_fft = jnp.fft.fft(probe2_data)[:self.config.nsamples//2]
 
         # Calculate the auto spectrum of probe 1
         auto_spectrum = jnp.abs(probe1_fft) ** 2
 
-        # Smooth the auto spectrum
+        # Smooth the auto spectrum using boxcar averaging. 
         boxcar = jnp.ones(self.config.nsmth) / self.config.nsmth
         smoothed_auto_spectrum = jnp.convolve(auto_spectrum, boxcar, mode='same')
 
         # Calculate the cross spectrum of probe 1 and probe 2
         complex_cross_spectrum = probe1_fft * jnp.conj(probe2_fft)
         cross_phase = jnp.angle(complex_cross_spectrum)
+        cross_phase_deg = jnp.round(jnp.rad2deg(cross_phase))
 
         # Calculate coherence and set up 95% confidence interval
         coherence = jnp.abs(complex_cross_spectrum) ** 2 / (auto_spectrum * jnp.abs(probe2_fft) ** 2)
@@ -125,7 +127,7 @@ class RTNewSpecMirror(ModuleBase):
         # For each mode, filter the auto spectrum based on coherence and phase
         for mode in range(1, self.config.max_modes + 1):
             filtered_spectrum = jnp.where(
-                (coherence > c95) & (jnp.cos(cross_phase - mode * self.config.d_theta) > 0),
+                (coherence > c95) & (cross_phase_deg == mode * jnp.round(jnp.deg2rad(self.config.d_theta))),
                 smoothed_auto_spectrum,
                 0.0
             )
