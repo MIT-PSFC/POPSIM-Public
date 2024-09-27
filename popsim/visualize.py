@@ -12,7 +12,7 @@ from jaxtyping import PyTree
 import popsim.xarray_utils as pxr
 from popsim import param_utils
 from popsim.interp import InterpType
-from popsim.tree_util import tree_transpose_and_squeeze
+from popsim.tree_util import tree_transpose
 
 
 def visualize_time_series(
@@ -112,6 +112,6 @@ def visualize_params(
     if not isinstance(pytrees, Sequence):
         pytrees = [pytrees]
     pytrees = [param_utils.build_param_paths(tree, time_base, interp_type) for tree in pytrees]
-    pytrees_vec = tree_transpose_and_squeeze(pytrees)
+    pytrees_vec = tree_transpose(pytrees)
     dataset = pxr.time_and_pytree_to_xarray(time_base, pytrees_vec, multi_simulation=len(pytrees) > 1)
     return visualize_time_series(dataset)
