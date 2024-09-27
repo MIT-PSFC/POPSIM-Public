@@ -24,8 +24,8 @@ from popsim.sim_utils import (
     SimInput,
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
-from popsim.tree_util import any_nans, get_instances_from_tree_leaves, tree_transpose_and_squeeze
-from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, solution_to_xarray, time_and_pytree_to_xarray
+from popsim.tree_util import any_nans, get_instances_from_tree_leaves, tree_transpose_with_xr
+from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, solution_to_xarray, time_and_pytree_to_xarray
 
 
 class StepperType(IntEnum):
@@ -106,7 +106,7 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
     # Vectorize the simulation inputs.
-    sim_inputs_vectorized = tree_transpose_and_squeeze(sim_inputs)
+    sim_inputs_vectorized = tree_transpose_with_xr(sim_inputs, DEFAULT_SIM_DIM_NAME)
 
     multi_sim = len(sim_inputs) > 1
     logger.info(f"Running {len(sim_inputs)} simulations.")
@@ -114,37 +114,9 @@ def simulate(
     # Perform the simulation.
     # Use context managers to appropriately change xr.Variable instances to include time and simulation dimensions.
     if multi_sim:
-
-        def var_change_fn(var: xr.Variable):
-            ndims = len(var._dims)
-            datadims = var._data.ndim
-            if ndims == datadims:
-                return var
-            elif ndims == datadims - 2:
-                newdims = (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, *var._dims)
-                var._dims = newdims
-                return var
-            else:
-                raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
-
-        with var_change_on_unflatten(var_change_fn):
-            sol = _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
+        sol = _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
     else:
-
-        def var_change_fn(var: xr.Variable):
-            ndims = len(var._dims)
-            datadims = var._data.ndim
-            if ndims == datadims:
-                return var
-            elif ndims == datadims - 1:
-                newdims = (DEFAULT_TIME_DIM_NAME, *var._dims)
-                var._dims = newdims
-                return var
-            else:
-                raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
-
-        with var_change_on_unflatten(var_change_fn):
-            sol = simulate_fun(module, sim_inputs_vectorized)
+        sol = simulate_fun(module, sim_inputs_vectorized)
 
     if stepper_type == StepperType.SIMPLE_EULER:
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol
@@ -154,15 +126,36 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
 
+def add_dim_to_vars(tree, dim_name):
+    def var_change_fn(var: xr.Variable):
+        var._dims = (dim_name, *var._dims)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+
+
+def remove_dim_from_vars(tree, dim_name):
+    def var_change_fn(var: xr.Variable):
+        var._dims = tuple(d for d in var._dims if d != dim_name)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+
+
 @eqx.filter_jit
 def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
+
     # Perform a vectorized simulation.
-    sol = jax.vmap(
-        simulate_fun,
-        in_axes=(None, sim_input_axes),
-    )(module, sim_input)
+    # Note that we need to remove the simulation dimension from the xarray variables inside the simulation and then add it back after the simulation.
+    with var_change_on_unflatten(lambda var: remove_dim_from_vars(var, DEFAULT_SIM_DIM_NAME)):
+        sol = jax.vmap(
+            simulate_fun,
+            in_axes=(None, sim_input_axes),
+        )(module, sim_input)
+
+    sol = add_dim_to_vars(sol, DEFAULT_SIM_DIM_NAME)
 
     # Remove extraneous dimensions.
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
@@ -210,8 +203,10 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
         y0=sim_input.initial_state,
         args=sim_input.params,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
-        max_steps=1073741824,  # Allows indefinite number of steps.
+        max_steps=100_000_000,  # We want a large, but not infinite number of steps as an infinite number of steps can cause the simulation to hang.
     )
+    # Add simulation dimension to any xr.Variable instances.
+    sol = add_dim_to_vars(sol, "time")
     return sol
 
 
@@ -251,4 +246,6 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
         return state_next, output_data
 
     _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.time)
+    # Add simulation dimension to any xr.Variable instances.
+    outputs = add_dim_to_vars(outputs, "time")
     return outputs
