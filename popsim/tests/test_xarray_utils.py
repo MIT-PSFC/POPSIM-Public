@@ -125,9 +125,7 @@ def test_single_simulation_1d_time_xr():
     # We need to test a xr.Variable that has dimensions (time, spatial) in the array
     # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
     var_test = xr.Variable(data=np.random.rand(10, 5), dims=(DEFAULT_TIME_DIM_NAME, "foo"))
-    var_test._dims = ("foo", )
     da_test = xr.DataArray(np.random.rand(10, 5), dims=(DEFAULT_TIME_DIM_NAME, "foo"), coords={"foo": np.arange(5)})
-    da_test.variable._dims = ("foo",)
     tree["var"] = var_test
     tree["da"] = da_test
 
@@ -149,9 +147,7 @@ def test_multi_simulation_2d_time_xr():
     # We need to test a xr.Variable that has dimensions (time, spatial) in the array
     # but not in the tree to emulate what happens when we simulate. Similarly for xr.DataArray.
     var_test = xr.Variable(data=np.random.rand(3, 10, 5), dims=('simulation', 'time', 'foo'))
-    var_test._dims = ("foo", )
     da_test = xr.DataArray(np.random.rand(3, 10, 5), dims=(DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo"), coords={"foo": np.arange(5)})
-    da_test.variable._dims = ("foo",)
     tree["var"] = var_test
     tree["da"] = da_test
     
