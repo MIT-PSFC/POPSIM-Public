@@ -1,6 +1,6 @@
 import pytest
 from popsim.tests.fixtures import cmod_test_dataset
-from popsim.ml.dataloading import make_dataloader, make_time_indep_dataloader, XarrayPreppedDataset
+from popsim.ml.dataloading import make_dataloader, make_time_indep_dataloader, XarrayPreppedDataset, DEFAULT_SAMPLE_DIM
 import numpy as np
 from copy import deepcopy
 
@@ -32,9 +32,9 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length = N
         expected_sample_size = min(batch_size_handle_none, expected_n_samps - idx * batch_size_handle_none)
 
         if segment_length is not None:
-            assert dict(batch.ds.sizes) == {'sample': expected_sample_size, 'time_slice_input': segment_length}
+            assert dict(batch.ds.sizes) == {DEFAULT_SAMPLE_DIM: expected_sample_size, 'time_slice_input': segment_length}
         else:
-            assert batch.ds.sizes["sample"] == expected_sample_size
+            assert batch.ds.sizes[DEFAULT_SAMPLE_DIM] == expected_sample_size
         first_batches.append(deepcopy(batch))
 
     # Iterate through the dataloader again to check that the "shuffle" flag works as intended.

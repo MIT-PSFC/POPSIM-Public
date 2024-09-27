@@ -9,6 +9,8 @@ from jaxtyping import Array
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
 from popsim.ml.xarray_accessor import TrainingMetadata
 
+DEFAULT_SAMPLE_DIM = "sample"
+
 
 class XarrayPreppedDataset(Dataset):
     """A thin wrapper around an xr.Dataset that implements the Dataset interface for jax_dataloader."""
@@ -96,20 +98,23 @@ def make_time_indep_dataloader(
     """
     ds = ds[input_vars + target_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
-    sample_ds = ds.stack(sample=(episode_var_dim, time_var_dim)).dropna("sample", how="any")
+    sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM, how="any")
 
     if batch_size is None:
-        batch_size = len(sample_ds["sample"])
+        batch_size = len(sample_ds[DEFAULT_SAMPLE_DIM])
+
+    train_meta = TrainingMetadata(
+        sample_coord=DEFAULT_SAMPLE_DIM,
+        sample_dim=DEFAULT_SAMPLE_DIM,
+        param_vars=input_vars,
+        target_vars=target_vars,
+        time_dep_metadata=None,
+    )
+
+    sample_ds.popsim_ml.training_metadata = train_meta
 
     dl = DataLoader(
-        XarrayPreppedDataset(
-            ds=sample_ds,
-            sample_coord="sample",
-            sample_dim="sample",
-            param_vars=input_vars,
-            target_vars=target_vars,
-            time_dep_metadata=None,
-        ),
+        XarrayPreppedDataset(ds=sample_ds),
         backend="jax",
         batch_size=batch_size,
         shuffle=shuffle,
@@ -180,18 +185,18 @@ def make_dataloader(
     time_dim_sample_ds = f"{time_var_dim}_input"
 
     # Drop samples where the data is all NaN.
-    sample_ds = sample_ds.dropna("sample", how="all", subset=input_vars + target_vars)
+    sample_ds = sample_ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=input_vars + target_vars)
 
     # Squeeze the sample_ds to get rid of extraneous dimensions.
     # For example, when "segment_length=1", we get rid of the "time" dimension.
     sample_ds = sample_ds.squeeze()
 
     if batch_size is None:
-        batch_size = len(sample_ds["sample"])
+        batch_size = len(sample_ds[DEFAULT_SAMPLE_DIM])
 
     train_meta = TrainingMetadata(
-        sample_coord="sample",
-        sample_dim="sample",
+        sample_coord=DEFAULT_SAMPLE_DIM,
+        sample_dim=DEFAULT_SAMPLE_DIM,
         param_vars=param_vars,
         target_vars=target_vars,
         time_dep_metadata=TrainingMetadata.TimeDepMetadata(
