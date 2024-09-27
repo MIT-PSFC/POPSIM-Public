@@ -3,6 +3,7 @@ from typing import Optional
 import chex
 import interpax
 import jax.numpy as jnp
+import xarray as xr
 from cfspopcon.jax_compatible import density_peaking, plasma_profiles
 from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
 from jaxtyping import Array
@@ -159,11 +160,11 @@ class ProfileCalculator:
             raise NotImplementedError(f"Profile form {self.profile_form} is not recognized...")
 
         outs = {
-            "rho": self.rho,
-            "electron_density_profile": electron_density_profile,
-            "ion_density_profile": ion_density_profile,
-            "electron_temp_profile": electron_temp_profile,
-            "ion_temp_profile": ion_temp_profile,
+            "rho": xr.Variable(dims=("rho",), data=self.rho),
+            "electron_density_profile": xr.DataArray(electron_density_profile, dims=["rho"]),
+            "ion_density_profile": xr.DataArray(ion_density_profile, dims=["rho"]),
+            "electron_temp_profile": xr.DataArray(electron_temp_profile, dims=["rho"]),
+            "ion_temp_profile": xr.DataArray(ion_temp_profile, dims=["rho"]),
             "effective_collisionality": effective_collisionality,
             "ion_density_peaking": ion_density_peaking,
             "electron_density_peaking": electron_density_peaking,

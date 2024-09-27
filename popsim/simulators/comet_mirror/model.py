@@ -172,18 +172,18 @@ class CometMirror(ModuleBase):
         def volume_integrator(quantity_per_m3) -> float:
             # TODO(allenw): currently using cylindrical. Eventually incorporate dV/drho.
             return integrate_profile_over_volume_cylindrical(
-                quantity_per_m3, rho=profiles["rho"], plasma_volume=params.geometry.plasma_volume
+                quantity_per_m3, rho=profiles["rho"].data, plasma_volume=params.geometry.plasma_volume
             )
 
         P_rad_bremsstrahlung_MW = radiated_power.calc_bremsstrahlung_radiation(
-            electron_density_profile=profiles["electron_density_profile"],
-            electron_temp_profile=profiles["electron_temp_profile"],
+            electron_density_profile=profiles["electron_density_profile"].data,
+            electron_temp_profile=profiles["electron_temp_profile"].data,
             z_effective=z_effective,
             volume_integrator=volume_integrator,
         )
         P_rad_synchrotron_MW = radiated_power.calc_synchrotron_radiation(
-            electron_density_profile=profiles["electron_density_profile"],
-            electron_temp_profile=profiles["electron_temp_profile"],
+            electron_density_profile=profiles["electron_density_profile"].data,
+            electron_temp_profile=profiles["electron_temp_profile"].data,
             major_radius=params.geometry.major_radius,
             minor_radius=params.geometry.minor_radius,
             magnetic_field_on_axis=params.magnetic_field_on_axis,
@@ -193,8 +193,8 @@ class CometMirror(ModuleBase):
 
         Prad_imp_MW, imp_debugs = calc_impurity_radiated_power_radas(
             # The radas calculation uses eV and m^-3.
-            electron_temp_profile=1e3 * profiles["electron_temp_profile"],
-            electron_density_profile=1e19 * profiles["electron_density_profile"],
+            electron_temp_profile=1e3 * profiles["electron_temp_profile"].data,
+            electron_density_profile=1e19 * profiles["electron_density_profile"].data,
             impurity_concentrations={k: v for k, v in species_concentrations.items() if isinstance(k, Impurity)},
             volume_integrator=volume_integrator,
             radas_curves=self.config.radas_curves,
@@ -210,9 +210,9 @@ class CometMirror(ModuleBase):
         )
         P_fusion_MW, P_neutron_MW, P_alpha_MW, reactions_per_second = fusion_rates.calc_fusion_power(
             fusion_reaction=self.config.fusion_reaction,
-            ion_temp_profile=profiles["ion_temp_profile"],
+            ion_temp_profile=profiles["ion_temp_profile"].data,
             heavier_fuel_species_fraction=heavier_fuel_species_fraction,
-            nfuel19=profiles["ion_density_profile"],
+            nfuel19=profiles["ion_density_profile"].data,
             volume_integrator=volume_integrator,
         )
 
