@@ -73,5 +73,5 @@ def test_mode_growth_and_freq(tearing_test_sim):
 
         F = sol_xarray[f"output.mode_freq.{str(mode)}"]
         assert F.sel(time=0, method="nearest") == 0.0
-        assert F.sel(time=aux_data["trigger_time"]+aux_data["dt"], method="nearest") == INITIAL_ROT_FREQ[mode]
+        assert F.sel(time=aux_data["trigger_time"], method="nearest") == INITIAL_ROT_FREQ[mode]
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0
