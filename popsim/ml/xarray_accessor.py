@@ -1,7 +1,9 @@
 import typing
+import warnings
 from dataclasses import dataclass
 
 import jax.numpy as jnp
+import tabulate
 import xarray as xr
 from jaxtyping import Array
 
@@ -34,6 +36,33 @@ class TrainingMetadata:
         return self.time_dep_metadata is not None
 
 
+def check_and_print_nan_report(ds: xr.Dataset, sample_coord: str):
+    # Compute a boolean mask where NaNs are present
+    nan_mask = ds.isnull()
+
+    n_nans = nan_mask.sum()
+
+    if n_nans == 0:
+        return
+
+    # Reduce the mask along the 'time_slice_input' dimension to see if any NaNs exist in that dimension
+    nan_any = nan_mask.any(dim="time_slice_input")
+
+    table = []
+    headers = ["Variable", f"Samples with NaNs in {sample_coord}"]
+    for var_name in nan_any.data_vars:
+        nan_da = nan_any[var_name]
+        if sample_coord in nan_da.coords:
+            nan_values = nan_da.values
+            samples_with_nan = nan_da.coords[sample_coord].values[nan_values]
+            samples_str = ", ".join(map(str, samples_with_nan))
+            table.append([var_name, samples_str])
+        else:
+            table.append([var_name, f"Coordinate '{sample_coord}' not found"])
+    report = tabulate(table, headers=headers, tablefmt="grid")
+    warnings.warn(f"Found NaNs in the dataset:\n{report}", stacklevel=2)
+
+
 @xr.register_dataset_accessor("popsim_ml")
 class PopsimMLAccessor:
     """Accessor for xarray Datasets to help with ML training tasks."""
@@ -63,9 +92,11 @@ class PopsimMLAccessor:
         if sample_coord_name in self._ds:
             if self._ds[sample_coord_name].ndim != 1:
                 raise ValueError(f"The sample coordinate '{sample_coord_name}' must be 1D.")
+        check_and_print_nan_report(self._ds, sample_coord_name)
 
     @property
     def sample_dim(self) -> str:
+        """Get the sample dimension."""
         sample_coord = self.sample_coord
         dims = sample_coord.dims
         # Check that it is 1D
@@ -94,10 +125,8 @@ class PopsimMLAccessor:
         if not self.training_metadata.is_time_dependent:
             return params, targets
 
-        # Forward fill to replace missing time values with the last known time value.
-        time = ds[self.training_metadata.time_dep_metadata.time_coord]
-
         # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
+        time = ds[self.training_metadata.time_dep_metadata.time_coord]
         if self.sample_dim not in time.dims:
             time = time.expand_dims({self.sample_dim: self.sample_coord})
 
