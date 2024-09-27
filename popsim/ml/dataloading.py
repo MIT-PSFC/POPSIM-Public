@@ -6,6 +6,7 @@ import xbatcher
 from jax_dataloader import DataLoader, Dataset
 from jaxtyping import Array
 
+from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
 from popsim.ml.xarray_accessor import TrainingMetadata
 
@@ -191,6 +192,9 @@ def make_dataloader(
     # For example, when "segment_length=1", we get rid of the "time" dimension.
     sample_ds = sample_ds.squeeze()
 
+    # Forward fill the end of the time dimension to handle segments with unequal lengths.
+    sample_ds = ffill_end_of_time_padding(sample_ds, time_coord, time_dim_sample_ds)
+
     if batch_size is None:
         batch_size = len(sample_ds[DEFAULT_SAMPLE_DIM])
 
@@ -213,3 +217,26 @@ def make_dataloader(
         shuffle=shuffle,
     )
     return dl
+
+
+def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) -> xr.Dataset:
+    """The segmenting process results in nan-padding to handle segments with unequal lengths. This function fills in the nan-padding at the end of the time dimension.
+
+    Args:
+        ds (xr.Dataset): dataset with nan-padding at the end of the time dimension.
+        time_coord (str): time coordinate variable.
+        time_dim (str): time dimension.
+
+    Returns:
+        xr.Dataset: dataset with nan-padding at the end of the time dimension filled in.
+    """
+
+    # Get the axis of the time dimension
+    time_axis = ds[time_coord].dims.index(time_dim)
+
+    # Identify the elements that are end padding.
+    padding_mask = contiguous_true_end_of_axis_mask(ds[time_coord].isnull().values, axis=time_axis)
+    ds[time_coord] = xr.where(padding_mask, ds[time_coord].ffill(time_dim), ds[time_coord])
+
+    ds = xr.where(padding_mask, ds.ffill(time_dim), ds)
+    return ds
