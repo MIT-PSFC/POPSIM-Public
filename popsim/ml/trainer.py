@@ -149,7 +149,6 @@ class Trainer:
         eval_suite: typing.Optional[EvaluationSuite] = None,
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
-        patience: typing.Optional[int] = None,
         logger: typing.Optional[LoggerBase] = None,
     ):
         logger = logger or ConsoleLogger()
@@ -184,11 +183,6 @@ class Trainer:
                 val_loss = np.asarray(eval_results["loss"]).item()
                 val_loss_history = np.append(val_loss_history, val_loss)
 
-                # Check for early stopping.
-                # If the validation loss has not decreased for the last `patience` number of evaluations, stop training.
-                if patience is not None and len(val_loss_history) > patience and np.all(np.diff(val_loss_history[-patience:]) >= 0.0):
-                    break
-
                 # Pre-pend "val/" to the keys in the eval_results dictionary.
                 eval_results = {f"val/{k}": v for k, v in eval_results.items()}
 
@@ -200,7 +194,7 @@ class Trainer:
                     | eval_results
                 )
 
-                # TODO(allenw): add checkpointing.
+                # TODO(allenw): add checkpointing and other callbacks.
 
     def run_evals(self, dataloader: DataLoader, eval_suite: EvaluationSuite) -> dict[str, typing.Any]:
         eval_results = eval_module_on_data(self.train_state.model, dataloader, eval_suite)
