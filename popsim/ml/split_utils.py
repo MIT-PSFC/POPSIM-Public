@@ -38,17 +38,13 @@ def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
     return segment_lengths
 
 
-def random_split(
-    n_data: int,
-    lengths_or_fracs: Sequence[Union[int, float]],
-    key: jax.random.PRNGKey,
-) -> list[jax.Array]:
+def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], seed: int) -> list[jax.Array]:
     """Generate indicies to split a dataset into non-overlapping new datasets.
 
     Args:
         n_data (int): size of the dataset to be split.
         lengths_or_fracs (Sequence[Union[int, float]]): lengths or fractions of splits to be produced.
-        key (jax.random.PRNGKey): key to use for random number generation.
+        seed (int): seed for psuedo-random number generation.
 
     Returns:
         List[jax.Array]: list of indicies to split the dataset.
@@ -65,7 +61,7 @@ def random_split(
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
     indices = jax.random.permutation(
-        key,
+        jax.random.PRNGKey(seed),
         n_data,
     )
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
@@ -85,4 +81,4 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, pr
     """
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, jax.random.PRNGKey(prng_seed))]
+    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, prng_seed)]
