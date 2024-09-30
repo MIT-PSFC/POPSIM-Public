@@ -5337,6 +5337,22 @@ parallel = ["dask[complete]"]
 viz = ["matplotlib", "nc-time-axis", "seaborn"]
 
 [[package]]
+name = "xarray-jax"
+version = "0.0.5"
+description = ""
+optional = false
+python-versions = "<4.0,>=3.10"
+files = [
+    {file = "xarray_jax-0.0.5-py3-none-any.whl", hash = "sha256:34ac654b2566cc80dc13b3d8ab05b0c9ee00a7aec8d89d688faacdbe07201e75"},
+    {file = "xarray_jax-0.0.5.tar.gz", hash = "sha256:54cf8f9832d5ff50f8798fc385555f4d6cd019a2e416127323606b1f4498f485"},
+]
+
+[package.dependencies]
+equinox = ">=0.11.7,<0.12.0"
+jax = ">=0.4.33,<0.5.0"
+xarray = ">=2024.9.0,<2025.0.0"
+
+[[package]]
 name = "xbatcher"
 version = "0.3.0"
 description = "Batch generation from Xarray objects"
@@ -5390,4 +5406,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "edf9250fb919a94b9e0b91181356b2aa1dcc1b875226c2de1e57313d2ccbf2cb"
+content-hash = "5641d43d940eb22094cc4480420f0660f75dbb07a424a7925f21b04b1a6958fa"
