@@ -4,7 +4,6 @@ import chex
 from popsim import ModuleBase, discrete_time_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
 import jax.numpy as jnp
-import jax
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
 from popsim.simulate import SimInput
 import xarray as xr
@@ -34,7 +33,7 @@ class ContinuousTimeModule(ModuleBase):
         self.config = config
 
     def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        state_dot = ContinuousTimeModule.State(x1=-state.x1, x2=-1.0 * xr.apply_ufunc(jnp.square, state.x2))
+        state_dot = ContinuousTimeModule.State(x1=-state.x1, x2=-1.0 * state.x2)
         out = ContinuousTimeModule.Output(y=xr.apply_ufunc(jnp.abs, state.x1))
         return state_dot, out
 
@@ -172,8 +171,6 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
-    # if multi_sim:
-    #     pytest.skip("Skipping multi_sim = True case") # Skipping for now because xarray state doesn't support multi-sim yet.
     module, initial_state = xarray_partial_state
     time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
     if multi_sim:
