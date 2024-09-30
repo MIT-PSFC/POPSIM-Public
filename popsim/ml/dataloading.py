@@ -239,4 +239,8 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
     ds[time_coord] = xr.where(padding_mask, ds[time_coord].ffill(time_dim), ds[time_coord])
 
     ds = xr.where(padding_mask, ds.ffill(time_dim), ds)
+
+    # Drop samples where time is all NaN.
+    ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])
+
     return ds
