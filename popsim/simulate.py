@@ -17,14 +17,13 @@ from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
-from popsim.patches import error_if
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
     SimInput,
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
-from popsim.tree_util import any_nans, get_instances_from_tree_leaves, tree_transpose_with_xr
+from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose_with_xr
 from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, solution_to_xarray, time_and_pytree_to_xarray
 
 
@@ -112,7 +111,6 @@ def simulate(
     logger.info(f"Running {len(sim_inputs)} simulations.")
 
     # Perform the simulation.
-    # Use context managers to appropriately change xr.Variable instances to include time and simulation dimensions.
     if multi_sim:
         sol = _vec_simulate(module, sim_inputs_vectorized, simulate_fun=simulate_fun)
     else:
@@ -162,24 +160,13 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
     return sol
 
 
-def call_module_with_nan_checks(module: ModuleBase, state: "State", params: "Params") -> tuple["State", "Output"]:  # type: ignore # noqa: F821, PGH003
-    """Call the module with NaN checks."""
-    state = error_if(state, any_nans(state), "State contains NaNs.")
-    params = error_if(params, any_nans(params), "Params contain NaNs.")
-
-    state_out, output = module(state, params)
-
-    state_out = error_if(state_out, any_nans(state_out), "State output from the module contains NaNs.")
-    return state_out, output
-
-
 @eqx.filter_jit
 def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
     def module_f(t, y, params, return_aux=False):
         params_resolved = resolve_paths(params, t)
-        state_dot, out = call_module_with_nan_checks(module, y, params_resolved)
+        state_dot, out = module(y, params_resolved)
         if return_aux:
             return out, params_resolved
         else:
@@ -222,7 +209,7 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
     def _euler_step(carry, t):
         state = carry
         params_resolved = resolve_paths(sim_input.params, t)
-        state_out, out = call_module_with_nan_checks(module, state, params_resolved)
+        state_out, out = module(state, params_resolved)
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
         # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
