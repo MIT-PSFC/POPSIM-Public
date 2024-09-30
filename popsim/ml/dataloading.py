@@ -230,7 +230,6 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
     Returns:
         xr.Dataset: dataset with nan-padding at the end of the time dimension filled in.
     """
-
     # Get the axis of the time dimension
     time_axis = ds[time_coord].dims.index(time_dim)
 
@@ -240,7 +239,8 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
 
     ds = xr.where(padding_mask, ds.ffill(time_dim), ds)
 
-    # Drop samples where time is all NaN.
-    ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])
+    if DEFAULT_SAMPLE_DIM in ds[time_coord].dims:
+        # Drop samples where time is all NaN.
+        ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])
 
     return ds
