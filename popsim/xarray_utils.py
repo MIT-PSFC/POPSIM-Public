@@ -156,3 +156,39 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
 
     ds = xr.merge(dataarrays)
     return ds
+
+
+def add_dim_to_vars(tree: PyTree, dim_name: str) -> PyTree:
+    """Given a PyTree that may contain xr.Variable instances, add a dimension to the xr.Variables. An example use case involves running a simulation forward in time, which requires adding a time dimension to the xr.Variable instances.
+
+    Args:
+        tree (PyTree): PyTree that may contain xr.Variable instances.
+        dim_name (str): Name of the dimension to add.
+
+    Returns:
+        PyTree: PyTree with the dimension added to the xr.Variables.
+    """
+
+    def var_change_fn(var: xr.Variable):
+        var._dims = (dim_name, *var._dims)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+
+
+def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
+    """Given a PyTree that may contain xr.Variable instances, remove a dimension from the xr.Variables. An example use case involves applying a vmap across simulation cases, which requires removing the simulation dimension from the xr.Variable instances.
+
+    Args:
+        tree (PyTree): PyTree that may contain xr.Variable instances.
+        dim_name (str): Name of the dimension to remove.
+
+    Returns:
+        PyTree: PyTree with the dimension removed from the xr.Variables.
+    """
+
+    def var_change_fn(var: xr.Variable):
+        var._dims = tuple(d for d in var._dims if d != dim_name)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
