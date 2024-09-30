@@ -75,7 +75,7 @@ def model_eval_and_loss(
     inputs: PyTree[Array],
     targets: PyTree[Array],
 ) -> float:
-    """Run the model on the inputs and compute the loss. Supports both POPSIM simulation modules, but also time-independent modules.
+    """Run the model on the inputs and compute the loss. Supports POPSIM simulation modules and also time-independent modules.
 
     Args:
         model (TrainableModel): the model to evaluate.
