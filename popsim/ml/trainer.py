@@ -3,6 +3,7 @@ import typing
 
 import chex
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
@@ -85,18 +86,23 @@ def train_epoch(
 ) -> TrainState:
     """Train the model for one epoch."""
     for batch in train_dl:
+        tstart_prep = time.time()
         inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()
+        tend_prep = time.time()
 
         tstart_step = time.time()
 
-        model, opt_state, loss_value = train_step(
-            train_state.model,
-            partition_fn,
-            loss_fn,
-            optimizer,
-            train_state.opt_state,
-            inputs,
-            targets,
+        # block_until_ready on JIT compiled functions is important for correctly benchmarking the elapsed time.
+        model, opt_state, loss_value = jax.block_until_ready(
+            train_step(
+                train_state.model,
+                partition_fn,
+                loss_fn,
+                optimizer,
+                train_state.opt_state,
+                inputs,
+                targets,
+            )
         )
         tend_step = time.time()
 
@@ -105,6 +111,7 @@ def train_epoch(
                 "train/loss": loss_value,
                 "train/step": train_state.step,
                 "train/step_time": tend_step - tstart_step,
+                "train/prep_time": tend_prep - tstart_prep,
             }
         )
         train_state = TrainState(
