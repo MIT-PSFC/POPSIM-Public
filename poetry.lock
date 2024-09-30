@@ -5338,13 +5338,13 @@ viz = ["matplotlib", "nc-time-axis", "seaborn"]
 
 [[package]]
 name = "xarray-jax"
-version = "0.0.3"
+version = "0.0.5"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.10"
 files = [
-    {file = "xarray_jax-0.0.3-py3-none-any.whl", hash = "sha256:411b415167d7ea956de1baf2d4dece259aef92b211b1aa7769fbd1313bd4ffc3"},
-    {file = "xarray_jax-0.0.3.tar.gz", hash = "sha256:4dfc9645dedea45542c96d1f00574e6d764ffc9b1e7257650df950582495ee98"},
+    {file = "xarray_jax-0.0.5-py3-none-any.whl", hash = "sha256:34ac654b2566cc80dc13b3d8ab05b0c9ee00a7aec8d89d688faacdbe07201e75"},
+    {file = "xarray_jax-0.0.5.tar.gz", hash = "sha256:54cf8f9832d5ff50f8798fc385555f4d6cd019a2e416127323606b1f4498f485"},
 ]
 
 [package.dependencies]
@@ -5406,4 +5406,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "96a71494ddc3eae5f1308d194ad79ee2cd1a967e947f6aaa3adb89b91e3e69f8"
+content-hash = "5641d43d940eb22094cc4480420f0660f75dbb07a424a7925f21b04b1a6958fa"
