@@ -11,7 +11,7 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
-from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, solution_to_xarray
+from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, solution_to_xarray
 
 """
 This module contains utilities for evaluating models on data.
@@ -41,6 +41,16 @@ EvaluationSuite = dict[str, Callable[[xr.Dataset, xr.Dataset], Any]]
 def eval_module_on_data(
     env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite: Optional[EvaluationSuite] = None
 ) -> tuple[xr.Dataset, dict[str, Any]]:
+    """Evaluate a module given data from a dataloader and an evaluation suite.
+
+    Args:
+        env (ModuleEvalEnv): the module wrapped in an evaluation environment.
+        dataloader (DataLoader): the dataloader to use for evaluation.
+        evaluation_suite (Optional[EvaluationSuite], optional): The evaluation suite. Defaults to None.
+
+    Returns:
+        tuple[xr.Dataset, dict[str, Any]]: the output dataset and the evaluation results.
+    """
     if evaluation_suite is None:
         evaluation_suite = {"eval_fn_inputs": lambda eval_fn_input: eval_fn_input}
 
@@ -50,9 +60,11 @@ def eval_module_on_data(
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         sol = jax.vmap(env, in_axes=(inputs_spec,))(inputs)
         ds_out = solution_to_xarray(sol, multi_simulation=True)
+
+        # Rename the dimensions to match the input dataset.
         ds_out = ds_out.rename({DEFAULT_SIM_DIM_NAME: DEFAULT_SAMPLE_DIM})
         ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: ds.popsim_ml.sample_coord})
-        ds_out = ds_out.rename_dims({"time": ds.popsim_ml.training_metadata.time_dep_metadata.time_dim})
+        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: ds.popsim_ml.training_metadata.time_dep_metadata.time_dim})
         return ds_out
 
     sim_outs_and_batches = [(eval_env_return_xarray(env, batch), batch) for batch in dataloader]

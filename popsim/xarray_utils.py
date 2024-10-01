@@ -30,13 +30,13 @@ def make_data_array(
     If the number of dimensions in the array exceeds the number of specified dims, extra dimensions will be generated with default names.
 
     Args:
-        name (str): _description_
-        array (Array): _description_
-        dims (list[str]): _description_
-        coords (dict[str, xr.DataArray]): _description_
+        name (str): name of the resulting DataArray.
+        array (Array): the data to wrap in a DataArray.
+        dims (list[str]): list of dimension names of the array.
+        coords (dict[str, xr.DataArray]): dictionary of coordinates for the DataArray.
 
     Returns:
-        xr.DataArray: _description_
+        xr.DataArray: the constructed DataArray.
     """
     array = jax_to_numpy_array(array)
 
