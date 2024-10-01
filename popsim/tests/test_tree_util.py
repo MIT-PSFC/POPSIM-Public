@@ -113,3 +113,22 @@ class EmptyDataclass:
 def test_any_nans_and_no_nans(tree, has_nans):
     assert tree_util.any_nans(tree) == has_nans
     assert tree_util.no_nans(tree) == (not has_nans)
+
+
+def test_tree_transpose_with_xr():
+
+    da = xr.DataArray(jnp.array([1.0, 2.0, 3.0]), dims=["x"])
+
+    # Test case 1: List of PyTrees to PyTree of arrays
+    input_tree = [{"a": 0.0, "b": 1.0, "c": da}, {"a": 2.0, "b": 3.0, "c": da}]
+
+    input_tree = jax.tree.map(jnp.atleast_1d, input_tree)
+
+    out = tree_util.tree_transpose_with_xr(input_tree, "simulation")
+
+    assert out["c"].equals(xr.concat([da, da], dim="simulation"))
+
+    back = tree_util.tree_transpose_with_xr(out, "simulation")
+
+    chex.assert_trees_all_equal(input_tree, back)
+

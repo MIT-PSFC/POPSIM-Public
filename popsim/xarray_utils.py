@@ -75,8 +75,20 @@ def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) ->
     return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
-def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation: bool = False) -> xr.Dataset:
-    """Convert a time array and a PyTree of arrays to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
+def _handle_xr_types(data: xr.DataArray | xr.Variable, base_dims, base_coords, name) -> xr.DataArray:
+    if isinstance(data, xr.Variable):
+        da = xr.DataArray(data, coords=base_coords, name=name)
+        return da
+    elif isinstance(data, xr.DataArray):
+        data = data.assign_coords(base_coords)
+        data.name = name
+        return data
+    else:
+        raise ValueError("xr.Variable, or xr.DataArray.")
+
+
+def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
+    """Convert a time array and a PyTree of arrays, xr.Variable, and xr.DataArray instances to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
 
     Args:
         time (Array): time array. In the multi-simulation case, this can be either a 1D or 2D array. In the single-simulation case, this is a 1D array.
@@ -128,12 +140,12 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation
         DEFAULT_SIM_DIM_NAME: sim_coord,
     }
 
-    def process_tree_leaf(path, data: np.ndarray | Array) -> xr.DataArray:
+    def process_tree_leaf(path, data: np.ndarray | Array | xr.DataArray | xr.Variable) -> xr.DataArray:
         name = ptu.keypath_to_string(path)
         if isinstance(data, (np.ndarray, Array)):
             return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
         elif isinstance(data, (xr.Variable, xr.DataArray)):
-            raise ValueError("Xarray types are not supported yet.")
+            return _handle_xr_types(data, base_dims, base_coords, name)
         else:
             raise ValueError("Expected Array, xr.Variable, or xr.DataArray.")
 
@@ -144,3 +156,39 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array], multi_simulation
 
     ds = xr.merge(dataarrays)
     return ds
+
+
+def add_dim_to_vars(tree: PyTree, dim_name: str) -> PyTree:
+    """Given a PyTree that may contain xr.Variable instances, add a dimension to the xr.Variables. An example use case involves running a simulation forward in time, which requires adding a time dimension to the xr.Variable instances.
+
+    Args:
+        tree (PyTree): PyTree that may contain xr.Variable instances.
+        dim_name (str): Name of the dimension to add.
+
+    Returns:
+        PyTree: PyTree with the dimension added to the xr.Variables.
+    """
+
+    def var_change_fn(var: xr.Variable):
+        var._dims = (dim_name, *var._dims)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+
+
+def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
+    """Given a PyTree that may contain xr.Variable instances, remove a dimension from the xr.Variables. An example use case involves applying a vmap across simulation cases, which requires removing the simulation dimension from the xr.Variable instances.
+
+    Args:
+        tree (PyTree): PyTree that may contain xr.Variable instances.
+        dim_name (str): Name of the dimension to remove.
+
+    Returns:
+        PyTree: PyTree with the dimension removed from the xr.Variables.
+    """
+
+    def var_change_fn(var: xr.Variable):
+        var._dims = tuple(d for d in var._dims if d != dim_name)
+        return var
+
+    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))

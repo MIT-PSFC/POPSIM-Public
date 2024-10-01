@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jax.tree_util as tu
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
+from xarray_jax import var_change_on_unflatten
 
 import popsim.types as ptypes
 
@@ -33,6 +34,41 @@ def get_instances_from_tree_leaves(tree: PyTree[typing.Any], type_: type) -> lis
         return isinstance(x, type_)
 
     return [x for x in jax.tree.leaves(tree, is_leaf=func) if func(x)]
+
+
+def tree_transpose_with_xr(
+    tree: typing.Union[list[PyTree[ArrayLike | xr.Variable | xr.DataArray]], PyTree[Array | xr.Variable | xr.DataArray]],
+    extra_dim_name: str,
+) -> typing.Union[PyTree[Array | xr.Variable | xr.DataArray], list[PyTree[ArrayLike | xr.Variable | xr.DataArray]]]:
+    """Tree transpose with Xarray support. This requires the user to specify the extra dimension that gets added/removed when transposing between a list of PyTrees and a PyTree of arrays.
+
+    Args:
+        tree (typing.Union[list[PyTree[ArrayLike  |  xr.Variable  |  xr.DataArray]], PyTree[Array  |  xr.Variable  |  xr.DataArray]]): tree that can contain Xarray variables.
+        extra_dim_name (str): name of the extra dimension that gets added/removed when transposing.
+
+    Returns:
+        typing.Union[PyTree[Array | xr.Variable | xr.DataArray], list[PyTree[ArrayLike | xr.Variable | xr.DataArray]]]: transposed tree.
+    """
+
+    def var_change_fn(var: xr.Variable):
+        """The purpose of this function is to add or remove the extra dimension from the variable as need be."""
+        ndims = len(var._dims)
+        datadims = var._data.ndim
+        if ndims == datadims:
+            return var
+        elif ndims == datadims - 1:
+            newdims = (extra_dim_name, *var._dims)
+            var._dims = newdims
+            return var
+        elif ndims == datadims + 1:
+            newdims = tuple(d for d in var._dims if d != extra_dim_name)
+            var._dims = newdims
+            return var
+        else:
+            raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
+
+    with var_change_on_unflatten(var_change_fn):
+        return _tree_transpose(tree)
 
 
 def tree_transpose(
@@ -67,7 +103,7 @@ def tree_transpose(
     # Check if there are any xr.Variable instances.
     xr_vars = get_instances_from_tree_leaves(tree, xr.Variable)
     if len(xr_vars) > 0:
-        raise ValueError("tree_transpose does not support xarray types.")
+        raise ValueError("tree_transpose does not support xarray types. Use tree_transpose_with_xr instead.")
 
     return _tree_transpose(tree)
 
