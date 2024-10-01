@@ -22,12 +22,8 @@ from popsim.sim_utils import (
     SimInput,
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
-from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose_with_xr
+from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
 from popsim.xarray_utils import (
-    DEFAULT_SIM_DIM_NAME,
-    DEFAULT_TIME_DIM_NAME,
-    add_dim_to_vars,
-    remove_dim_from_vars,
     solution_to_xarray,
     time_and_pytree_to_xarray,
 )
@@ -177,8 +173,6 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=config["DIFFRAX_MAX_STEPS"],
     )
-    # Add simulation dimension to any xr.Variable instances.
-    sol = add_dim_to_vars(sol, DEFAULT_TIME_DIM_NAME)
     return sol
 
 
@@ -218,6 +212,5 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
         return state_next, output_data
 
     _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.time)
-    # Add simulation dimension to any xr.Variable instances.
-    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+
     return outputs

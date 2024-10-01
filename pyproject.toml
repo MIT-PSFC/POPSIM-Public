@@ -27,7 +27,6 @@ flox = "^0.9.9"
 jax-dataloader = "^0.1.2"
 bottleneck = "^1.4.0"
 plotly = "^5.24.1"
-xarray_jax = "0.0.5"
 tabulate = "^0.9.0"
 
 [tool.poetry.group.dev.dependencies]
