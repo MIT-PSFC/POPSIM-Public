@@ -2,8 +2,6 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-# This import statement registers xarray types with JAX
-import xarray_jax  # noqa: F401
 from jax import config
 
 from popsim.hybrid_state import discrete_time_field

@@ -41,9 +41,9 @@ def test_prf_profiles():
         normalized_inverse_temp_scale_length=normalized_inverse_temp_scale_length,
     )
 
-    ne20 = 0.1 * profout["electron_density_profile"].values
-    te_keV = profout["electron_temp_profile"].values
-    ti_keV = profout["ion_temp_profile"].values
+    ne20 = 0.1 * profout["electron_density_profile"]
+    te_keV = profout["electron_temp_profile"]
+    ti_keV = profout["ion_temp_profile"]
     ne20_transp = transp_profiles.ne20.values
     te_keV_transp = transp_profiles.Te_keV.values
     ti_keV_transp = transp_profiles.Ti_keV.values
