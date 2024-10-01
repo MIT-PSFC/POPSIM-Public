@@ -75,7 +75,7 @@ def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) ->
     return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
-def _handle_xr_types(data: xr.DataArray | xr.Variable, base_dims, base_coords, name) -> xr.DataArray:
+def _handle_xr_types(data: xr.DataArray | xr.Variable, base_coords, name) -> xr.DataArray:
     if isinstance(data, xr.Variable):
         da = xr.DataArray(data, coords=base_coords, name=name)
         return da
@@ -84,7 +84,7 @@ def _handle_xr_types(data: xr.DataArray | xr.Variable, base_dims, base_coords, n
         data.name = name
         return data
     else:
-        raise ValueError("xr.Variable, or xr.DataArray.")
+        raise ValueError("Only xr.Variable and xr.DataArray are supported.")
 
 
 def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
@@ -145,7 +145,7 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
         if isinstance(data, (np.ndarray, Array)):
             return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
         elif isinstance(data, (xr.Variable, xr.DataArray)):
-            return _handle_xr_types(data, base_dims, base_coords, name)
+            return _handle_xr_types(data, base_coords, name)
         else:
             raise ValueError("Expected Array, xr.Variable, or xr.DataArray.")
 
