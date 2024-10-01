@@ -7,7 +7,7 @@ from jaxtyping import PyTree
 
 """
 Partition functions and helpers. A partition function is a function that takes in a PyTree and splits that PyTree into two disjoint PyTrees. That is:
-    f(tree) -> (tree1, tree2)
+    partition_fn(tree) -> (tree1, tree2)
 where the union of tree1 and tree2 is equal to tree, and tree1 and tree2 are disjoint.
 
 This operation is very helpful for situations where you want to train only a subset of the model's parameters, or when you want to apply different transformations to different parts of the model.

@@ -80,7 +80,10 @@ class PopsimMLAccessor:
     @property
     def training_metadata(self) -> TrainingMetadata:
         """Get training metadata."""
-        return self._ds.attrs.get("training_metadata", None)
+        meta = self._ds.attrs.get("training_metadata", None)
+        if meta is None:
+            raise ValueError("No training metadata found in the dataset. Was the dataset properly prepared?")
+        return meta
 
     @training_metadata.setter
     def training_metadata(self, value: TrainingMetadata):

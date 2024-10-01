@@ -5,6 +5,11 @@ import loguru
 import numpy as np
 from jaxtyping import Array
 
+"""
+Logging utilities for tracking training progress.
+TODO(allenw): not much time was spent on this, it could use considerable improvement.
+"""
+
 
 def _flatten_dict(dictionary, parent_key="", sep="/"):
     """Flatten a nested dictionary, using a separator for nested keys."""
