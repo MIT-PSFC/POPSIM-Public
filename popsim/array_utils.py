@@ -32,10 +32,10 @@ def min_greater_than_thresh(arr: Array, thresh: ArrayLike) -> ArrayLike:
     Returns:
         ArrayLike: The minimum value in the array that is greater than the threshold.
     """
-    # Mask the array to keep only values greater than zero
-    positive_values = jnp.where(arr > thresh, arr, jnp.inf)
+    # Mask the array to keep only values greater than the threshold.
+    thresh_vals = jnp.where(arr > thresh, arr, jnp.inf)
     # Find the minimum value in the masked array
-    return jnp.min(positive_values)
+    return jnp.min(thresh_vals)
 
 
 def contiguous_true_end_of_axis_mask(arr: np.ndarray, axis: int) -> np.ndarray:
