@@ -67,18 +67,18 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, prng_seed: int) -> Sequence[xr.Dataset]:
+def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, seed: int) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
     Args:
         ds (xr.Dataset): dataset to be split.
         fracs (Sequence[float]): fractions of splits to be produced.
         coord (str): dimension to split the dataset along.
-        prng_seed (int): seed for psuedo-random number generation.
+        seed (int): seed for psuedo-random number generation.
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
     """
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, prng_seed)]
+    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]

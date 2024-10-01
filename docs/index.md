@@ -65,11 +65,11 @@ The easiest way to get oriented to POPSIM and many of its core capabilities is b
 
 ### Module Training and Automated Evaluation Tools
 - [x] `xarray.Dataset` => `Dataloader` pipeline [see "Dataloading and Xarray-Based Pre-processing
-"](./notebooks/module_eval_pipeline.ipynb)
+"](./notebooks/preprocess_and_dataloader.ipynb)
 - [x] Running a simple module on C-Mod data [see "Dataloading and Xarray-Based Pre-processing
-"](./notebooks/module_eval_pipeline.ipynb)
+"](./notebooks/preprocess_and_dataloader.ipynb)
 - [x] Basic example of automated evaluation of modules [see "Dataloading and Xarray-Based Pre-processing
-"](./notebooks/module_eval_pipeline.ipynb)
+"](./notebooks/preprocess_and_dataloader.ipynb)
 - [ ] Support for vectorized evaluation of time-independent modules
 - [ ] Model `Trainer`
     * [ ] Gradient-based optimization API
