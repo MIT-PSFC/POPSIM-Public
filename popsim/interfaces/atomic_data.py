@@ -9,8 +9,9 @@ import jax.numpy as jnp
 import xarray as xr
 from cfspopcon import atomic_data
 
-from popsim.enums import Impurity
 from popsim import ATOMIC_DATA_PATH
+from popsim.enums import Impurity
+
 
 @chex.dataclass
 class RadasCurvesForSpecies:
