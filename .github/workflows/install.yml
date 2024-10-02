@@ -24,8 +24,6 @@ jobs:
       INSTALL_GPU: "n"
       INSTALL_DEV: ${{ matrix.dev }}
       CI: true
-
-    runs-on: ${{ matrix.os }}
   
     steps:
       - uses: actions/checkout@v3
