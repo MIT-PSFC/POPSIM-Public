@@ -14,12 +14,11 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.9', '3.10']
-        gpu: ["no"]
+        python-version: "3.11"
         dev: ["no", "yes"]
 
     env:
-      INSTALL_GPU: ${{ matrix.gpu }}
+      INSTALL_GPU: "no"
       INSTALL_DEV: ${{ matrix.dev }}
       CI: true
 
