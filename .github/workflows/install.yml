@@ -13,8 +13,11 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: "3.11"
+        os:
+          [
+            "runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}",
+            "macos-latest",
+          ]
         dev: ["no", "yes"]
 
     env:
@@ -22,6 +25,8 @@ jobs:
       INSTALL_DEV: ${{ matrix.dev }}
       CI: true
 
+    runs-on: ${{ matrix.os }}
+  
     steps:
       - uses: actions/checkout@v3
         with:
@@ -29,12 +34,13 @@ jobs:
           token: ${{ secrets.POPSIM_PAT }}
           lfs: true
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+          cache: "poetry"
 
-      - name: Install dependencies
+      - name: Run installation
         run: |
           chmod +x install.sh
           ./install.sh
@@ -42,12 +48,3 @@ jobs:
       - name: Test installation
         run: |
           poetry run python -c "import popsim; print('Popsim imported successfully')"
-          # Add additional tests as needed
-
-      - name: Cache Poetry virtualenv
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
