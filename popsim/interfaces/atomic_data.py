@@ -42,11 +42,11 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 
     # By default, electron temperature is in eV and density is in 1e19.
     # "log" means log10.
-    log_temp = jnp.array(curve.dim_log_electron_temperature)
+    log_temp = jnp.array(curve.dim_log_electron_temp)
     log_density = jnp.array(curve.dim_log_electron_density)
 
     if curve.ndim == 2:
-        f = jnp.log10(jnp.array(curve.transpose("dim_log_electron_temperature", "dim_log_electron_density")))
+        f = jnp.log10(jnp.array(curve.transpose("dim_log_electron_temp", "dim_log_electron_density")))
         interp = interpax.Interpolator2D(
             x=log_temp,
             y=log_density,
@@ -61,7 +61,7 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
         f = jnp.log10(
             jnp.array(
                 curve.transpose(
-                    "dim_log_electron_temperature",
+                    "dim_log_electron_temp",
                     "dim_log_electron_density",
                     "dim_log_ne_tau",
                 )
