@@ -10,7 +10,7 @@ import xarray as xr
 from cfspopcon import atomic_data
 
 from popsim.enums import Impurity
-
+from popsim import ATOMIC_DATA_PATH
 
 @chex.dataclass
 class RadasCurvesForSpecies:
@@ -81,7 +81,13 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 
 
 def read_atomic_data() -> RadasCurves:
-    data = atomic_data.read_atomic_data(build_interpolator=_build_interpolator)
+    try:
+        data = atomic_data.read_atomic_data(ATOMIC_DATA_PATH, build_interpolator=_build_interpolator)
+        return data
+    except Exception as e:
+        print(f"Failed to read atomic data: {e}")
+        print(f"Please ensure you have moved your radas data directory to {ATOMIC_DATA_PATH}.")
+        raise
     # Convert the enums to popsim types.
     data = {
         Impurity(k.value): RadasCurvesForSpecies(
