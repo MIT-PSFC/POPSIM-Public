@@ -1,0 +1,52 @@
+name: Test Install Script
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-install:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.9', '3.10']
+        gpu: ["no"]
+        dev: ["no", "yes"]
+
+    env:
+      INSTALL_GPU: ${{ matrix.gpu }}
+      INSTALL_DEV: ${{ matrix.dev }}
+      CI: true
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          chmod +x install.sh
+          ./install.sh
+
+      - name: Test installation
+        run: |
+          poetry run python -c "import popsim; print('Popsim imported successfully')"
+          # Add additional tests as needed
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-

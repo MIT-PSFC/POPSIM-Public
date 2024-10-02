@@ -34,30 +34,59 @@ cd "$(dirname "$0")"
 echo "Installing dependencies with Poetry..."
 poetry install
 
-# Optional installations based on environment variables
-install_gpu=${INSTALL_GPU:-no}
-if [[ "$install_gpu" == "yes" ]]; then
+# Function to prompt the user or use default in CI
+prompt_user() {
+    local prompt_message="$1"
+    local default_value="$2"
+    local user_input
+
+    if [ -n "$CI" ]; then
+        # In CI environment, use default value
+        user_input="$default_value"
+        echo "$prompt_message $user_input (default in CI)"
+    else
+        # Interactive prompt
+        read -p "$prompt_message " user_input
+        # If user input is empty, use default value
+        if [ -z "$user_input" ]; then
+            user_input="$default_value"
+        fi
+    fi
+    echo "$user_input"
+}
+
+# Optional installations
+install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "n")
+if [[ "$install_gpu" == "y" || "$install_gpu" == "Y" ]]; then
     poetry install --with gpu
 fi
 
-install_dev=${INSTALL_DEV:-no}
-if [[ "$install_dev" == "yes" ]]; then
+install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "n")
+if [[ "$install_dev" == "y" || "$install_dev" == "Y" ]]; then
     poetry install --with dev
 fi
 
-# Note about CFSPOPCON
-echo "CFSPOPCON requires manual setup. Please follow the instructions provided in the documentation."
+# Get the ATOMIC_DATA_PATH from the popsim module using Poetry
+if [ -z "$CI" ]; then
+    echo "Retrieving ATOMIC_DATA_PATH from popsim module..."
+    ATOMIC_DATA_PATH=$(poetry run python -c "from popsim import ATOMIC_DATA_PATH; print(ATOMIC_DATA_PATH)")
+    
+    # Run the radas command using the obtained path within the Poetry environment
+    echo "Running radas. This might take a while (sorry)!"
+    poetry run radas -d "$ATOMIC_DATA_PATH" --verbose
+else
+    echo "Skipping radas execution in CI environment."
+fi
 
 # Install Git LFS
 echo "Checking for Git LFS..."
 if ! command -v git-lfs >/dev/null 2>&1; then
     echo "Git LFS is not installed. Installing Git LFS..."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y git-lfs
+        if command -v apt >/dev/null 2>&1; then
+            sudo apt install git-lfs
         elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y git-lfs
+            sudo yum install git-lfs
         else
             echo "Please install Git LFS manually."
             exit 1
@@ -78,14 +107,6 @@ fi
 echo "Initializing and pulling with Git LFS..."
 git lfs install
 git lfs pull
-
-# Get the ATOMIC_DATA_PATH from the popsim module using Poetry
-echo "Retrieving ATOMIC_DATA_PATH from popsim module..."
-ATOMIC_DATA_PATH=$(poetry run python -c "from popsim import ATOMIC_DATA_PATH; print(ATOMIC_DATA_PATH)")
-
-# Run the radas command using the obtained path within the Poetry environment
-echo "Running radas with ATOMIC_DATA_PATH..."
-poetry run radas -d "$ATOMIC_DATA_PATH"
 
 echo "Installation complete."
 echo "Remember to use 'poetry shell' or prefix your commands with 'poetry run'. For more information, refer to the Poetry documentation."
