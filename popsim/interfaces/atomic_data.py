@@ -83,13 +83,13 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 
 
 def read_atomic_data() -> RadasCurves:
-    try:
-        data = atomic_data.read_atomic_data(Path(ATOMIC_DATA_PATH), build_interpolator=_build_interpolator)
-        return data
-    except Exception as e:
-        print(f"Failed to read atomic data: {e}")
-        print(f"Please ensure you have moved your radas data directory to {ATOMIC_DATA_PATH}.")
-        raise
+    atomic_data_path = Path(ATOMIC_DATA_PATH)
+
+    # Check that the path exists.
+    if atomic_data_path.exists() is False:
+        raise FileNotFoundError(f"Could not find the atomic data directory {atomic_data_path}. Try running build_radas.sh.")
+
+    data = atomic_data.read_atomic_data(Path(ATOMIC_DATA_PATH), build_interpolator=_build_interpolator)
     # Convert the enums to popsim types.
     data = {
         Impurity(k.value): RadasCurvesForSpecies(
