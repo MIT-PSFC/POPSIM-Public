@@ -1,6 +1,7 @@
 """Reads atomic data using cfspopcon but with Jax compatible interpolators."""
 import typing
 from functools import wraps
+from pathlib import Path
 from typing import Union
 
 import chex
@@ -83,7 +84,7 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 
 def read_atomic_data() -> RadasCurves:
     try:
-        data = atomic_data.read_atomic_data(ATOMIC_DATA_PATH, build_interpolator=_build_interpolator)
+        data = atomic_data.read_atomic_data(Path(ATOMIC_DATA_PATH), build_interpolator=_build_interpolator)
         return data
     except Exception as e:
         print(f"Failed to read atomic data: {e}")
