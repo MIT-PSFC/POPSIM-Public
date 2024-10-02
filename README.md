@@ -13,7 +13,7 @@ In your terminal (Linux and Mac, sorry Windows users!).
 
 ```
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 ```
 
 ## Manual Installation

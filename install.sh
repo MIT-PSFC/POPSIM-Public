@@ -78,7 +78,7 @@ else
     echo "Skipping radas execution in CI environment."
 fi
 
-# Install Git LFS
+# Check for git lfs and install if not present
 echo "Checking for Git LFS..."
 if ! command -v git-lfs >/dev/null 2>&1; then
     echo "Git LFS is not installed. Installing Git LFS..."
