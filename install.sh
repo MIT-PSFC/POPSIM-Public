@@ -34,16 +34,16 @@ cd "$(dirname "$0")"
 echo "Installing dependencies with Poetry..."
 poetry install
 
+
 # Function to prompt the user or use default in CI
 prompt_user() {
     local prompt_message="$1"
     local default_value="$2"
     local user_input
-
-    if [ -n "$CI" ]; then
+    
+    if [ -n $CI ]; then
         # In CI environment, use default value
         user_input="$default_value"
-        echo "$prompt_message $user_input (default in CI)"
     else
         # Interactive prompt
         read -p "$prompt_message " user_input
@@ -53,12 +53,16 @@ prompt_user() {
 
 # Optional installations
 install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "$INSTALL_GPU")
-if [[ "$install_gpu" == "y" || "$install_gpu" == "Y" ]]; then
+# If install_gpu starts with y or Y then install.
+if [[ "$install_gpu" =~ ^[yY] ]]; then
+    echo "Installing with GPU support..."
     poetry install --with gpu
 fi
 
 install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "$INSTALL_DEV")
-if [[ "$install_dev" == "y" || "$install_dev" == "Y" ]]; then
+# If install_dev starts with y or Y then install.
+if [[ "$install_dev" =~ ^[yY] ]]; then
+    echo "Installing development dependencies..."
     poetry install --with dev
     pre-commit install # Install pre-commit hooks
 fi
