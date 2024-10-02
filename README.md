@@ -8,7 +8,8 @@ It's role is to enable:
 
 POPSIM is not a single simulator, but rather a set of tools to allow you to define simulation "modules". Each module is, itself, a stand-alone simulator that can be simulated using a common `simulate` function. More complex simulators can be built by chaining modules together.
 
-## Automatic Install
+## Installation
+### Automatic Install
 In your terminal (Linux and Mac, sorry Windows users!).
 
 ```
@@ -16,7 +17,7 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-## Manual Installation
+### Manual Installation (in case the script doesn't work for you)
    1. Run a `git submodule update --init --recursive` to make sure you have all the necessary submodules.
    2. If you don't have it, [install poetry](https://python-poetry.org/docs/#installation) and make sure it is version >= 1.6.1.
    3. In the root of this repo, run a `poetry install`
