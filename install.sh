@@ -7,7 +7,7 @@ set -e
 echo "Updating git submodules..."
 git submodule update --init --recursive
 
-# Check if Poetry is installed and its version
+# Check if Poetry is installed and its version. Install if not present or update if version is less than the minimum required version.
 echo "Checking for Poetry installation..."
 if command -v poetry >/dev/null 2>&1; then
     POETRY_VERSION=$(poetry --version | awk '{print $3}')
@@ -47,26 +47,23 @@ prompt_user() {
     else
         # Interactive prompt
         read -p "$prompt_message " user_input
-        # If user input is empty, use default value
-        if [ -z "$user_input" ]; then
-            user_input="$default_value"
-        fi
     fi
     echo "$user_input"
 }
 
 # Optional installations
-install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "n")
+install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "$INSTALL_GPU")
 if [[ "$install_gpu" == "y" || "$install_gpu" == "Y" ]]; then
     poetry install --with gpu
 fi
 
-install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "n")
+install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "$INSTALL_DEV")
 if [[ "$install_dev" == "y" || "$install_dev" == "Y" ]]; then
     poetry install --with dev
+    pre-commit install # Install pre-commit hooks
 fi
 
-# Get the ATOMIC_DATA_PATH from the popsim module using Poetry
+# Run radas except in CI environment.
 if [ -z "$CI" ]; then
     echo "Retrieving ATOMIC_DATA_PATH from popsim module..."
     ATOMIC_DATA_PATH=$(poetry run python -c "from popsim import ATOMIC_DATA_PATH; print(ATOMIC_DATA_PATH)")
