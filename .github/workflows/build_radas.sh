@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Run radas except in CI environment.
-echo "Retrieving ATOMIC_DATA_PATH from popsim module..."
 ATOMIC_DATA_PATH=$(git rev-parse --show-toplevel)/popsim/atomic_data
 
 # Run the radas command using the obtained path within the Poetry environment
