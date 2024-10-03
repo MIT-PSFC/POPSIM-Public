@@ -195,7 +195,7 @@ def make_dataloader(
     # For example, when "segment_length=1", we get rid of the "time" dimension.
     sample_ds = sample_ds.squeeze()
 
-    # Forward fill the end of the time dimension to handle segments with unequal lengths.
+    # Forward fill the end of each sample along the time dimension to handle segments with unequal lengths.
     sample_ds = ffill_end_of_time_padding(sample_ds, time_coord, time_dim_sample_ds)
 
     if batch_size is None:
