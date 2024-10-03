@@ -117,6 +117,7 @@ if ! command -v git-lfs >/dev/null 2>&1; then
         fi
     else
         echo "Please install git LFS manually."
+    fi
 fi
 
 echo "Initializing and pulling with git LFS..."
