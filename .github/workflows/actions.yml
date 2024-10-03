@@ -103,6 +103,9 @@ jobs:
         if: steps.radas.outputs.cache-hit != 'true'
         run: exit 1
 
+      - name: Copy radas data
+        run: cp popsim/atomic_data/*.nc ./submodules/cfspopcon/cfspopcon/atomic_data/
+
       - name: Tests
         # TODO enable -Werror once tests are fixed
         run: poetry run pytest popsim/tests -n=auto
