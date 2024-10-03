@@ -32,6 +32,9 @@ jobs:
           python-version: "3.11"
           cache: "poetry"
 
+      - name: Setup
+        run: poetry install
+
       # Need to push to GH & runson. But runs-on cache will be able to fallback read from GH
       - name: Cache radas results to GitHub
         id: radas-gh
@@ -93,8 +96,8 @@ jobs:
       - uses: runs-on/cache/restore@v4
         id: radas
         with:
-          path: radas
-          key: radas-${{ hashFiles('./submodules/cfspopcon/.github/workflows/make_radas_data.sh')}}
+          path: popsim/atomic_data
+          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
 
       - name: Check cache hit
         if: steps.radas.outputs.cache-hit != 'true'
