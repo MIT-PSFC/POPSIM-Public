@@ -1,10 +1,7 @@
 import jax.numpy as jnp
 
-from popsim.ml.loss import _forward_fill_nans, IntegralLoss
+from popsim.ml.loss import IntegralLoss
 import pytest
-import jax
-import equinox as eqx
-
 
 
 
