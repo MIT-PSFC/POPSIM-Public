@@ -6,20 +6,6 @@ import jax
 import equinox as eqx
 
 
-def test_forward_fill_nans():
-    # Test that nans are filled in correctly
-    ts = jnp.linspace(0, 1, 5)
-    ys = jnp.array([1.0,jnp.nan, 3.0,jnp.nan, 5.0])
-    expected_output = jnp.array([1.0, 1.0, 3.0, 3.0, 5.0])
-
-    result = _forward_fill_nans(ts, ys)
-    assert jnp.allclose(result, expected_output)
-
-    # Test that an array with no nans is returned unchanged
-    ts = jnp.linspace(0, 1, 5)
-    ys = jnp.linspace(0, 1, 5)
-    result = _forward_fill_nans(ts, ys)
-    assert jnp.allclose(result, ys)
 
 
 

@@ -1,13 +1,12 @@
 import typing
 
-import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jax.scipy.integrate import trapezoid
 from jaxtyping import Array, ArrayLike, PyTree
 
-from popsim.ml.utils import _repeat_time_hack
+from popsim.array_utils import forward_fill_nans
 
 # An instantaneous loss function is a function takes in a prediction and a target for a single time slice and returns a scalar loss.
 InstantaneousLoss = typing.Callable[[PyTree[ArrayLike], PyTree[ArrayLike]], float]
@@ -68,23 +67,6 @@ class IntegralLoss(eqx.Module):
 LossFunction = typing.Union[InstantaneousLoss, IntegralLoss]
 
 
-def _forward_fill_nans(ts: Array, ys: Array) -> Array:
-    ts2, ys2 = diffrax.rectilinear_interpolation(_repeat_time_hack(ts), ys)
-
-    # For whatever reason, left=False still leaves the last value as a nan or inf.
-    # To fix this, we add an extra point at the end with the maximum time and the last value.
-    max_time = jnp.finfo(ts2.dtype).max
-
-    ts2 = jnp.concatenate((ts2, jnp.array([max_time])))
-    ys2 = jnp.concatenate((ys2, jnp.array([ys2[-1]])))
-
-    interpolation = diffrax.LinearInterpolation(ts2, ys2)
-
-    out = interpolation.evaluate(ts, left=False)
-
-    return out
-
-
 def _integral_loss(
     predictions: PyTree[Array],
     targets: PyTree[Array],
@@ -104,7 +86,7 @@ def _integral_loss(
         filled = jnp.nan_to_num(instantaneous_values, nan=0.0)
         return trapezoid(filled, x=time)
     elif nan_strategy == "forward_fill":
-        filled = _forward_fill_nans(time, instantaneous_values)
+        filled = forward_fill_nans(time, instantaneous_values)
         filled = eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
         time = eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
         return trapezoid(filled, x=time)

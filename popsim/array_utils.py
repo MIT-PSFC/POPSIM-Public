@@ -1,3 +1,4 @@
+import diffrax
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -59,3 +60,23 @@ def contiguous_true_end_of_axis_mask(arr: np.ndarray, axis: int) -> np.ndarray:
     mask = np.flip(mask_rev, axis=axis)
 
     return mask
+
+
+def forward_fill_nans(ys: Array) -> Array:
+    """Use the internal diffrax function to forward fill NaNs in an array.
+
+    Args:
+        ys (Array): A 1D array with NaN values.
+
+    Returns:
+        Array: The array with NaN values forward filled.
+    """
+    # Error if the array is not 1D
+    if ys.ndim != 1:
+        raise ValueError("Input array must be 1D.")
+
+    if ys.size == 0:
+        return ys
+
+    out = diffrax._misc.fill_forward(ys)
+    return out
