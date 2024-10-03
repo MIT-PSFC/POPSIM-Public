@@ -67,7 +67,7 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     pre-commit install # Install pre-commit hooks
 fi
 
-./build_radas.sh
+bash .github/workflows/build_radas.sh
 
 # Check for git lfs and install if not present
 echo "Checking for Git LFS..."
