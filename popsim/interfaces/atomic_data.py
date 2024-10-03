@@ -1,7 +1,6 @@
 """Reads atomic data using cfspopcon but with Jax compatible interpolators."""
 import typing
 from functools import wraps
-from pathlib import Path
 from typing import Union
 
 import chex
@@ -83,15 +82,13 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 
 
 def read_atomic_data() -> RadasCurves:
-    atomic_data_path = Path(ATOMIC_DATA_PATH)
-
     # Check that the path exists.
-    if atomic_data_path.exists() is False:
+    if ATOMIC_DATA_PATH.exists() is False:
         raise FileNotFoundError(
-            f"Could not find the atomic data directory {atomic_data_path}. Try running bash .github/workflows/build_radas.sh from the root of the repo."
+            f"Could not find the atomic data directory {ATOMIC_DATA_PATH}. Try running bash .github/workflows/build_radas.sh from the root of the repo."
         )
 
-    data = atomic_data.read_atomic_data(atomic_data_path, build_interpolator=_build_interpolator)
+    data = atomic_data.read_atomic_data(ATOMIC_DATA_PATH, build_interpolator=_build_interpolator)
     # Convert the enums to popsim types.
     data = {
         Impurity(k.value): RadasCurvesForSpecies(

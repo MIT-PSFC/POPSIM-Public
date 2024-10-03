@@ -1,5 +1,6 @@
 import os
 from importlib.resources import files
+from pathlib import Path
 
 from jax import config
 
@@ -13,6 +14,6 @@ PACKAGE_ROOT = files("popsim")
 SUBMODULES_DIR = os.path.join(PACKAGE_ROOT, "../submodules")
 TORAX_QLKNN_MODEL_PATH = os.path.join(SUBMODULES_DIR, "qlknn-hyper")
 DATA_DIR = os.path.join(PACKAGE_ROOT, "data")
-ATOMIC_DATA_PATH = os.path.join(PACKAGE_ROOT, "atomic_data")
+ATOMIC_DATA_PATH = Path(os.path.join(PACKAGE_ROOT, "atomic_data"))
 
 __all__ = ["ModuleBase", "discrete_time_field"]
