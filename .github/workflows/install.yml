@@ -41,7 +41,7 @@ jobs:
       - name: Run installation
         run: |
           chmod +x install.sh
-          ./install.sh
+          bash install.sh
 
       - name: Test installation
         run: |

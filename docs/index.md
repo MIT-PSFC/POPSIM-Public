@@ -23,7 +23,7 @@ In your terminal (Linux and Mac, sorry Windows users!).
 
 ```
 chmod +x install.sh
-sudo ./install.sh
+bash install.sh
 ```
 
 ### Manual Installation (in case the script doesn't work for you)
