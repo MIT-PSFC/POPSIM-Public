@@ -10,12 +10,12 @@ git submodule update --init --recursive
 # Function to prompt the user or use default in CI
 prompt_user() {
     local prompt_message="$1"
-    local default_value="$2"
+    local install_test_value="$2"
     local user_input
     
     if [ -n $INSTALL_TEST ]; then
         # In CI environment, use default value
-        user_input="$default_value"
+        user_input="$install_test_value"
     else
         # Interactive prompt
         read -p "$prompt_message " user_input
