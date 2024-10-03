@@ -23,6 +23,11 @@ jobs:
       - name: Git LFS Pull
         run: git lfs pull
 
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
       # Need to push to GH & runson. But runs-on cache will be able to fallback read from GH
       - name: Cache radas results to GitHub
         id: radas-gh
