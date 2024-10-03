@@ -67,7 +67,12 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     poetry run pre-commit install # Install pre-commit hooks
 fi
 
-bash .github/workflows/build_radas.sh
+if [ -n "$CI" ]; then
+    echo "Skipping radas execution in CI environment."
+else
+    bash .github/workflows/build_radas.sh
+fi
+
 
 # Check for git lfs and install if not present
 echo "Checking for Git LFS..."
