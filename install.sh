@@ -64,7 +64,7 @@ install_dev=$(prompt_user "Do you want to install development dependencies? (y/n
 if [[ "$install_dev" =~ ^[yY] ]]; then
     echo "Installing development dependencies..."
     poetry install --with dev
-    pre-commit install # Install pre-commit hooks
+    poetry run pre-commit install # Install pre-commit hooks
 fi
 
 bash .github/workflows/build_radas.sh
