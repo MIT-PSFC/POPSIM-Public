@@ -23,7 +23,7 @@ jobs:
     env:
       INSTALL_GPU: "n"
       INSTALL_DEV: ${{ matrix.dev }}
-      CI: true
+      INSTALL_TEST: true
   
     steps:
       - uses: actions/checkout@v3

@@ -41,7 +41,7 @@ prompt_user() {
     local default_value="$2"
     local user_input
     
-    if [ -n $CI ]; then
+    if [ -n $INSTALL_TEST ]; then
         # In CI environment, use default value
         user_input="$default_value"
     else
@@ -67,8 +67,8 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     poetry run pre-commit install # Install pre-commit hooks
 fi
 
-if [ -n "$CI" ]; then
-    echo "Skipping radas execution in CI environment."
+if [ -n "$INSTALL_TEST" ]; then
+    echo "Skipping radas execution in INSTALL_TEST environment."
 else
     bash .github/workflows/build_radas.sh
 fi
