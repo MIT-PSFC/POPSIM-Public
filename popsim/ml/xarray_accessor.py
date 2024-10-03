@@ -1,5 +1,4 @@
 import typing
-import warnings
 from dataclasses import dataclass
 
 import jax.numpy as jnp
@@ -36,33 +35,6 @@ class TrainingMetadata:
         return self.time_dep_metadata is not None
 
 
-def check_and_print_nan_report(ds: xr.Dataset, sample_coord: str):
-    # Compute a boolean mask where NaNs are present
-    nan_mask = ds.isnull()
-
-    n_nans = nan_mask.sum()
-
-    if n_nans == 0:
-        return
-
-    # Reduce the mask along the 'time_slice_input' dimension to see if any NaNs exist in that dimension
-    nan_any = nan_mask.any(dim="time_slice_input")
-
-    table = []
-    headers = ["Variable", f"Samples with NaNs in {sample_coord}"]
-    for var_name in nan_any.data_vars:
-        nan_da = nan_any[var_name]
-        if sample_coord in nan_da.coords:
-            nan_values = nan_da.values
-            samples_with_nan = nan_da.coords[sample_coord].values[nan_values]
-            samples_str = ", ".join(map(str, samples_with_nan))
-            table.append([var_name, samples_str])
-        else:
-            table.append([var_name, f"Coordinate '{sample_coord}' not found"])
-    report = tabulate(table, headers=headers, tablefmt="grid")
-    warnings.warn(f"Found NaNs in the dataset:\n{report}", stacklevel=2)
-
-
 @xr.register_dataset_accessor("popsim_ml")
 class PopsimMLAccessor:
     """Accessor for xarray Datasets to help with ML training tasks."""
@@ -95,7 +67,6 @@ class PopsimMLAccessor:
         if sample_coord_name in self._ds:
             if self._ds[sample_coord_name].ndim != 1:
                 raise ValueError(f"The sample coordinate '{sample_coord_name}' must be 1D.")
-        check_and_print_nan_report(self._ds, sample_coord_name)
 
     @property
     def sample_dim(self) -> str:
@@ -117,6 +88,33 @@ class PopsimMLAccessor:
     def n_samples(self) -> int:
         """Get the number of samples in the dataset."""
         return self.sample_coord.size
+
+    def generate_nan_report(self) -> tuple[str, bool]:
+        """Generate a report of NaN values in the dataset.
+
+        Returns:
+            tuple[str, bool]: A report of NaN values and a boolean indicating if NaNs were found.
+        """
+        # Compute a boolean mask where NaNs are present
+        nan_mask = self._ds.isnull()
+
+        n_nans_total = nan_mask.to_array().sum().item()
+
+        # If no NaNs are found, return early with False
+        if n_nans_total == 0:
+            return "", False
+
+        table = []
+        headers = ["Variable", "Number of NaNs", "NaNs as a Fraction of Total"]
+        for var_name in self._ds.data_vars:
+            var_data = self._ds[var_name]
+            nan_count = var_data.isnull().sum().item()
+            total_elements = var_data.size
+            nan_fraction = nan_count / total_elements
+            table.append([var_name, nan_count, nan_fraction])
+        report = tabulate.tabulate(table, headers=headers, tablefmt="grid")
+        # Return the report and True, indicating NaNs were found
+        return report, True
 
     def prep_inputs_and_targets(self):
         """Prepare inputs and targets for training."""

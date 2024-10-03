@@ -6,7 +6,8 @@ import jax.numpy as jnp
 from jax.scipy.integrate import trapezoid
 from jaxtyping import Array, ArrayLike, PyTree
 
-from popsim.array_utils import forward_fill_nans
+from popsim.interp import interp_over_nans
+from popsim.ml.utils import _repeat_time_hack
 
 # An instantaneous loss function is a function takes in a prediction and a target for a single time slice and returns a scalar loss.
 InstantaneousLoss = typing.Callable[[PyTree[ArrayLike], PyTree[ArrayLike]], float]
@@ -86,7 +87,7 @@ def _integral_loss(
         filled = jnp.nan_to_num(instantaneous_values, nan=0.0)
         return trapezoid(filled, x=time)
     elif nan_strategy == "forward_fill":
-        filled = forward_fill_nans(time, instantaneous_values)
+        filled = interp_over_nans(_repeat_time_hack(time), instantaneous_values)
         filled = eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
         time = eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
         return trapezoid(filled, x=time)

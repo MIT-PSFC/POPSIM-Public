@@ -104,3 +104,18 @@ def resolve_paths(tree: PyTree[typing.Union[ArrayLike, diffrax.AbstractPath]], t
         is_leaf=lambda x: isinstance(x, diffrax.AbstractPath),
     )
     return tree_resolved
+
+
+def interp_over_nans(ts: Array, data: PyTree[Array]) -> PyTree[Array]:
+    """Perform a rectilinear interpolation over NaN values in the data.
+
+    Args:
+        ts (Array): time base.
+        data (PyTree[Array]): data to interpolate.
+
+    Returns:
+        PyTree[Array]: interpolated data.
+    """
+    interp_fn = interp(ts, data, interp_type=InterpType.RECTILINEAR)
+    result = interp_fn.evaluate(ts, left=True)
+    return result

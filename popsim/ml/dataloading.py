@@ -1,4 +1,5 @@
 import typing
+import warnings
 
 import jax.numpy as jnp
 import xarray as xr
@@ -196,6 +197,7 @@ def make_dataloader(
     sample_ds = sample_ds.squeeze()
 
     # Forward fill the end of each sample along the time dimension to handle segments with unequal lengths.
+    # This is distinct from forward-filling the whole dataset because this set of nans are artificially created via the segmenting process.
     sample_ds = ffill_end_of_time_padding(sample_ds, time_coord, time_dim_sample_ds)
 
     if batch_size is None:
@@ -212,6 +214,12 @@ def make_dataloader(
     )
 
     sample_ds.popsim_ml.training_metadata = train_meta
+
+    nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
+
+    if nans_found:
+        warnings.warn(f"NaNs found in dataset. They will be forward-filled. NaN report: \n{nan_report}", stacklevel=2)
+        sample_ds = sample_ds.ffill(time_dim_sample_ds)
 
     dl = DataLoader(
         XarrayPreppedDataset(ds=sample_ds),
