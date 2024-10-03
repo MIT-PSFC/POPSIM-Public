@@ -38,9 +38,7 @@ jobs:
           python-version: "3.11"
 
       - name: Run installation
-        run: |
-          chmod +x install.sh
-          bash install.sh
+        run:  bash install.sh
 
       - name: Test installation
         run: |

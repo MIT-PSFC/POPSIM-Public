@@ -13,7 +13,6 @@ POPSIM is not a single simulator, but rather a set of tools to allow you to defi
 In your terminal (Linux and Mac, sorry Windows users!).
 
 ```
-chmod +x install.sh
 bash install.sh
 ```
 
