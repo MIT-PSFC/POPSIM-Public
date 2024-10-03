@@ -135,7 +135,10 @@ def make_dataloader(
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
 ) -> DataLoader:
-    """Given a multi-episode time series dataset, generate a DataLoader.
+    """Given a multi-episode time series dataset, generate a DataLoader. This function does some pre-processing, and you should expect the resultant data to have the following properties:
+        1. The data is segmented into samples of length `segment_length` with `segment_overlap` overlap.
+        2. Incomplete samples at the end of the episode have their data and times forward-filled.
+        3. Samples where inputs and targets are all NaN are dropped.
 
     Args:
         ds (xr.Dataset): Input dataset.
