@@ -6,7 +6,7 @@ echo "Running radas. This might take a while (sorry)!"
 
 python3 -m pip install radas==2024.8.0
 
-python3 -m radas -d "$ATOMIC_DATA_PATH" --verbose
+radas -d "$ATOMIC_DATA_PATH" --verbose
 
 echo "Moving the radas output files to $ATOMIC_DATA_PATH..."
 mv ${ATOMIC_DATA_PATH}/output/*.nc "${ATOMIC_DATA_PATH}/"
