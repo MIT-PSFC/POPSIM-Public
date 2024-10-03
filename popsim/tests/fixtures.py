@@ -6,7 +6,9 @@ import jax
 import jax.numpy as jnp
 import diffrax
 from popsim.xarray_utils import solution_to_xarray
+from functools import lru_cache
 
+@lru_cache(maxsize=1)  # Caches only one result since it's always the same dataset
 def load_cmod_test_dataset():
     try:
         path_to_data = os.path.join(popsim.DATA_DIR, "cmod/saperstein_july_2024_subset.nc")
