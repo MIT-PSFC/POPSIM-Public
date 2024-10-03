@@ -54,7 +54,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # Navigate to the root of the repository
 cd "$(dirname "$0")"
 
-# Check if VIRTUAL_ENV is set
+# Check if VIRTUAL_ENV is set. We should exit the virtual environment before doing a poetry install.
 if [[ -n "$VIRTUAL_ENV" ]]; then
     echo "Virtual environment detected. Unsetting VIRTUAL_ENV."
     unset VIRTUAL_ENV
