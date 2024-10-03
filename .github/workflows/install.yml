@@ -30,7 +30,6 @@ jobs:
         with:
           submodules: "recursive"
           token: ${{ secrets.POPSIM_PAT }}
-          lfs: true
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
