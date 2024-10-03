@@ -48,4 +48,4 @@ jobs:
 
       - name: Test installation
         run: |
-          poetry run python -c "import popsim; print('Popsim imported successfully')"
+          poetry run python -c "import popsim; print('POPSIM imported successfully')"
