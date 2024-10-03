@@ -33,7 +33,7 @@ jobs:
           lfs: true
 
       - name: Install Poetry
-        run: curl -sSL https://install.python-poetry.org | python - --version 1.6.1
+        run: curl -sSL https://install.python-poetry.org | python -
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4

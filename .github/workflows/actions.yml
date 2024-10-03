@@ -24,7 +24,7 @@ jobs:
         run: git lfs pull
 
       - name: Install Poetry
-        run: curl -sSL https://install.python-poetry.org | python - --version 1.6.1
+        run: curl -sSL https://install.python-poetry.org | python -
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
@@ -37,19 +37,19 @@ jobs:
         id: radas-gh
         uses: actions/cache@v4
         with:
-          path: radas
-          key: radas-${{ hashFiles('./submodules/cfspopcon/.github/workflows/make_radas_data.sh')}}
+          path: popsim/atomic_data
+          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
 
       - name: Cache radas results to runson
         id: radas
         uses: runs-on/cache@v4
         with:
-          path: radas
-          key: radas-${{ hashFiles('./submodules/cfspopcon/.github/workflows/make_radas_data.sh')}}
+          path: popsim/atomic_data
+          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
 
       - name: Make radas data
         if: (steps.radas.outputs.cache-hit != 'true') && (steps.radas-gh.outputs.cache-hit != 'true')
-        run: bash ./submodules/cfspopcon/.github/workflows/make_radas_data.sh
+        run: bash .github/workflows/build_radas.sh
 
   build:
     needs: radas
@@ -99,9 +99,6 @@ jobs:
       - name: Check cache hit
         if: steps.radas.outputs.cache-hit != 'true'
         run: exit 1
-
-      - name: Copy radas data
-        run: cp ./radas/cases/*/output/*.nc ./submodules/cfspopcon/cfspopcon/atomic_data/
 
       - name: Tests
         # TODO enable -Werror once tests are fixed

@@ -87,7 +87,9 @@ def read_atomic_data() -> RadasCurves:
 
     # Check that the path exists.
     if atomic_data_path.exists() is False:
-        raise FileNotFoundError(f"Could not find the atomic data directory {atomic_data_path}. Try running build_radas.sh.")
+        raise FileNotFoundError(
+            f"Could not find the atomic data directory {atomic_data_path}. Try running bash .github/workflows/build_radas.sh from the root of the repo."
+        )
 
     data = atomic_data.read_atomic_data(Path(ATOMIC_DATA_PATH), build_interpolator=_build_interpolator)
     # Convert the enums to popsim types.
