@@ -75,32 +75,32 @@ fi
 
 
 # Check for git lfs and install if not present
-echo "Checking for Git LFS..."
+echo "Checking for git LFS..."
 if ! command -v git-lfs >/dev/null 2>&1; then
-    echo "Git LFS is not installed. Installing Git LFS..."
+    echo "git LFS is not installed. Installing git LFS..."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         if command -v apt >/dev/null 2>&1; then
             sudo apt install git-lfs
         elif command -v yum >/dev/null 2>&1; then
             sudo yum install git-lfs
         else
-            echo "Please install Git LFS manually."
+            echo "Please install git LFS manually."
             exit 1
         fi
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         if command -v brew >/dev/null 2>&1; then
             brew install git-lfs
         else
-            echo "Please install Homebrew and then install Git LFS."
+            echo "Please install Homebrew and then install git LFS."
             exit 1
         fi
     else
-        echo "Unsupported OS. Please install Git LFS manually."
+        echo "Unsupported OS. Please install git LFS manually."
         exit 1
     fi
 fi
 
-echo "Initializing and pulling with Git LFS..."
+echo "Initializing and pulling with git LFS..."
 git lfs install
 git lfs pull
 
