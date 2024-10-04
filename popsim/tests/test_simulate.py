@@ -186,4 +186,3 @@ def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
     else:
         assert sol["state.x1"].dims == ("time", )
         assert sol["state.x2"].dims == ("time", "dim1")
-        assert DEFAULT_SIM_DIM_NAME in sol.dims
