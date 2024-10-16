@@ -10,7 +10,7 @@ import xarray as xr
 from jaxtyping import PyTree
 from loguru import logger
 
-from popsim import ModuleBase
+from popsim import ModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
 from popsim.hybrid_state import partition_discrete_cont
 from popsim.interp import InterpType, resolve_paths
@@ -171,7 +171,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
         y0=sim_input.initial_state,
         args=sim_input.params,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
-        max_steps=10_000_000,  # We want a large, but not infinite number of steps as an infinite number of steps can cause the simulation to hang.
+        max_steps=config["DIFFRAX_MAX_STEPS"],
     )
     return sol
 

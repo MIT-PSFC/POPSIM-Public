@@ -231,7 +231,7 @@ def make_dataloader(
 
 
 def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) -> xr.Dataset:
-    """The segmenting process results in nan-padding to handle segments with unequal lengths. This function fills in the nan-padding at the end of the time dimension.
+    """The segmenting process results in nan-padding to handle segments with unequal lengths. This function forward-fills in the nan-padding at the end of the time dimension.
 
     Args:
         ds (xr.Dataset): dataset with nan-padding at the end of the time dimension.
