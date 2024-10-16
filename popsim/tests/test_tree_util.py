@@ -115,7 +115,7 @@ def test_any_nans_and_no_nans(tree, has_nans):
     assert tree_util.no_nans(tree) == (not has_nans)
 
 
-def test_tree_transpose_with_xr():
+def test_tree_transpose():
 
     da = xr.DataArray(jnp.array([1.0, 2.0, 3.0]), dims=["x"])
 
@@ -124,11 +124,11 @@ def test_tree_transpose_with_xr():
 
     input_tree = jax.tree.map(jnp.atleast_1d, input_tree)
 
-    out = tree_util.tree_transpose_with_xr(input_tree, "simulation")
+    out = tree_util.tree_transpose(input_tree, "simulation")
 
     assert out["c"].equals(xr.concat([da, da], dim="simulation"))
 
-    back = tree_util.tree_transpose_with_xr(out, "simulation")
+    back = tree_util.tree_transpose(out, "simulation")
 
     chex.assert_trees_all_equal(input_tree, back)
 

@@ -23,7 +23,7 @@ from popsim.sim_utils import (
     SimInput,
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
-from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose_with_xr
+from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
 from popsim.xarray_utils import (
     DEFAULT_SIM_DIM_NAME,
     DEFAULT_TIME_DIM_NAME,
@@ -112,7 +112,7 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
     # Vectorize the simulation inputs.
-    sim_inputs_vectorized = tree_transpose_with_xr(sim_inputs, DEFAULT_SIM_DIM_NAME)
+    sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
 
     multi_sim = len(sim_inputs) > 1
     logger.info(f"Running {len(sim_inputs)} simulations.")
