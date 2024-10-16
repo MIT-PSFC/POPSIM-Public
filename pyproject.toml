@@ -40,11 +40,12 @@ nbmake = "^1.4.6"
 pytest-xdist = "^3.6.1"
 mkdocs = "^1.6.0"
 pymdown-extensions = "^10.9"
-mkdocstrings = {extras = ["python"], version = "^0.25.2"}
+mkdocstrings = "^0.26.2"
 mknotebooks = "^0.8.0"
 mkdocs-material = "^9.5.30"
 mkdocs-include-exclude-files = "^0.0.1"
 black = "^24.8.0"
+mkdocstrings-python = "^1.12.1"
 
 [tool.poetry.group.gpu]
 optional = true
