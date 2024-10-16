@@ -46,7 +46,7 @@ markdown_extensions:
     - toc:
         permalink: "¤"  # Adds a clickable permalink to each section heading
         toc_depth: 4
-    - codehilite
+
 extra_javascript:
     # Make mathjax work: https://squidfunk.github.io/mkdocs-material/reference/math/#mathjax-docsjavascriptsmathjaxjs
   - javascripts/mathjax.js
@@ -63,7 +63,17 @@ plugins:
         execute: !ENV [EXEC_MKNOTEBOOKS, false] # TODO(allenw): enable notebook execution once readthedocs issues are sorted.
         allow_errors: false
         enable_default_jupyter_cell_styling: false
-    - mkdocstrings
+    - mkdocstrings:
+        handlers:
+            python:
+                options:
+                    show_signature: true
+                    show_root_heading: true
+                    show_root_full_path: true
+                    show_if_no_docstring: true
+                    members_order: source  # order methods according to their order of definition in the source code, not alphabetical order
+                    heading_level: 2
+
 nav:
     - 'index.md'
     - Getting Started:
@@ -78,7 +88,6 @@ nav:
             - Training Modules: 'notebooks/training_td_modules.ipynb'
         - Dev Workflow Basics: 'development_workflow.md'
     - API:
-        - 'api/simulate.md'
-        - 'api/module_base.md'
-        - 'api/interp.md'
-        - 'api/modules.md'
+        - simulate: 'api/simulate.md'
+        - tree_util: 'api/tree_util.md'
+        - interp: 'api/interp.md'

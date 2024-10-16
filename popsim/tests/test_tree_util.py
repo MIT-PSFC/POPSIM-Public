@@ -83,6 +83,32 @@ def test_tree_transpose_invalid_input():
     with pytest.raises(ValueError):
         tree_util.tree_transpose({"a": jnp.array([1.0, 2.0]), "b": jnp.array([3.0]), "c": xr.Variable("foo", [1, 2, 3])})
 
+def test_tree_transpose_docstring_example():
+        # Test: List of PyTrees to PyTree of arrays
+    seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
+    tree_of_arrays = tree_util.tree_transpose(seq_of_trees)
+    expected_tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
+    
+    assert tree_of_arrays.keys() == expected_tree_of_arrays.keys()
+    for key in tree_of_arrays:
+        assert jnp.array_equal(tree_of_arrays[key], expected_tree_of_arrays[key])
+
+    # Test: PyTree of arrays to list of PyTrees
+    tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
+    seq_of_trees = tree_util.tree_transpose(tree_of_arrays)
+    expected_seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
+    
+    assert len(seq_of_trees) == len(expected_seq_of_trees)
+    for actual, expected in zip(seq_of_trees, expected_seq_of_trees):
+        assert actual == expected
+
+    # Test: List of xr.DataArray to xr.DataArray
+    seq_of_xr = [xr.DataArray([0.0, 1.0], dims="x"), xr.DataArray([2.0, 3.0], dims="x")]
+    xr_array = tree_util.tree_transpose(seq_of_xr, extra_dim_name="new_dim")
+    expected_xr_array = xr.DataArray([[0.0, 1.0], [2.0, 3.0]], dims=("new_dim", "x"))
+    
+    xr.testing.assert_equal(xr_array, expected_xr_array)
+
 def test_leaves_as_array():
     labels = ["b", "a", "c"]
     values = jnp.array([1.0, 2.0, 3.0])
