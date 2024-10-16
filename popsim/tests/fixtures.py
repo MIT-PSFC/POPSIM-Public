@@ -17,10 +17,14 @@ def load_cmod_test_dataset():
     except:
         raise ValueError(f"Could not find the CMOD test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
+@lru_cache(maxsize=1)  # Caches only one result since it's always the same dataset
 def load_mast_thomson_test_dataset():
-    path_to_data = os.path.join(popsim.DATA_DIR, "mast/mast_thomson_small_sample.nc")
-    ds = xr.open_dataset(path_to_data)
-    return ds
+    try:
+        path_to_data = os.path.join(popsim.DATA_DIR, "mast/mast_thomson_small_sample.nc")
+        ds = xr.open_dataset(path_to_data)
+        return ds
+    except:
+        raise ValueError(f"Could not find the MAST Thomson scattering test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
 def generate_oscillator_dataset():
     """Generate an oscillator dataset, following the example from: https://docs.kidger.site/diffrax/examples/neural_ode """
