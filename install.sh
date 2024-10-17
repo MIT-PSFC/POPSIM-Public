@@ -13,7 +13,7 @@ prompt_user() {
     local install_test_value="$2"
     local user_input
     
-    if [ -n $INSTALL_TEST ]; then
+    if [ -n "$INSTALL_TEST" ]; then
         # In CI environment, use default value
         user_input="$install_test_value"
     else
@@ -81,9 +81,9 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     poetry run pre-commit install # Install pre-commit hooks
 fi
 
-if [ -n "$INSTALL_TEST" ]; then
-    echo "Skipping radas execution in INSTALL_TEST environment."
-else
+install_radas=$(prompt_user "Do you want to install RADAS? (y/n):" "y")
+# If install_radas starts with y or Y then install.
+if [[ "$install_radas" =~ ^[yY] ]]; then
     bash .github/workflows/build_radas.sh
 fi
 
