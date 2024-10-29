@@ -101,3 +101,6 @@ pyupgrade.keep-runtime-typing=true
 pydocstyle.convention = "google"
 target-version = "py39"
 line-length = 140
+
+[tool.ruff.lint.pylint]
+max-statements = 75
