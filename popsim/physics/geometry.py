@@ -1,5 +1,6 @@
 import chex
-from cfspopcon.jax_compatible import current_drive, geometry
+
+from popsim.cfspopcon_jax import current_drive, geometry
 
 """
 TODO: implement a "time-varying-geom" module that accepts a time (or path) parameter.

@@ -5,17 +5,17 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
-from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
-from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
-from cfspopcon.jax_compatible.fusion_rates import ReactionType
-from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
 from cfspopcon.named_options import ConfinementScaling
 from jaxtyping import Array
 
 import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
 from popsim import ModuleBase
+from popsim.cfspopcon_jax import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
+from popsim.cfspopcon_jax.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
+from popsim.cfspopcon_jax.energy_confinement_time_scalings import tau_e_from_Wp
+from popsim.cfspopcon_jax.fusion_rates import ReactionType
+from popsim.cfspopcon_jax.helpers import integrate_profile_over_volume_cylindrical
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 from popsim.physics.geometry import GeometryCFSPopcon
@@ -98,7 +98,7 @@ class CometMirror(ModuleBase):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params) -> State:  # noqa: PLR0915
+    def __call__(self, state: State, params: Params) -> State:
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,
