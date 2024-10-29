@@ -51,10 +51,9 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 import yaml
+from cfspopcon.np_variant import np
 from numpy.typing import NDArray
 from scipy.interpolate import RectBivariateSpline  # type: ignore[import]
-
-from ...np_variant import np
 
 
 def load_dataframe(dataset: str, df_name: str, plasma_profiles_directory: Optional[Path] = None) -> pd.DataFrame:

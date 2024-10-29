@@ -3,9 +3,9 @@
 from typing import Union
 
 import xarray as xr
+from cfspopcon.np_variant import np
 
-from ...np_variant import np
-from ...unit_handling import Quantity
+from .cfspopcon.unit_handling import Quantity
 
 
 def calc_required_SOL_power_loss_fraction(

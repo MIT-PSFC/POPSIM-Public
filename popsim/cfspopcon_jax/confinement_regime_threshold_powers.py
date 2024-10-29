@@ -1,6 +1,6 @@
 """Threshold powers required to enter improved confinement regimes."""
-from ..named_options import ConfinementScaling
-from ..np_variant import np
+from cfspopcon.named_options import ConfinementScaling
+from cfspopcon.np_variant import np
 
 
 def _calc_Martin_LH_threshold(

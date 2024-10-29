@@ -1,8 +1,7 @@
 """Calculate the ratio of magnetic to plasma (kinetic) pressure."""
 import scipy.constants as const
-
-from ..np_variant import np
-from ..unit_handling import Quantity, Unitfull
+from cfspopcon.np_variant import np
+from cfspopcon.unit_handling import Quantity, Unitfull
 
 
 def calc_unit_conversion_factor():

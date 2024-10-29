@@ -2,12 +2,12 @@
 
 See Figure 15 of :cite:`stangeby_2018`.
 """
+from cfspopcon.np_variant import np
 from numpy import float64
 from numpy.typing import NDArray
 
-from ...named_options import MomentumLossFunction
-from ...np_variant import np
-from ...unit_handling import Quantity
+from .cfspopcon.named_options import MomentumLossFunction
+from .cfspopcon.unit_handling import Quantity
 
 
 def _calc_SOL_momentum_loss_fraction(A: float, Tstar: float, n: float, target_electron_temp: float) -> float:

@@ -1,7 +1,7 @@
 """Ohmic and bootstrap plasma current, loop resistivity & voltage, and current relaxation time."""
 
 
-from ..unit_handling import Unitfull
+from cfspopcon.unit_handling import Unitfull
 
 
 def calc_f_shaping(inverse_aspect_ratio: Unitfull, areal_elongation: Unitfull, triangularity_psi95: Unitfull) -> Unitfull:

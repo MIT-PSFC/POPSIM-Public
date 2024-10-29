@@ -2,11 +2,11 @@
 from typing import Union
 
 import xarray as xr
+from cfspopcon.np_variant import np
 from jax import lax
 
-from ...named_options import MomentumLossFunction
-from ...np_variant import np
-from ...unit_handling import Quantity, Unitfull
+from .cfspopcon.named_options import MomentumLossFunction
+from .cfspopcon.unit_handling import Quantity, Unitfull
 from .momentum_loss_functions import calc_SOL_momentum_loss_function_array, get_SOL_momentum_loss_function
 from .target_electron_density import (
     calc_f_other_target_electron_density,

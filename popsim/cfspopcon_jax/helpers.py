@@ -1,10 +1,9 @@
 """Common functionality shared between other functions."""
 
 import jax
+from cfspopcon.np_variant import np
 from numpy import float64
 from numpy.typing import NDArray
-
-from ..np_variant import np
 
 
 def integrate_profile_over_volume_cylindrical(

@@ -1,9 +1,8 @@
 """Reaction rates (<sigma*v>) as a function of ion temperature."""
 
+from cfspopcon.np_variant import np
 from numpy import float64
 from numpy.typing import NDArray
-
-from ...np_variant import np
 
 
 def sigmav_DT(ion_temp_profile: NDArray[float64]) -> NDArray[float64]:

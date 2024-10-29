@@ -3,7 +3,7 @@ from typing import Union
 
 import xarray as xr
 
-from ...unit_handling import Quantity
+from .cfspopcon.unit_handling import Quantity
 
 
 def calc_upstream_total_pressure(
