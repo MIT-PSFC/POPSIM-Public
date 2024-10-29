@@ -1,5 +1,5 @@
 """Operational limits to avoid disruptive regions."""
-from ..np_variant import np
+from cfspopcon.np_variant import np
 
 
 def calc_greenwald_fraction(

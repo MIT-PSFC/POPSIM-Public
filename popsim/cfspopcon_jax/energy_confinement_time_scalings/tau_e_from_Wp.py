@@ -3,8 +3,7 @@ from pathlib import Path
 import jax
 import yaml
 from cfspopcon.named_options import ConfinementScaling
-
-from ...np_variant import np
+from cfspopcon.np_variant import np
 
 # Preload the scalings (instead of doing fileio in loop)
 with open(Path(__file__).parent / "tau_e_scalings.yaml") as f:

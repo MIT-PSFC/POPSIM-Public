@@ -1,6 +1,6 @@
 """Estimate the density peaking based on scaling from C. Angioni."""
-from ..np_variant import np
-from ..unit_handling import Unitfull
+from cfspopcon.np_variant import np
+from cfspopcon.unit_handling import Unitfull
 
 
 def calc_density_peaking(effective_collisionality: Unitfull, betaE: Unitfull, nu_noffset: Unitfull) -> Unitfull:

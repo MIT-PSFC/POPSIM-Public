@@ -3,8 +3,8 @@ from typing import Union
 
 import xarray as xr
 
-from ...named_options import MomentumLossFunction
-from ...unit_handling import Unitfull, ureg
+from .cfspopcon.named_options import MomentumLossFunction
+from .cfspopcon.unit_handling import Unitfull, ureg
 from .momentum_loss_functions import calc_SOL_momentum_loss_fraction
 from .required_power_loss_fraction import calc_required_SOL_power_loss_fraction
 from .target_electron_density import (

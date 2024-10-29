@@ -1,10 +1,9 @@
 """Calculate the impurity radiated power using the radas atomic_data."""
 from typing import Callable
 
+from cfspopcon.np_variant import np
 from numpy import float64
 from numpy.typing import NDArray
-
-from ...np_variant import np
 
 
 def calc_impurity_radiated_power_radas(

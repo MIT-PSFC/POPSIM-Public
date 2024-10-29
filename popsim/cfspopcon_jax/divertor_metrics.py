@@ -1,7 +1,6 @@
 """Divertor loading and functions to calculate OMP pitch (for q_parallel calculation)."""
+from cfspopcon.np_variant import np
 from scipy import constants
-
-from ..np_variant import np
 
 
 def calc_B_pol_omp(plasma_current: float, minor_radius: float) -> float:

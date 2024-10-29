@@ -1,8 +1,7 @@
 from typing import Callable
 
 import xarray as xr
-
-from ..np_variant import np
+from cfspopcon.np_variant import np
 
 
 def calc_impurity_charge_state_impl(

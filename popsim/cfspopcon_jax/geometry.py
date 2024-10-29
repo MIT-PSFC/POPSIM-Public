@@ -1,6 +1,6 @@
 """Plasma geometry (inside the last-closed-flux-surface)."""
-from ..np_variant import np
-from ..unit_handling import Unitfull
+from cfspopcon.np_variant import np
+from cfspopcon.unit_handling import Unitfull
 
 
 def calc_plasma_volume(major_radius: Unitfull, inverse_aspect_ratio: Unitfull, areal_elongation: Unitfull) -> Unitfull:

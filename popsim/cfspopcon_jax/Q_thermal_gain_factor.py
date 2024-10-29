@@ -1,5 +1,5 @@
 """Calculate the thermal gain factor (Q, Q_plasma, Q_thermal)."""
-from ..np_variant import np
+from cfspopcon.np_variant import np
 
 _IGNITED_THRESHOLD = 1e3
 _IGNITED = 1e6

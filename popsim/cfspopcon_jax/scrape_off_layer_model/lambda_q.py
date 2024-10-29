@@ -1,6 +1,7 @@
 """Routines to calculate the heat flux decay length (lambda_q), for several different scalings."""
-from ...named_options import LambdaQScaling
-from ...np_variant import np
+from cfspopcon.np_variant import np
+
+from .cfspopcon.named_options import LambdaQScaling
 
 
 def calc_lambda_q(
