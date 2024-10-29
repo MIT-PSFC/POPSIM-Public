@@ -1,4 +1,4 @@
-from cfspopcon.jax_compatible import current_drive
+from popsim.cfspopcon_jax import current_drive
 
 
 def calc_ohmic_power(

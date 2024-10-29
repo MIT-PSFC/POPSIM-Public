@@ -5,7 +5,9 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from cfspopcon.jax_compatible import (
+from cfspopcon.unit_handling import Quantity
+
+from popsim.cfspopcon_jax import (
     Q_thermal_gain_factor,
     average_fuel_ion_mass,
     beta,
@@ -21,18 +23,17 @@ from cfspopcon.jax_compatible import (
     operational_limits,
     plasma_profiles,
 )
-from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
-from cfspopcon.jax_compatible.fusion_reaction_data import reaction_energies, reaction_rate_coefficients
-from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
-from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
-from cfspopcon.jax_compatible.radiated_power import inherent, radas
-from cfspopcon.jax_compatible.scrape_off_layer_model import (
+from popsim.cfspopcon_jax.energy_confinement_time_scalings import tau_e_from_Wp
+from popsim.cfspopcon_jax.fusion_reaction_data import reaction_energies, reaction_rate_coefficients
+from popsim.cfspopcon_jax.helpers import integrate_profile_over_volume_cylindrical
+from popsim.cfspopcon_jax.plasma_profile_data import density_and_temperature_profile_fits
+from popsim.cfspopcon_jax.radiated_power import inherent, radas
+from popsim.cfspopcon_jax.scrape_off_layer_model import (
     lambda_q,
     parallel_heat_flux_density,
     solve_target_first_two_point_model,
     solve_two_point_model,
 )
-from cfspopcon.unit_handling import Quantity
 
 DEFAULT_QUANTITIES = {
     "average_electron_density": Quantity(31, "n19"),

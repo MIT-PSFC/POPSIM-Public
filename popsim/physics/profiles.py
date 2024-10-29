@@ -10,6 +10,8 @@ from jaxtyping import Array
 from numpy import float64
 from numpy.typing import NDArray
 
+from popsim.cfspopcon_jax import density_peaking, plasma_profiles
+from popsim.cfspopcon_jax.plasma_profile_data import density_and_temperature_profile_fits
 from popsim.enums import ProfileForm
 from popsim.interfaces import get_prf_profiles
 
