@@ -1,8 +1,9 @@
-from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME
+from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, add_dim_to_vars, remove_dim_from_vars
 import numpy as np
 import pytest
 import xarray as xr
-
+import jax
+import chex
 
 @pytest.mark.parametrize("arr, expected_dims, expected_output, expect_warning", [
     (
@@ -162,3 +163,73 @@ def test_multi_simulation_2d_time_xr():
     assert set(result.data_vars) == {'a', 'b.c', 'b.d', "var", "da"}
     assert result["var"].dims == (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo")
     assert result["da"].dims == (DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, "foo")
+
+def test_run_function_with_dim_removed():
+    var = xr.Variable(data=np.random.rand(3, 10, 5), dims=('simulation', 'time', 'foo'))
+    remove_dim = 'simulation'
+
+    @jax.jit
+    def fn(v):
+        assert 'simulation' not in v._dims
+        assert 'time' in v._dims
+        assert 'foo' in v._dims
+        return v
+
+    res = run_function_with_dim_removed(fn, (var,), remove_dim)
+    assert res._dims == var._dims
+
+
+# Sample test data
+def sample_tree():
+    """Creates a PyTree with xr.Variable instances for testing."""
+    var1 = xr.Variable(('x',), [1, 2, 3])
+    var2 = xr.Variable(('y',), [4, 5, 6, 7])
+    return {'a': var1, 'b': {'c': var2}}
+
+
+def test_add_dim_to_vars():
+    tree = sample_tree()
+    dim_name = 'time'
+
+    # Apply add_dim_to_vars
+    modified_tree = add_dim_to_vars(tree, dim_name)
+
+    # Check if the dimension was added to each xr.Variable
+    assert modified_tree['a'].dims == ('time', 'x')
+    assert modified_tree['b']['c'].dims == ('time', 'y')
+
+
+def test_remove_dim_from_vars():
+    tree = sample_tree()
+    dim_name = 'time'
+
+    # First add a dimension so it can be removed
+    tree_with_added_dim = add_dim_to_vars(tree, dim_name)
+
+    # Apply remove_dim_from_vars
+    modified_tree = remove_dim_from_vars(tree_with_added_dim, dim_name)
+
+    # Check if the dimension was removed from each xr.Variable
+    assert modified_tree['a'].dims == ('x',)
+    assert modified_tree['b']['c'].dims == ('y',)
+
+
+def test_add_then_remove_dim():
+    tree = sample_tree()
+    dim_name = 'time'
+
+    # Apply add_dim_to_vars and then remove_dim_from_vars
+    modified_tree = add_dim_to_vars(tree, dim_name)
+    restored_tree = remove_dim_from_vars(modified_tree, dim_name)
+
+    chex.assert_trees_all_close(tree, restored_tree)
+
+
+def test_add_remove_nonexistent_dim():
+    tree = sample_tree()
+    dim_name = 'nonexistent'
+
+    # Apply remove_dim_from_vars without adding the dimension first
+    modified_tree = remove_dim_from_vars(tree, dim_name)
+
+    chex.assert_trees_all_equal(tree, modified_tree)
