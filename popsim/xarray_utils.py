@@ -7,6 +7,7 @@ import numpy as np
 import xarray as xr
 from jaxtyping import Array, PyTree
 from loguru import logger
+from xarray_jax import var_change_on_unflatten
 
 import popsim.tree_util as ptu
 from popsim.array_utils import jax_to_numpy_array
@@ -159,7 +160,7 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
 
 
 def add_dim_to_vars(tree: PyTree, dim_name: str) -> PyTree:
-    """Given a PyTree that may contain xr.Variable instances, add a dimension to the xr.Variables. An example use case involves running a simulation forward in time, which requires adding a time dimension to the xr.Variable instances.
+    """Given a PyTree that may contain xr.Variable instances, add a dimension to the xr.Variables in the leading dimension. An example use case involves running a simulation forward in time, which requires adding a time dimension to the xr.Variable instances.
 
     Args:
         tree (PyTree): PyTree that may contain xr.Variable instances.
@@ -192,3 +193,25 @@ def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
         return var
 
     return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+
+
+def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inputs: tuple, dim_remove: int) -> typing.Any:
+    """
+    Runs a function with a specified dimension removed from its variables, then adds the dimension back
+    to the output variables after execution as the leading dimension.
+
+    The primary use case in mind is when we want to, for example, vmap a function across the simulation dimension. In this case, we would like to remove the simulation dimension from the variables before executing the function, then add it back to the output variables after execution.
+
+    Args:
+        fun (Callable[..., Any]): The function to execute.
+        fun_inputs (tuple): The inputs to pass to `fun`.
+        dim_remove (int): The index of the dimension to remove from the variables before executing `fun`.
+
+    Returns:
+        Any: The output of `fun` with the removed dimension re-added to the variables.
+    """
+    with var_change_on_unflatten(lambda var: remove_dim_from_vars(var, dim_remove)):
+        out = fun(*fun_inputs)
+
+    out = add_dim_to_vars(out, dim_remove)
+    return out

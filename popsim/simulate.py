@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import PyTree
 from loguru import logger
-from xarray_jax import var_change_on_unflatten
 
 from popsim import ModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
@@ -28,7 +27,7 @@ from popsim.xarray_utils import (
     DEFAULT_SIM_DIM_NAME,
     DEFAULT_TIME_DIM_NAME,
     add_dim_to_vars,
-    remove_dim_from_vars,
+    run_function_with_dim_removed,
     solution_to_xarray,
     time_and_pytree_to_xarray,
 )
@@ -136,15 +135,9 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
 
-    # Perform a vectorized simulation.
-    # Note that we need to remove the simulation dimension from the xarray variables inside the simulation and then add it back after the simulation.
-    with var_change_on_unflatten(lambda var: remove_dim_from_vars(var, DEFAULT_SIM_DIM_NAME)):
-        sol = jax.vmap(
-            simulate_fun,
-            in_axes=(None, sim_input_axes),
-        )(module, sim_input)
+    vec_sim_fun = jax.vmap(simulate_fun, in_axes=(None, sim_input_axes))
 
-    sol = add_dim_to_vars(sol, DEFAULT_SIM_DIM_NAME)
+    sol = run_function_with_dim_removed(vec_sim_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME)
 
     # Remove extraneous dimensions.
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)

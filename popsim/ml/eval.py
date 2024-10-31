@@ -11,7 +11,7 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
-from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, solution_to_xarray
+from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, solution_to_xarray
 
 """
 This module contains utilities for evaluating models on data.
@@ -58,7 +58,10 @@ def eval_module_on_data(
         ds = dataset.ds
         inputs, _ = ds.popsim_ml.prep_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
-        sol = jax.vmap(env, in_axes=(inputs_spec,))(inputs)
+        vec_env = jax.vmap(env, in_axes=(inputs_spec,))
+
+        sol = run_function_with_dim_removed(vec_env, (inputs,), DEFAULT_SAMPLE_DIM)
+
         ds_out = solution_to_xarray(sol, multi_simulation=True)
 
         # Rename the dimensions to match the input dataset.
