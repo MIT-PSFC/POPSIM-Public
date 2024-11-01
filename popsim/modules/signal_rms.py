@@ -14,7 +14,7 @@ class SignalRMS(ModuleBase):
 
     @chex.dataclass
     class State:
-        window: jnp.ndarray = discrete_time_field(default=jnp.array([]))
+        window: jnp.ndarray = discrete_time_field(default_factory=lambda: jnp.array([]))
         index: int = discrete_time_field(default=0)
 
     @chex.dataclass

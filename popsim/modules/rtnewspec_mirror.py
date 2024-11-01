@@ -42,8 +42,8 @@ class RTNewSpecMirror(ModuleBase):
     @chex.dataclass
     class State:
         # The last nsamples of magnetic probe data
-        probe1_data: jnp.ndarray = discrete_time_field(default=jnp.zeros(FFT_SAMPLES))
-        probe2_data: jnp.ndarray = discrete_time_field(default=jnp.zeros(FFT_SAMPLES))
+        probe1_data: jnp.ndarray = discrete_time_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
+        probe2_data: jnp.ndarray = discrete_time_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
         uninitialized: bool = discrete_time_field(default=True)
 
     @chex.dataclass
@@ -52,9 +52,9 @@ class RTNewSpecMirror(ModuleBase):
 
     @chex.dataclass
     class Params:
-        # The currently stored probe data
-        probe1_signal: jnp.ndarray
-        probe2_signal: jnp.ndarray
+        # The most recent measured signal from the probes
+        probe1_signal: float
+        probe2_signal: float
 
     config: Config
 

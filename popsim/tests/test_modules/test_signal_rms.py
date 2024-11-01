@@ -2,6 +2,10 @@ from popsim.modules.signal_rms import SignalRMS
 import jax.numpy as jnp
 from scipy.signal import sawtooth
 
+def test_signal_rms_default_state():
+
+    default_state = SignalRMS.State()
+
 def test_signal_rms_simple():
     window_size = 4
     signal_rms_config = SignalRMS.Config(window_size=window_size)
