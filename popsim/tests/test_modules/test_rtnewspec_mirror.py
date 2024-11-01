@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 
 def test_rtnewspec_mirror_call():
-    probe_offset = jnp.pi/5
+    probe_offset = 0.5
 
     config = RTNewSpecMirror.Config(
         d_theta=jnp.rad2deg(probe_offset),
@@ -13,7 +13,7 @@ def test_rtnewspec_mirror_call():
         alpha=0.001, # TODO(ZanderKeith): This is some factor that needs to be included to get [T] out of the FFT.
         f_probe=60e3,
         nsmth=3,
-        max_modes=2,
+        max_modes=3,
     )
 
     rtnewspec_mirror = RTNewSpecMirror(config=config)

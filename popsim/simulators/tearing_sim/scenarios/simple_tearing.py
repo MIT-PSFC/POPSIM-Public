@@ -1,3 +1,5 @@
+import jax.numpy as jnp
+
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray, load_lown_config
 from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 from popsim.modules.tearing import DEFAULT_WDOT, Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory
@@ -22,8 +24,8 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
             raise ValueError(f"Mode {mode} not presently supported by Tearing module.")
 
     # Define the time base.
-    dt = 1e-4 / 3  # s
-    time_base = make_time_base(t0=0.0, t1=3.0, dt=dt)
+    dt = 1 / 30e3  # s
+    time_base = make_time_base(t0=0.0, t1=1.0, dt=dt)
 
     # Define the tearing modes.
     tearing_config = Tearing.Config(
@@ -40,8 +42,8 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
     # Define the tearing parameters.
     rot_dur = 0.5
     locking_dur = 0.2
-    trigger_time = 1.0
-    disrupt_time = 2.5
+    trigger_time = 0.1
+    disrupt_time = 0.9
     dur_tq_to_spike = 1e-3
 
     tearing_params = Tearing.Params(
@@ -69,7 +71,7 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
     rtnewspec_mirror_config = RTNewSpecMirror.Config(
         probe1_id="sample_probe_1_identifier",
         probe2_id="sample_probe_2_identifier",
-        d_theta=0.5,  # TODO(ZanderKeith): Read from BFieldPoloidalProbes config
+        d_theta=jnp.rad2deg(0.5),  # TODO(ZanderKeith): Read from BFieldPoloidalProbes config
     )
     rtnewspec_mirror_module = RTNewSpecMirror(config=rtnewspec_mirror_config)
 
