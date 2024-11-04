@@ -68,10 +68,16 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
 
     b_field_poloidal_probes_module = BFieldPoloidalProbes.default_setup()
 
+    default_probe_details = b_field_poloidal_probes_module.config.probe_details
+    probe1_id = default_probe_details[0]["identifier"]
+    probe2_id = default_probe_details[1]["identifier"]
+    probe1_phi = default_probe_details[0]["position"]["phi"]
+    probe2_phi = default_probe_details[1]["position"]["phi"]
+
     rtnewspec_mirror_config = RTNewSpecMirror.Config(
-        probe1_id="sample_probe_1_identifier",
-        probe2_id="sample_probe_2_identifier",
-        d_theta=jnp.rad2deg(0.5),  # TODO(ZanderKeith): Read from BFieldPoloidalProbes config
+        probe1_id=probe1_id,
+        probe2_id=probe2_id,
+        d_theta=jnp.rad2deg(probe2_phi - probe1_phi),
     )
     rtnewspec_mirror_module = RTNewSpecMirror(config=rtnewspec_mirror_config)
 
