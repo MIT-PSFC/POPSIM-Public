@@ -309,7 +309,13 @@ def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
     Thus, we have added a catch that checks that ne > 0.3e20 m^-3. This needs to be addressed before integrating with POPSIM.
     """
 
-    return 0
+    # We're assuming that the parameters are a superset of the terms
+    delta = 1.0
+    for key, value in scaling_law_params.items():
+        if key in scaling_law_terms:
+            delta *= value ** scaling_law_terms[key][0]
+
+    return delta
 
 
 @chex.dataclass
