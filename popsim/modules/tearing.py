@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
 
-from popsim import ModuleBase
+from popsim import ModuleBase, discrete_time_field
 from popsim.logic_utils import select_w_tuples
 from popsim.simulate import make_time_base
 
@@ -290,3 +290,101 @@ class Tearing(ModuleBase):
         tearing_module = Tearing(config=tearing_config)
 
         return tearing_module, tearing_initial_state, tearing_params, time_base
+
+
+def calculate_error_field_overlap():
+    """
+    Calculates the total overlap of the EF sources based on the
+    simulation's current state.
+    """
+
+    return 0
+
+
+def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
+    """
+    Calculate the locking scaling law.
+
+    NOTE: This does not work well when the simulation includes early time points at which ne=0. This will cause the scaling to be 0.
+    Thus, we have added a catch that checks that ne > 0.3e20 m^-3. This needs to be addressed before integrating with POPSIM.
+    """
+
+    return 0
+
+
+@chex.dataclass
+class ErrorFieldLocking(ModuleBase):
+    @chex.dataclass
+    class Config:
+        modes: list[tuple[int, int]]
+
+        metrology: dict[str, dict[str, complex]]
+
+        overlaps: dict[str, dict[str, complex]]
+
+        static_sources: dict[str, complex]
+
+        # Hysteresis fraction of the locked mode.
+        # This is the fraction of the threshold that must be reached to unlock the mode.
+        # E.g, 0.9 means a point below 90% of the threshold must be reached to unlock.
+        hysteresis: float = 0.9
+
+        # How much of the error field is reduced by the correction coils.
+        # There is precedent for this naive modeling approach, can be made more sophisticated later.
+        efc_efficiency: float = 0.5
+
+    @chex.dataclass
+    class State:
+        W: dict[tuple[int, int], float]
+        F: dict[tuple[int, int], float]
+        mode_phase: dict[tuple[int, int], float]
+        tearing_phase: TearingPhase = discrete_time_field()
+
+    @chex.dataclass
+    class Params:
+        scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
+        scaling_law_params: dict[str, np.ndarray]  # Values for each parameter in the scaling law
+        cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
+
+    @chex.dataclass
+    class Output:
+        state_dot: "State"  # noqa: F821
+        params: "Params"  # noqa: F821
+        mode_current: dict[tuple[int, int], float]
+        mode_phase: dict[tuple[int, int], float]
+        mode_freq: dict[tuple[int, int], float]
+        error_field_overlap: dict[tuple[int, int], float]
+        locking_threshold: dict[tuple[int, int], float]
+        aux_data: dict = None
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(
+        self, state: "ErrorFieldLocking.State", params: "ErrorFieldLocking.Params"
+    ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
+        # Just doing the transition from none -> locked -> rotating for now
+
+        error_field_overlap = 0  # calculate_error_field_overlap()
+        locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
+
+        Wdot = {mode: 0.0 for mode in self.config.modes}
+        Fdot = {mode: 0.0 for mode in self.config.modes}
+        mode_phase_dot = {mode: 0.0 for mode in self.config.modes}
+        new_tearing_phase = {mode: TearingPhase.NONE for mode in self.config.modes}
+
+        state_dot = ErrorFieldLocking.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot, tearing_phase=new_tearing_phase)
+
+        out = ErrorFieldLocking.Output(
+            state_dot=state_dot,
+            params=params,
+            mode_current={},
+            mode_phase={},
+            mode_freq={},
+            error_field_overlap=error_field_overlap,
+            locking_threshold=locking_threshold,
+        )
+
+        return state_dot, out
