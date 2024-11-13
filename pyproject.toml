@@ -28,6 +28,7 @@ bottleneck = "^1.4.0"
 plotly = "^5.24.1"
 tabulate = "^0.9.0"
 cfspopcon = "4.0.0"
+certifi = "^2024.8.30"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -51,6 +52,9 @@ optional = true
 
 [tool.poetry.group.gpu.dependencies]
 jax = {version = "0.4.33", extras=["cuda12"]}
+
+[tool.poetry.scripts]
+setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
 
 [[tool.poetry.source]]
 name = "PyPI"

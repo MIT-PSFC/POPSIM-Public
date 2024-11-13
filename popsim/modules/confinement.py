@@ -3,7 +3,7 @@ from typing import Callable
 import chex
 import jax
 import jax.numpy as jnp
-from cfspopcon.named_options import ConfinementPowerScaling
+from cfspopcon.named_options import ConfinementScaling
 
 from popsim.cfspopcon_jax.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from popsim.cfspopcon_jax.energy_confinement_time_scalings import tau_e_from_Wp
@@ -50,8 +50,8 @@ class Confinement:
 
     @chex.dataclass
     class Config:
-        hmode_scaling: ConfinementPowerScaling = ConfinementPowerScaling.ITER98y2
-        lmode_scaling: ConfinementPowerScaling = ConfinementPowerScaling.ITER89P_ka
+        hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
+        lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
 
     config: Config
     hmode_tau_e_and_P: Callable
