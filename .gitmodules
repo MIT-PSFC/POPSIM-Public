@@ -1,6 +1,3 @@
-[submodule "cfspopcon"]
-	path = submodules/cfspopcon
-	url = git@github.com:cfs-energy-internal/cfspopcon.git
 [submodule "qlknn-hyper"]
 	path = submodules/qlknn-hyper
 	url = https://gitlab.com/qualikiz-group/qlknn-hyper.git
