@@ -245,7 +245,7 @@ def test_tau_e_from_Wp():
         "q_star": 3.0,
     }
 
-    for scaling in cfsno.ConfinementPowerScaling:
+    for scaling in cfsno.ConfinementScaling:
         fn = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling)
         jax_compatability_test(fn, fn_kwargs=fake_data)
 
@@ -546,7 +546,7 @@ def test_confinement_regime_threshold_powers():
             "scale": 1.0,
         },
     )
-    for scaling in cfsno.ConfinementPowerScaling:
+    for scaling in cfsno.ConfinementScaling:
         if scaling.name not in ["LOC"]:
             jax_compatability_test(
                 confinement_regime_threshold_powers.calc_confinement_transition_threshold_power,

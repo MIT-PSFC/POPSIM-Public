@@ -5,7 +5,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from cfspopcon.named_options import ConfinementPowerScaling
+from cfspopcon.named_options import ConfinementScaling
 from jaxtyping import Array
 
 import popsim.modules.density as density_model
@@ -66,8 +66,8 @@ class CometMirror(ModuleBase):
         species: SpeciesContainer
         profile_form: ProfileForm
         rho: Array
-        hmode_scaling: ConfinementPowerScaling = ConfinementPowerScaling.ITER98y2
-        lmode_scaling: ConfinementPowerScaling = ConfinementPowerScaling.ITER89P_ka
+        hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
+        lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
         fusion_reaction: ReactionType = ReactionType.DT
         radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
 
