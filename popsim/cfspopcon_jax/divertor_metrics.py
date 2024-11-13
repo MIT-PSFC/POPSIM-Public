@@ -1,5 +1,5 @@
 """Divertor loading and functions to calculate OMP pitch (for q_parallel calculation)."""
-from cfspopcon.np_variant import np
+import jax.numpy as np
 from scipy import constants
 
 

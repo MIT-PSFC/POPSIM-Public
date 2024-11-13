@@ -49,9 +49,9 @@ import warnings
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import jax.numpy as np
 import pandas as pd
 import yaml
-from cfspopcon.np_variant import np
 from numpy.typing import NDArray
 from scipy.interpolate import RectBivariateSpline  # type: ignore[import]
 

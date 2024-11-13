@@ -1,8 +1,8 @@
 """Compute all terms in the two-point-model for a fixed SOL power loss fraction."""
 from typing import Union
 
+import jax.numpy as np
 import xarray as xr
-from cfspopcon.np_variant import np
 from jax import lax
 
 from .cfspopcon.named_options import MomentumLossFunction

@@ -1,5 +1,5 @@
 """Operational limits to avoid disruptive regions."""
-from cfspopcon.np_variant import np
+import jax.numpy as np
 
 
 def calc_greenwald_fraction(

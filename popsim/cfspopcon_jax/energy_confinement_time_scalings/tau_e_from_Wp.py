@@ -1,16 +1,16 @@
 from pathlib import Path
 
 import jax
+import jax.numpy as np
 import yaml
-from cfspopcon.named_options import ConfinementScaling
-from cfspopcon.np_variant import np
+from cfspopcon.named_options import ConfinementPowerScaling
 
 # Preload the scalings (instead of doing fileio in loop)
 with open(Path(__file__).parent / "tau_e_scalings.yaml") as f:
     TAU_E_SCALINGS = yaml.safe_load(f)
 
 
-def get_calc_tau_e_and_P_in_from_scaling(scaling: ConfinementScaling):
+def get_calc_tau_e_and_P_in_from_scaling(scaling: ConfinementPowerScaling):
     scaling_data = TAU_E_SCALINGS[scaling.name]["params"]
 
     def fn(

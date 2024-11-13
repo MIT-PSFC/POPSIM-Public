@@ -1,7 +1,7 @@
 """Common functionality shared between other functions."""
 
 import jax
-from cfspopcon.np_variant import np
+import jax.numpy as np
 from numpy import float64
 from numpy.typing import NDArray
 

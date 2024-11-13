@@ -2,8 +2,8 @@
 
 from typing import Union
 
+import jax.numpy as np
 import xarray as xr
-from cfspopcon.np_variant import np
 
 from .cfspopcon.unit_handling import Quantity
 
