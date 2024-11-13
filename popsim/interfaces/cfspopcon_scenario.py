@@ -4,12 +4,13 @@ import cfspopcon
 import xarray as xr
 from cfspopcon.unit_handling import Quantity
 
-from popsim import SUBMODULES_DIR
+import popsim.cfspopcon_jax as cfsjx
 from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 
 
 def load_cfspopcon_scenario(case_name: str = "SPARC_PRD"):
-    case_path = os.path.join(SUBMODULES_DIR, f"cfspopcon/example_cases/{case_name}")
+    CFSJX_DIR = cfsjx.__file__.split("__init__.py")[0]
+    case_path = os.path.join(CFSJX_DIR, f"example_cases/{case_name}")
     input_parameters, algorithm, points = cfspopcon.read_case(case_path)
     return input_parameters, algorithm, points
 
