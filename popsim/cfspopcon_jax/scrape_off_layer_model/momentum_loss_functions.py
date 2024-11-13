@@ -2,7 +2,7 @@
 
 See Figure 15 of :cite:`stangeby_2018`.
 """
-from cfspopcon.np_variant import np
+import jax.numpy as np
 from numpy import float64
 from numpy.typing import NDArray
 

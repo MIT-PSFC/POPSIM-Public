@@ -1,6 +1,6 @@
 """OD figures-of-merit to characterize a design point."""
 
-from cfspopcon.np_variant import np
+import jax.numpy as np
 from cfspopcon.unit_handling import Unitfull
 
 _UREGE = 310.62088171379151325717285434460352393779971461694749070685739090  # TODO: CHECK THIS IMPLEMENTATION

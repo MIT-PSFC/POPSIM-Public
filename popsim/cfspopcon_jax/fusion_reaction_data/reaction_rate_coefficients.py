@@ -1,6 +1,6 @@
 """Reaction rates (<sigma*v>) as a function of ion temperature."""
 
-from cfspopcon.np_variant import np
+import jax.numpy as np
 from numpy import float64
 from numpy.typing import NDArray
 

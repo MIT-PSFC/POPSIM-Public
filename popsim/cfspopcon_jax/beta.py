@@ -1,6 +1,6 @@
 """Calculate the ratio of magnetic to plasma (kinetic) pressure."""
+import jax.numpy as np
 import scipy.constants as const
-from cfspopcon.np_variant import np
 from cfspopcon.unit_handling import Quantity, Unitfull
 
 

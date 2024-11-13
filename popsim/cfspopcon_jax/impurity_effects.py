@@ -1,7 +1,7 @@
 from typing import Callable
 
+import jax.numpy as np
 import xarray as xr
-from cfspopcon.np_variant import np
 
 
 def calc_impurity_charge_state_impl(
