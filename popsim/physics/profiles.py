@@ -4,8 +4,6 @@ import chex
 import interpax
 import jax.numpy as jnp
 import xarray as xr
-from cfspopcon.jax_compatible import density_peaking, plasma_profiles
-from cfspopcon.jax_compatible.plasma_profile_data import density_and_temperature_profile_fits
 from jaxtyping import Array
 from numpy import float64
 from numpy.typing import NDArray
