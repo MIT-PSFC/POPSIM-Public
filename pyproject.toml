@@ -27,11 +27,7 @@ jax-dataloader = "^0.1.2"
 bottleneck = "^1.4.0"
 plotly = "^5.24.1"
 tabulate = "^0.9.0"
-<<<<<<< HEAD
-xarray_jax = "0.0.5"
-=======
-cfspopcon = "^7.0.2"
->>>>>>> 6abab70 (Add cfspopcon as dependency in poetry)
+cfspopcon = "4.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
