@@ -17,6 +17,6 @@ PACKAGE_ROOT = files("popsim")
 SUBMODULES_DIR = os.path.join(PACKAGE_ROOT, "../submodules")
 TORAX_QLKNN_MODEL_PATH = os.path.join(SUBMODULES_DIR, "qlknn-hyper")
 DATA_DIR = os.path.join(PACKAGE_ROOT, "data")
-ATOMIC_DATA_PATH = Path(os.path.join(PACKAGE_ROOT, "atomic_data"))
+ATOMIC_DATA_PATH = Path(os.path.join(PACKAGE_ROOT, "../atomic_data/output"))
 
 __all__ = ["ModuleBase", "discrete_time_field", "config"]
