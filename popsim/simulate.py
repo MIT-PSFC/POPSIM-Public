@@ -12,7 +12,7 @@ from loguru import logger
 
 from popsim import ModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
-from popsim.hybrid_state import partition_discrete_cont
+from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
@@ -73,6 +73,16 @@ def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput],
         raise ValueError(
             "CombinatorialCases detected in simulation inputs. Recommend explicitly calling .generate_cases() on them before calling simulate."
         )
+
+
+def generate_save_output(state: PyTree, params: PyTree, output: PyTree, record_state: bool = True) -> PyTree:
+    """Generate the output data for a simulation."""
+    out = {"output": output, "params": params}
+    if record_state:
+        out["state"] = state
+
+    save, _ = partition_save_no_save(out)
+    return save
 
 
 def simulate(
@@ -165,9 +175,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: boo
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
         output, params_resolved = module_f(t, y, args, return_aux=True)
-        out = {"output": output, "params": params_resolved}
-        if record_state:
-            out["state"] = y
+        out = generate_save_output(y, params_resolved, output, record_state=record_state)
         return out
 
     # Get the minimum time step that is greater than zero.
@@ -216,12 +224,8 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state
         # Combine the next continuous state with the next discrete state
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
-        output_data = {
-            "output": out,
-            "params": params_resolved,
-        }
-        if record_state:
-            output_data["state"] = state
+        # Generate the output data.
+        output_data = generate_save_output(state, params_resolved, out, record_state=record_state)
 
         return state_next, output_data
 
