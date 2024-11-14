@@ -151,7 +151,7 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
     def module_f(t, y, params, return_aux=False):
@@ -190,7 +190,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: boo
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool) -> PyTree:
+def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> PyTree:
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
