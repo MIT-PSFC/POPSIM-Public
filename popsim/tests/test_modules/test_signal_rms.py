@@ -7,10 +7,9 @@ def test_signal_rms_default_state():
     default_state = SignalRMS.State()
 
 def test_signal_rms_simple():
-    window_size = 4
-    signal_rms_config = SignalRMS.Config(window_size=window_size)
-    signal_rms = SignalRMS(config=signal_rms_config)
+    signal_rms = SignalRMS()
 
+    window_size = 4
     signal_rms_initial_state = SignalRMS.State(window=jnp.zeros(window_size))
 
     # Ensure the output remains 0 after giving the module 0 input.
@@ -33,8 +32,7 @@ def test_signal_rms_known():
     # Give the module many time steps of a signal with known RMS and ensure the output is close to correct.
     
     window_size = 100
-    signal_rms_config = SignalRMS.Config(window_size=window_size)
-    signal_rms = SignalRMS(config=signal_rms_config)
+    signal_rms = SignalRMS()
 
     state_out = SignalRMS.State(window=jnp.zeros(window_size))
     x_vals = jnp.linspace(0, 10 * jnp.pi, 1000)
