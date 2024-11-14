@@ -81,8 +81,10 @@ def generate_save_output(state: PyTree, params: PyTree, output: PyTree, record_s
     if record_state:
         out["state"] = state
 
-    save, _ = partition_save_no_save(out)
-    return save
+    for key, val in out.items():
+        save, _ = partition_save_no_save(val)
+        out[key] = save
+    return out
 
 
 def simulate(
