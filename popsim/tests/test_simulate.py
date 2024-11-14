@@ -7,6 +7,9 @@ import jax.numpy as jnp
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
 from popsim.simulate import SimInput
 import xarray as xr
+from jaxtyping import Array
+from jaxlib.xla_extension import XlaRuntimeError
+
 
 @chex.dataclass
 class ContinuousTimeModule(ModuleBase):
@@ -186,3 +189,46 @@ def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
     else:
         assert sol["state.x1"].dims == ("time", )
         assert sol["state.x2"].dims == ("time", "dim1")
+
+def test_disable_record_state():
+    """
+    Test a module where recording the state would result OOM to see if disabling record_state works.
+    """
+
+    @chex.dataclass
+    class MemoryHogExample(ModuleBase):
+
+        @chex.dataclass
+        class State:
+            big_array: Array = discrete_time_field()
+
+        @chex.dataclass
+        class Params:
+            pass
+
+        @chex.dataclass
+        class Output:
+            out: float
+
+        def __call__(
+            self, state: "MemoryHogExample.State", params: "MemoryHogExample.Params"
+        ) -> tuple["MemoryHogExample.State", "MemoryHogExample.Output"]:
+            state_out = MemoryHogExample.State(big_array=state.big_array)
+            out = MemoryHogExample.Output(out=state.big_array[0])
+            return state_out, out
+
+    # 800MB array.
+    state = MemoryHogExample.State(big_array=jnp.ones(int(1e8)))
+    assert state.big_array.nbytes == 8e8
+
+    # 800MB * 100 time steps = 80GB (should crash most computers).
+    ts = jnp.linspace(0, 1, 100)
+
+    module = MemoryHogExample()
+
+    out = simulate.simulate(module, SimInput(time=ts, initial_state=state, params=MemoryHogExample.Params()), record_state=False)
+
+    assert out.nbytes < 1e6  # Should be a small number of bytes.
+
+    with pytest.raises(XlaRuntimeError, match="RESOURCE_EXHAUSTED"):
+        out = simulate.simulate(module, SimInput(time=ts, initial_state=state, params=MemoryHogExample.Params()), record_state=True)

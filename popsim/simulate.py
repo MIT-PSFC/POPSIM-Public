@@ -81,6 +81,7 @@ def simulate(
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
+    record_state: bool = True,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Public facing API for simulating a module.
 
@@ -90,6 +91,7 @@ def simulate(
         interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
+        record_state (bool, optional): whether to record the state at each time step. Defaults to True.
 
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
@@ -104,9 +106,13 @@ def simulate(
 
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
-        simulate_fun = _simple_euler_simulate
+
+        def simulate_fun(mod, inp):
+            return _simple_euler_simulate(mod, inp, record_state=record_state)
     elif stepper_type == StepperType.DIFFRAX:
-        simulate_fun = _diffrax_simulate
+
+        def simulate_fun(mod, inp):
+            return _diffrax_simulate(mod, inp, record_state=record_state)
     else:
         raise ValueError("Stepper type not recognized.")
 
@@ -145,7 +151,7 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
     def module_f(t, y, params, return_aux=False):
@@ -159,7 +165,9 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
         output, params_resolved = module_f(t, y, args, return_aux=True)
-        out = {"state": y, "output": output, "params": params_resolved}
+        out = {"output": output, "params": params_resolved}
+        if record_state:
+            out["state"] = y
         return out
 
     # Get the minimum time step that is greater than zero.
@@ -182,7 +190,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
+def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool) -> PyTree:
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
@@ -209,10 +217,11 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
         output_data = {
-            "state": state,
             "output": out,
             "params": params_resolved,
         }
+        if record_state:
+            output_data["state"] = state
 
         return state_next, output_data
 
