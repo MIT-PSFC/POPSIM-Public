@@ -29,7 +29,7 @@ class FuelSpecies(IntEnum):
     Tritium = -3
 
 
-Impurity = enum_to_intenum(cfsno.AtomicSpecies)
+Impurity = enum_to_intenum(cfsno.Impurity)
 Species = typing.Union[FuelSpecies, Impurity]
 ProfileForm = enum_to_intenum(cfsno.ProfileForm)
 
