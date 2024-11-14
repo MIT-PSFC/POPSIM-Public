@@ -24,7 +24,11 @@ def test_rtnewspec_mirror_call():
     probe2_signal = jnp.sin(2*jnp.pi*10e3*time - probe_offset)
 
     # Call the module with the signals fora while and check the output at the end
-    present_state = RTNewSpecMirror.State()
+    present_state = RTNewSpecMirror.State(
+        probe1_data=jnp.zeros(2048),
+        probe2_data=jnp.zeros(2048),
+        uninitialized=True,
+    )
 
     for i in range(1000):
         params = RTNewSpecMirror.Params(
@@ -89,7 +93,7 @@ def test_calculated_rms_inverted_phase():
     # Make repeating sinusoidal signals with 10 kHz frequency as if they were being sampled at 60 kHz
     time = jnp.arange(2048)/60e3
     probe1_signal = jnp.sin(2*jnp.pi*10e3*time)
-    probe2_signal = jnp.sin(2*jnp.pi*10e3*time + probe_offset)
+    probe2_signal = jnp.sin(2*jnp.pi*10e3*time - probe_offset)
 
     # Calculate the RMS values directly
     rms_values = rtnewspec_mirror.calculate_rms(probe1_signal, probe2_signal)
@@ -122,8 +126,8 @@ def test_calculated_rms_separate_negative_n():
     time = jnp.arange(2048)/60e3
     probe1_n1_signal = 0.5*jnp.sin(2*jnp.pi*10e3*time)
     probe2_n1_signal = 0.5*jnp.sin(2*jnp.pi*10e3*time - probe_offset)
-    probe1_n2_signal = 0.5*jnp.sin(2*(2*jnp.pi*10e3*time))
-    probe2_n2_signal = 0.5*jnp.sin(2*(2*jnp.pi*10e3*time + probe_offset))
+    probe1_n2_signal = 0.5*jnp.sin(2*(-2*jnp.pi*10e3*time))
+    probe2_n2_signal = 0.5*jnp.sin(2*(-2*jnp.pi*10e3*time - probe_offset))
 
     probe1_signal = probe1_n1_signal + probe1_n2_signal
     probe2_signal = probe2_n1_signal + probe2_n2_signal
