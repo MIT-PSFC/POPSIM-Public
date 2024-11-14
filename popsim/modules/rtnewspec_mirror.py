@@ -3,7 +3,7 @@ import dataclasses
 import chex
 import jax.numpy as jnp
 
-from popsim import ModuleBase, discrete_time_field
+from popsim import ModuleBase, discrete_no_save_field, discrete_time_field
 
 FFT_SAMPLES = 2048
 SAMPLING_FREQUENCY = 60e3  # Hz
@@ -42,8 +42,8 @@ class RTNewSpecMirror(ModuleBase):
     @chex.dataclass
     class State:
         # The last nsamples of magnetic probe data
-        probe1_data: jnp.ndarray = discrete_time_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
-        probe2_data: jnp.ndarray = discrete_time_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
+        probe1_data: jnp.ndarray = discrete_no_save_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
+        probe2_data: jnp.ndarray = discrete_no_save_field(default_factory=lambda: jnp.zeros(FFT_SAMPLES))
         uninitialized: bool = discrete_time_field(default=True)
 
     @chex.dataclass
