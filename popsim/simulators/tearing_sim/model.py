@@ -1,8 +1,4 @@
 import chex
-import equinox as eqx
-import jax
-import jax.numpy as jnp
-from jaxtyping import ArrayLike, PyTree
 
 from popsim import ModuleBase
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray
@@ -34,7 +30,6 @@ class TearingSim(ModuleBase):
     @chex.dataclass
     class Output:
         # Define the output variables that will be returned by the module.
-        locals: PyTree[ArrayLike]
         lown_array_out: LowNArray.Output
         b_field_poloidal_probes_out: BFieldPoloidalProbes.Output
         rtnewspec_mirror_out: RTNewSpecMirror.Output
@@ -66,18 +61,12 @@ class TearingSim(ModuleBase):
         )
         rtnewspec_mirror_state, rtnewspec_mirror_out = self.config.rtnewspec_mirror_module(state.rtnewspec_mirror_state, rtnewspec_params)
 
-        # Filter out any non-array-like variables
-        aux_data = eqx.filter(locals(), eqx.is_array_like)
-        # Promote any scalar-like variables to arrays
-        aux_data = jax.tree.map(jnp.asarray, aux_data)
-
         # Make a state_dot.
         state = TearingSim.State(tearing_state=tearing_state_dot, rtnewspec_mirror_state=rtnewspec_mirror_state)
         out = TearingSim.Output(
             lown_array_out=lown_array_out,
             b_field_poloidal_probes_out=b_field_poloidal_probes_out,
             rtnewspec_mirror_out=rtnewspec_mirror_out,
-            locals=aux_data,
         )
         return state, out
 
