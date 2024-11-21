@@ -6,6 +6,7 @@ from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
 from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes
 from popsim.simulators.tearing_sim.model import TearingSim
+import jax.numpy as jnp
 
 
 
@@ -63,11 +64,13 @@ def test_tearing_sim_notebook():
 
     lown_array_module = LowNArray(config=lown_array_config)
 
+    nsamples = 20
+
     rtnewspec_mirror_module_config = RTNewSpecMirror.Config(
         d_theta=20,
         probe1_id="sample_probe_1_identifier",  # Probe id's need to match the
         probe2_id="sample_probe_2_identifier",  # id's in the BFieldPoloidalProbes module
-        nsamples=2048,
+        nsamples=nsamples,
         alpha=0.001,
         f_probe=30e3,
         nsmth=3,
@@ -77,13 +80,19 @@ def test_tearing_sim_notebook():
     rtnewspec_mirror_module = RTNewSpecMirror(config=rtnewspec_mirror_module_config)
 
     sim_config = TearingSim.Config(
-    tearing_module=tearing_module,
-    lown_array_module=lown_array_module,
-    rtnewspec_mirror_module=rtnewspec_mirror_module,
-    b_field_poloidal_probes_module=BFieldPoloidalProbes.default_setup(),
-)
+        tearing_module=tearing_module,
+        lown_array_module=lown_array_module,
+        rtnewspec_mirror_module=rtnewspec_mirror_module,
+        b_field_poloidal_probes_module=BFieldPoloidalProbes.default_setup(),
+    )
 
-    sim_initial_state = TearingSim.State(tearing_state=tearing_initial_state, rtnewspec_mirror_state=RTNewSpecMirror.State())
+    sim_initial_state = TearingSim.State(
+        tearing_state=tearing_initial_state, 
+        rtnewspec_mirror_state=RTNewSpecMirror.State(
+            probe1_data=jnp.zeros(nsamples), 
+            probe2_data=jnp.zeros(nsamples), 
+            uninitialized=True)
+    )
 
     sim_params = TearingSim.Params(tearing_params=tearing_params)
 
