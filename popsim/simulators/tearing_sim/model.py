@@ -1,10 +1,6 @@
 import chex
-import equinox as eqx
-import jax
-import jax.numpy as jnp
-from jaxtyping import ArrayLike, PyTree
 
-from popsim import ModuleBase
+from popsim import ModuleBase, discrete_no_save_field
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray
 from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 from popsim.modules.tearing import Tearing
@@ -29,12 +25,12 @@ class TearingSim(ModuleBase):
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
         tearing_state: Tearing.State
-        rtnewspec_mirror_state: RTNewSpecMirror.State
+        rtnewspec_mirror_state: RTNewSpecMirror.State = discrete_no_save_field()
 
     @chex.dataclass
     class Output:
         # Define the output variables that will be returned by the module.
-        locals: PyTree[ArrayLike]
+        # locals: PyTree[ArrayLike]
         lown_array_out: LowNArray.Output
         b_field_poloidal_probes_out: BFieldPoloidalProbes.Output
         rtnewspec_mirror_out: RTNewSpecMirror.Output
@@ -67,9 +63,9 @@ class TearingSim(ModuleBase):
         rtnewspec_mirror_state, rtnewspec_mirror_out = self.config.rtnewspec_mirror_module(state.rtnewspec_mirror_state, rtnewspec_params)
 
         # Filter out any non-array-like variables
-        aux_data = eqx.filter(locals(), eqx.is_array_like)
+        # aux_data = eqx.filter(locals(), eqx.is_array_like)
         # Promote any scalar-like variables to arrays
-        aux_data = jax.tree.map(jnp.asarray, aux_data)
+        # aux_data = jax.tree.map(jnp.asarray, aux_data)
 
         # Make a state_dot.
         state = TearingSim.State(tearing_state=tearing_state_dot, rtnewspec_mirror_state=rtnewspec_mirror_state)
@@ -77,7 +73,7 @@ class TearingSim(ModuleBase):
             lown_array_out=lown_array_out,
             b_field_poloidal_probes_out=b_field_poloidal_probes_out,
             rtnewspec_mirror_out=rtnewspec_mirror_out,
-            locals=aux_data,
+            # locals=aux_data,
         )
         return state, out
 

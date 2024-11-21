@@ -1,7 +1,7 @@
 import popsim.simulate as simulate
 import pytest
 import chex
-from popsim import ModuleBase, discrete_time_field
+from popsim import ModuleBase, discrete_time_field, discrete_no_save_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
 import jax.numpy as jnp
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
