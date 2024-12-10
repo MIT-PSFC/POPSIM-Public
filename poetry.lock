@@ -1499,7 +1499,7 @@ files = [
 
 [[package]]
 name = "interpax"
-version = "0.3.4"
+version = "0.3.4+2.gb55c442"
 description = "Interpolation and function approximation with JAX"
 optional = false
 python-versions = ">=3.8"
@@ -1507,15 +1507,15 @@ files = []
 develop = false
 
 [package.dependencies]
-equinox = ">=0.11,<0.12"
-jax = ">=0.3.2,<0.5.0"
-numpy = ">=1.20.0,<2.2"
+equinox = ">=0.11.0,<=0.11.10"
+jax = ">=0.3.2,<=0.4.37"
+numpy = ">=1.20.0,<=2.2.0"
 
 [package.source]
 type = "git"
 url = "https://github.com/f0uriest/interpax.git"
 reference = "HEAD"
-resolved_reference = "42736a59e14dc3ddb9343f6373b26aea2b8bc2b1"
+resolved_reference = "b55c442522b987080e0f3dbf37ae7a53cdc52b6a"
 
 [[package]]
 name = "ipdb"
