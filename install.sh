@@ -81,13 +81,6 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     poetry run pre-commit install # Install pre-commit hooks
 fi
 
-install_radas=$(prompt_user "Do you want to install RADAS? (y/n):" "y")
-# If install_radas starts with y or Y then install.
-if [[ "$install_radas" =~ ^[yY] ]]; then
-    bash .github/workflows/build_radas.sh
-fi
-
-
 # Check for git lfs and install if not present
 echo "Checking for git LFS..."
 if ! command -v git-lfs >/dev/null 2>&1; then

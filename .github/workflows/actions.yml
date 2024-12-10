@@ -12,43 +12,7 @@ env:
   JAX_PLATFORMS: cpu
 
 jobs:
-  radas:
-    runs-on: runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: "recursive"
-          token: ${{ secrets.POPSIM_PAT }}
-
-      - name: Git LFS Pull
-        run: git lfs pull
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      # Need to push to GH & runson. But runs-on cache will be able to fallback read from GH
-      - name: Cache radas results to GitHub
-        id: radas-gh
-        uses: actions/cache@v4
-        with:
-          path: popsim/atomic_data
-          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
-
-      - name: Cache radas results to runson
-        id: radas
-        uses: runs-on/cache@v4
-        with:
-          path: popsim/atomic_data
-          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
-
-      - name: Make radas data
-        if: (steps.radas.outputs.cache-hit != 'true') && (steps.radas-gh.outputs.cache-hit != 'true')
-        run: bash .github/workflows/build_radas.sh
-
   build:
-    needs: radas
     strategy:
       fail-fast: false
       matrix:
@@ -85,19 +49,6 @@ jobs:
 
       - name: Setup
         run: poetry install
-
-      - uses: runs-on/cache/restore@v4
-        id: radas
-        with:
-          path: popsim/atomic_data
-          key: radas-${{ hashFiles('.github/workflows/build_radas.sh')}}
-
-      - name: Check cache hit
-        if: steps.radas.outputs.cache-hit != 'true'
-        run: exit 1
-
-      - name: Copy radas data
-        run: cp popsim/atomic_data/*.nc ./submodules/cfspopcon/cfspopcon/atomic_data/
 
       - name: Tests
         # TODO enable -Werror once tests are fixed
