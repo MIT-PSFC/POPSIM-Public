@@ -2,7 +2,7 @@
 import cfspopcon
 import jax.numpy as jnp
 import xarray as xr
-from cfspopcon.formulas import impurity_effects
+from cfspopcon.formulas.impurities import impurity_charge_state
 
 from popsim.interfaces import atomic_data
 from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario
@@ -30,11 +30,11 @@ def test_interpolator_modes():
             continue
 
         # Test that the interpolators are the same.
-        cfspopcon_charge_state = impurity_effects.calc_impurity_charge_state_impl(
+        cfspopcon_charge_state = impurity_charge_state.calc_impurity_charge_state_impl(
             test_density, test_temp, atomic_data_cfspopcon[species_cfs].coronal_Lz_interpolator
         )
 
-        popsim_charge_state = impurity_effects.calc_impurity_charge_state_impl(
+        popsim_charge_state = impurity_charge_state.calc_impurity_charge_state_impl(
             test_density, test_temp, atomic_data_popsim[species_popsim].coronal_Lz_interpolator
         )
 

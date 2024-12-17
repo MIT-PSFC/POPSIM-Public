@@ -79,6 +79,7 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     echo "Installing development dependencies..."
     poetry install --with dev
     poetry run pre-commit install # Install pre-commit hooks
+    poetry run setup-radas # Install radas
 fi
 
 # Check for git lfs and install if not present
