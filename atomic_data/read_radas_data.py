@@ -37,9 +37,13 @@ def read_atomic_data(
         directory =  os.path.join(Path(__file__).parent, "output")
 
     atomic_data_files = {
+        Impurity.Hydrogen: directory/ "hydrogen.nc",
+        Impurity.Deuterium: directory/ "deuterium.nc",
+        Impurity.Tritium: directory/ "tritium.nc",
         Impurity.Helium: directory / "helium.nc",
         Impurity.Lithium: directory / "lithium.nc",
         Impurity.Beryllium: directory / "beryllium.nc",
+        Impurity.Boron: directory / "boron.nc",
         Impurity.Carbon: directory / "carbon.nc",
         Impurity.Nitrogen: directory / "nitrogen.nc",
         Impurity.Oxygen: directory / "oxygen.nc",
