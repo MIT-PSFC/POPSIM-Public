@@ -5,6 +5,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from cfspopcon.formulas.energy_confinement.read_energy_confinement_scalings import ConfinementScaling, read_confinement_scalings
 from cfspopcon.unit_handling import Quantity
 
 from popsim.cfspopcon_jax import (
@@ -115,22 +116,22 @@ def test_beta():
     """Check against the original cfspopcon."""
     beta_total, betan = calc_beta_total_and_n()
 
-    betatog = formulas_og.beta.calc_beta_toroidal(
+    betatog = formulas_og.plasma_pressure.beta.calc_beta_toroidal(
         average_electron_density=DEFAULT_QUANTITIES["average_electron_density"],
         average_electron_temp=DEFAULT_QUANTITIES["average_electron_temp"],
         average_ion_temp=DEFAULT_QUANTITIES["average_ion_temp"],
         magnetic_field_on_axis=DEFAULT_QUANTITIES["magnetic_field_on_axis"],
     )
-    betapog = formulas_og.beta.calc_beta_poloidal(
+    betapog = formulas_og.plasma_pressure.beta.calc_beta_poloidal(
         average_electron_density=DEFAULT_QUANTITIES["average_electron_density"],
         average_electron_temp=DEFAULT_QUANTITIES["average_electron_temp"],
         average_ion_temp=DEFAULT_QUANTITIES["average_ion_temp"],
         plasma_current=DEFAULT_QUANTITIES["plasma_current"],
         minor_radius=DEFAULT_QUANTITIES["minor_radius"],
     )
-    beta_total_og = formulas_og.beta.calc_beta_total(betatog, betapog)
-    betan_og = formulas_og.beta.calc_beta_normalised(
-        beta=beta_total_og,
+    beta_total_og = formulas_og.plasma_pressure.beta.calc_beta_total(betatog, betapog)
+    betan_og = formulas_og.plasma_pressure.beta.calc_beta_normalized(
+        beta_total=beta_total_og,
         minor_radius=DEFAULT_QUANTITIES["minor_radius"],
         magnetic_field_on_axis=DEFAULT_QUANTITIES["magnetic_field_on_axis"],
         plasma_current=DEFAULT_QUANTITIES["plasma_current"],
@@ -245,8 +246,10 @@ def test_tau_e_from_Wp():
         "q_star": 3.0,
     }
 
-    for scaling in cfsno.ConfinementScaling:
-        fn = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling)
+    read_confinement_scalings()
+
+    for scaling in ConfinementScaling.instances:
+        fn = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(ConfinementScaling.instances[scaling])
         jax_compatability_test(fn, fn_kwargs=fake_data)
 
 
@@ -260,13 +263,13 @@ def test_density_peaking():
     }
     effective_collisionality = density_peaking.calc_effective_collisionality(**inputs_collisionality)
     jax_compatability_test(density_peaking.calc_effective_collisionality, fn_kwargs=inputs_collisionality)
-    effective_collisionality_og = formulas_og.density_peaking.calc_effective_collisionality(
+    effective_collisionality_og = formulas_og.plasma_profiles.density_peaking.calc_effective_collisionality(
         average_electron_density=DEFAULT_QUANTITIES["average_electron_density"],
         average_electron_temp=DEFAULT_QUANTITIES["average_electron_temp"],
         major_radius=DEFAULT_QUANTITIES["major_radius"],
         z_effective=DEFAULT_QUANTITIES["z_effective"],
     )
-    assert jnp.isclose(effective_collisionality, effective_collisionality_og.data.magnitude)
+    assert jnp.isclose(effective_collisionality, effective_collisionality_og.magnitude)
 
     inputs_dens_peaking = {
         "effective_collisionality": effective_collisionality,
@@ -276,13 +279,13 @@ def test_density_peaking():
     density_peaking_factor = density_peaking.calc_density_peaking(**inputs_dens_peaking)
     jax_compatability_test(density_peaking.calc_density_peaking, fn_kwargs=inputs_dens_peaking)
 
-    density_peaking_factor_og = formulas_og.density_peaking.calc_density_peaking(
+    density_peaking_factor_og = formulas_og.plasma_profiles.density_peaking.calc_density_peaking(
         effective_collisionality=effective_collisionality_og,
-        betaE=beta_t,
+        beta_toroidal=beta_t,
         nu_noffset=DEFAULT_QUANTITIES["ion_density_peaking_offset"],
     )
 
-    assert jnp.isclose(density_peaking_factor, density_peaking_factor_og.data.magnitude)
+    assert jnp.isclose(density_peaking_factor, density_peaking_factor_og.magnitude)
 
 
 def test_inherent():
@@ -546,7 +549,7 @@ def test_confinement_regime_threshold_powers():
             "scale": 1.0,
         },
     )
-    for scaling in cfsno.ConfinementScaling:
+    for scaling in cfsno.ConfinementPowerScaling:
         if scaling.name not in ["LOC"]:
             jax_compatability_test(
                 confinement_regime_threshold_powers.calc_confinement_transition_threshold_power,
@@ -666,7 +669,5 @@ def test_two_point_models():
                 "upstream_temp_max_residual": 1e-2,
                 "target_electron_density_max_residual": 1e-2,
                 "target_temp_max_residual": 1e-2,
-                "raise_error_if_not_converged": True,
-                "quiet": True,
             },
         )

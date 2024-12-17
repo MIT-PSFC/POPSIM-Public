@@ -3,11 +3,10 @@
 See Figure 15 of :cite:`stangeby_2018`.
 """
 import jax.numpy as np
+from cfspopcon.named_options import MomentumLossFunction
+from cfspopcon.unit_handling import Quantity
 from numpy import float64
 from numpy.typing import NDArray
-
-from .cfspopcon.named_options import MomentumLossFunction
-from .cfspopcon.unit_handling import Quantity
 
 
 def _calc_SOL_momentum_loss_fraction(A: float, Tstar: float, n: float, target_electron_temp: float) -> float:

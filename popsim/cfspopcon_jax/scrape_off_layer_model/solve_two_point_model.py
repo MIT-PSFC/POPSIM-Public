@@ -3,10 +3,10 @@ from typing import Union
 
 import jax.numpy as np
 import xarray as xr
+from cfspopcon.named_options import MomentumLossFunction
+from cfspopcon.unit_handling import Quantity, Unitfull
 from jax import lax
 
-from .cfspopcon.named_options import MomentumLossFunction
-from .cfspopcon.unit_handling import Quantity, Unitfull
 from .momentum_loss_functions import calc_SOL_momentum_loss_function_array, get_SOL_momentum_loss_function
 from .target_electron_density import (
     calc_f_other_target_electron_density,

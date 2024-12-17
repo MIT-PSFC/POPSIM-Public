@@ -3,8 +3,7 @@
 from typing import Union
 
 import xarray as xr
-
-from .cfspopcon.unit_handling import Quantity
+from cfspopcon.unit_handling import Quantity
 
 
 def calc_upstream_electron_temp(

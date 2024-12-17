@@ -4,8 +4,7 @@ from typing import Union
 
 import jax.numpy as np
 import xarray as xr
-
-from .cfspopcon.unit_handling import Quantity
+from cfspopcon.unit_handling import Quantity
 
 
 def calc_required_SOL_power_loss_fraction(
