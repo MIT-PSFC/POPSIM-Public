@@ -27,7 +27,7 @@ def load_cfspopcon_scenario_for_comet_mirror(case_name: str = "SPARC_PRD"):
 
     algorithm.validate_inputs(input_parameters)
 
-    impurity_types = [Impurity(impurity.value) for impurity in input_parameters["impurities"].dim_species.data]
+    impurity_types = [Impurity(impurity.value) for impurity in input_parameters["intrinsic_impurity_concentration"].dim_species.data]
 
     species_container = SpeciesContainer(species=[FuelSpecies.Deuterium, FuelSpecies.Tritium, *impurity_types])
 
@@ -43,7 +43,7 @@ def load_cfspopcon_scenario_for_comet_mirror(case_name: str = "SPARC_PRD"):
     impurity_concentrations = dict(
         zip(
             impurity_types,
-            input_parameters["impurities"].values,
+            input_parameters["intrinsic_impurity_concentration"].values,
         )
     )
 
