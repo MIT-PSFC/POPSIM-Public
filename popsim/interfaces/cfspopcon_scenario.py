@@ -10,7 +10,7 @@ from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 
 def load_cfspopcon_scenario(case_name: str = "SPARC_PRD"):
     case_path = os.path.join(PACKAGE_ROOT, f"cfspopcon_jax/example_cases/{case_name}")
-    input_parameters, algorithm, points = cfspopcon.read_case(case_path)
+    input_parameters, algorithm, points, plots = cfspopcon.read_case(case_path)
     return input_parameters, algorithm, points
 
 
