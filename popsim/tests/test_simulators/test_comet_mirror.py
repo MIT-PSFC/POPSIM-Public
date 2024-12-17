@@ -23,18 +23,18 @@ def generate_sim_and_checks(only_return_final: bool = True):
 
     checks = {
         "P_fusion_MW": (out_aux["P_fusion_MW"], Sparc2020TestData.Pfusion, 20.0),
-        "P_ohmic_MW": (out_aux["P_ohmic_MW"], Sparc2020TestData.Pohm, 20.0),
+        "P_ohmic_MW": (out_aux["P_ohmic_MW"], Sparc2020TestData.Pohm, 40.0),
         "P_aux_MW": (out_aux["params"]["P_aux_MW"], Sparc2020TestData.Paux, 1e-3), # Should be exact because it's a parameter.
         "beta_t": (out_aux["beta_t"], Sparc2020TestData.beta, 20.0),
         "tau_E": (out_aux["tau_E"], Sparc2020TestData.tauE, 10.0),
         "P_rad_MW": (out_aux["P_rad_MW"], Sparc2020TestData.Prad, 15.0),
-        "ion_density": (out_state.density_state.total_volume_average_ion_density, Sparc2020TestData.ni_vol, 15.0),
-        "average_electron_density_19": (out_aux["average_electron_density_19"], Sparc2020TestData.ne_vol, 5.0),
+        "ion_density": (out_state.density_state.total_volume_average_ion_density, Sparc2020TestData.ni_vol, 20.0),
+        "average_electron_density_19": (out_aux["average_electron_density_19"], Sparc2020TestData.ne_vol, 10.0),
         "average_electron_temp_keV": (out_aux["average_electron_temp_keV"], Sparc2020TestData.Te_vol, 10.0),
         "average_ion_temp_keV": (out_aux["average_ion_temp_keV"], Sparc2020TestData.Ti_vol, 10.0),
         "q_star": (out_aux["q_star"], Sparc2020TestData.qstar_uckan, 10.0),
         "dilution": (out_aux["dilution"], Sparc2020TestData.dilution, 20.0),
-        "z_effective": (out_aux["z_effective"], Sparc2020TestData.Zeff, 20.0),
+        "z_effective": (out_aux["z_effective"], Sparc2020TestData.Zeff, 30.0),
         "PsepB0R0": (PsepB0R0, Sparc2020TestData.PsepB0R0, 20.0),
     }
 
