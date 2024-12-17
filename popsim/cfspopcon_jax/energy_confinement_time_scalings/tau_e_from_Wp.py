@@ -3,7 +3,7 @@ from pathlib import Path
 import jax
 import jax.numpy as np
 import yaml
-from cfspopcon.named_options import ConfinementScaling
+from cfspopcon.formulas.energy_confinement.read_energy_confinement_scalings import ConfinementScaling
 
 # Preload the scalings (instead of doing fileio in loop)
 with open(Path(__file__).parent / "tau_e_scalings.yaml") as f:

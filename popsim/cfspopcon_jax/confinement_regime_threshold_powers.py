@@ -1,6 +1,6 @@
 """Threshold powers required to enter improved confinement regimes."""
 import jax.numpy as np
-from cfspopcon.named_options import ConfinementScaling
+from cfspopcon.named_options import ConfinementPowerScaling
 
 
 def _calc_Martin_LH_threshold(
@@ -77,7 +77,7 @@ def calc_LI_transition_threshold_power(plasma_current: float, average_electron_d
 
 
 def calc_confinement_transition_threshold_power(
-    energy_confinement_scaling: ConfinementScaling,
+    energy_confinement_scaling: ConfinementPowerScaling,
     plasma_current: float,
     magnetic_field_on_axis: float,
     minor_radius: float,
