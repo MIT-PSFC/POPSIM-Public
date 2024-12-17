@@ -79,17 +79,20 @@ class PRFProfiles:
 
 @chex.dataclass
 class ProfileCalculator:
-    profile_form: ProfileForm
+    density_profile_form: ProfileForm
+    temp_profile_form: ProfileForm
     rho: Array
     PRFcalc: PRFProfiles
 
     def __init__(
         self,
-        profile_form: ProfileForm,
+        density_profile_form: ProfileForm,
+        temp_profile_form: ProfileForm,
         rho: Array,
         PRFcalc=PRFProfiles,
     ):
-        self.profile_form = profile_form
+        self.density_profile_form = density_profile_form
+        self.temp_profile_form = temp_profile_form
         self.rho = rho
         self.PRFcalc = PRFcalc()
 
@@ -119,7 +122,8 @@ class ProfileCalculator:
             effective_collisionality, beta_toroidal, nu_noffset=electron_density_peaking_offset
         )
 
-        if self.profile_form.value == ProfileForm.analytic.value:
+        # density profiles
+        if self.density_profile_form.value == ProfileForm.analytic.value:
             (
                 _,
                 electron_density_profile,
@@ -140,11 +144,45 @@ class ProfileCalculator:
             # Bit of a hack to avoid zero at the edge which seems to cause problems.
             electron_density_profile = jnp.maximum(electron_density_profile, 0.01)
             ion_density_profile = jnp.maximum(ion_density_profile, 0.01)
+
+        elif self.density_profile_form.value == ProfileForm.prf.value:
+            (_, electron_density_profile, _, ion_density_profile) = self.PRFcalc(
+                average_electron_density_19,
+                average_electron_temp_keV,
+                average_ion_temp_keV,
+                electron_density_peaking,
+                ion_density_peaking,
+                temperature_peaking,
+                dilution,
+                self.rho,
+                normalized_inverse_temp_scale_length,
+            )
+
+        # temperature profiles
+        if self.temp_profile_form.value == ProfileForm.analytic.value:
+            (
+                _,
+                electron_density_profile,
+                ion_density_profile,
+                electron_temp_profile,
+                ion_temp_profile,
+            ) = plasma_profiles.calc_analytic_profiles(
+                average_electron_density_19,
+                average_electron_temp_keV,
+                average_ion_temp_keV,
+                electron_density_peaking,
+                ion_density_peaking,
+                temperature_peaking,
+                dilution,
+                self.rho,
+            )
+
+            # Bit of a hack to avoid zero at the edge which seems to cause problems.
             electron_temp_profile = jnp.maximum(electron_temp_profile, 0.01)
             ion_temp_profile = jnp.maximum(ion_temp_profile, 0.01)
 
-        elif self.profile_form.value == ProfileForm.prf.value:
-            (electron_temp_profile, electron_density_profile, ion_temp_profile, ion_density_profile) = self.PRFcalc(
+        elif self.temp_profile_form.value == ProfileForm.prf.value:
+            (electron_temp_profile, _, ion_temp_profile, _) = self.PRFcalc(
                 average_electron_density_19,
                 average_electron_temp_keV,
                 average_ion_temp_keV,

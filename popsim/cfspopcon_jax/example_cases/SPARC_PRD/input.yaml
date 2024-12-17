@@ -3,53 +3,104 @@ algorithms:
   # The POPCON algorithm starts by selecting an average density
   # and temperature, which defines a stored energy stored_energy. From this,
   # we can compute P_in from stored_energy and a tau_e scaling.
-  - calc_geometry
+  - read_atomic_data
+  - set_up_impurity_concentration_array
+  - calc_separatrix_elongation_from_areal_elongation
+  - calc_separatrix_triangularity_from_triangularity95
+  - calc_minor_radius_from_inverse_aspect_ratio
+  - calc_vertical_minor_radius_from_elongation_and_minor_radius
+  - calc_plasma_volume
+  - calc_plasma_surface_area
+  - calc_f_shaping_for_qstar
   - calc_q_star_from_plasma_current
-  - calc_fuel_average_mass_number
-  - calc_average_ion_temp
-  - calc_zeff_and_dilution_from_impurities
+  - calc_average_ion_mass
+  - calc_average_ion_temp_from_temperature_ratio
+  - calc_zeff_and_dilution_due_to_impurities
   - calc_plasma_stored_energy
-  - calc_power_balance_from_tau_e
+  - read_confinement_scalings
+  - solve_energy_confinement_scaling_for_input_power
   # Once we have P_in (=P_loss in steady-state), we want to split
   # it into components. For this, we need to estimate 1D plasma
   # profiles in the confined region.
-  - calc_beta
+  - calc_beta_toroidal
+  - calc_beta_poloidal
+  - calc_beta_total
+  - calc_beta_normalized
+  # Calculate peaked profiles
   - calc_peaked_profiles
   # Once we have the profiles, we can then estimate the power
   # radiated from the confined region.
-  - calc_core_radiated_power
+  - calc_intrinsic_radiated_power_from_core
   - require_P_rad_less_than_P_in
   # To control the power crossing the separatrix, we can inject
   # a core radiator (high-Z species like Xenon) to intentionally
   # increase the power radiated from the core. This increases
   # the fuel dilution and Zeff (computed), as well as degrading
   # core confinement (not yet computed).
-  - calc_extrinsic_core_radiator
+  - calc_min_P_radiation_from_fraction
+  - calc_P_radiation_from_core_seeded_impurity
+  - calc_core_seeded_impurity_concentration
   # We then recompute the profiles with the dilution due to the
   # core radiator, and use this to determine the fusion power rate.
+  - calc_zeff_and_dilution_due_to_impurities
   - calc_peaked_profiles
-  - calc_fusion_gain
   # We compute the ohmic heating power from the inductive current and
-  # loop voltage, and then set P_auxillary = P_in - P_ohmic
+  # loop voltage, and then set P_auxiliary_absorbed = P_in - P_ohmic
   - calc_bootstrap_fraction
+  - calc_inductive_plasma_current
+  - calc_Spitzer_loop_resistivity
+  - calc_resistivity_trapped_enhancement
+  - calc_neoclassical_loop_resistivity
+  - calc_loop_voltage
   - calc_ohmic_power
-  - calc_auxillary_power
+  # Calculate the fusion power and gain.
+  - calc_fusion_power
+  - calc_neutron_flux_to_walls
+  - calc_auxiliary_power
+  - calc_fusion_gain
+  # We compute the inductances and then flux to get the max_flux_for_flattop
+  - calc_elongation_at_psi95_from_areal_elongation
+  - calc_cylindrical_edge_safety_factor
+  - calc_internal_inductivity
+  - calc_internal_inductance_for_cylindrical
+  - calc_external_inductance
+  - calc_vertical_field_mutual_inductance
+  - calc_invmu_0_dLedR
+  - calc_vertical_magnetic_field
+  - calc_internal_flux
+  - calc_external_flux
+  - calc_resistive_flux
+  - calc_poloidal_field_flux
+  - calc_flux_needed_from_solenoid_over_rampup
+  - calc_max_flattop_duration
+  - calc_breakdown_flux_consumption
   # Once we have the power input into and radiated from the confined
   # region, we can determine the power crossing the separatrix. We use
   # a scaling for lambda_q to calculate a corresponding q_parallel, and
   # then use the two-point-model to determine how much edge seeding we
   # require to protect the divertor.
-  - calc_P_SOL
+  - calc_power_crossing_separatrix
   - calc_average_total_pressure
-  - calc_heat_exhaust
+  - calc_PB_over_R
+  - calc_PBpRnSq
+  - calc_B_pol_omp
+  - calc_B_tor_omp
+  - calc_fieldline_pitch_at_omp
+  - calc_lambda_q
+  - calc_parallel_heat_flux_density
+  - calc_q_perp
+  - calc_separatrix_electron_density
   - two_point_model_fixed_tet
+  - calc_edge_impurity_concentration
+  - calc_impurity_charge_state
   # Finally, we calculate several parameters which aren't used in other
   # calculations, but which are useful for characterizing operational
   # points. These can be used later when masking inaccessible operational
   # space, such as regions with f_Greenwald >~ 1.0 or where P_SOL < P_LH.
-  - calc_greenwald_fraction
-  - calc_confinement_transition_threshold_power
+  - calc_LH_transition_threshold_power
   - calc_ratio_P_LH
+  - calc_greenwald_density_limit
+  - calc_greenwald_fraction
   - calc_f_rad_core
   - calc_normalised_collisionality
   - calc_rho_star
@@ -79,7 +130,7 @@ points:
   PRD:
     maximize: Q
     where:
-      P_auxillary:
+      P_auxiliary_launched:
         min: 0.0
         max: 25.0
         units: MW
@@ -91,6 +142,10 @@ points:
         max: 140.0
         units: MW
 
+plots:
+  "POPCON for SPARC PRD": CASE_DIR/plot_popcon.yaml
+  "SPARC PRD $(n_e, P_{aux})$": CASE_DIR/plot_remapped.yaml
+
 # Major radius in metres
 major_radius: 1.85
 # Toroidal field on-axis in Tesla
@@ -101,6 +156,8 @@ inverse_aspect_ratio: 0.3081
 areal_elongation: 1.75
 # Ratio of separatrix_elongation to kappa_A
 elongation_ratio_sep_to_areal: 1.125
+# Ratio of kappaA / kappa95
+elongation_ratio_areal_to_psi95: 1.025
 # Triangularity at rho_pol = 0.95
 triangularity_psi95: 0.3
 # Ratio of separatrix_triangularity to delta_95
@@ -111,12 +168,13 @@ plasma_current: 8.7e+6
 fraction_of_external_power_coupled: 0.9
 
 # What fusion reaction are we using?
-fusion_reaction: DT
+fusion_reaction: DTFusionBoschHale
 # Fraction of fuel ions which are the heavier species
 heavier_fuel_species_fraction: 0.5
 
 # What sort of 1D profiles should be assumed?
-profile_form: prf
+density_profile_form: prf
+temp_profile_form: prf
 # Inverse normalized electron temp scale length a / L_Te = a / (Te / grad(Te))
 normalized_inverse_temp_scale_length: 2.5
 # Offset for the electron density peaking factor
@@ -138,17 +196,15 @@ energy_confinement_scaling: ITER98y2
 radiated_power_method: Radas
 radiated_power_scalar: 1.0
 minimum_core_radiated_fraction: 0.0
+radas_dir: "WORKING_DIR/radas_dir"
 
-impurities:
+intrinsic_impurity_concentration:
   # Impurity concentration relative to electron density.
   Tungsten: 1.5e-5
   Helium: 6.0e-2
   Oxygen: 3.1e-3
-  Argon: 0.0
-  Xenon: 0.0
-  Neon: 0.0
 
-core_radiator: Xenon
+core_impurity_species: Xenon
 
 # Inputs for two-point-model
 # Ratio of separatrix to average density
@@ -169,3 +225,23 @@ fraction_of_P_SOL_to_divertor: 0.6
 kappa_e0: 2600.0
 # Calculate P_rad_SOL such that the target electron temperature in eV reaches this value (for FixedTargetElectronTemp)
 target_electron_temp: 25.0
+# Sheath energy transmission factor
+sheath_heat_transmission_factor: 7.5
+
+# Which species should be injected to cool the scrape-off-layer?
+edge_impurity_species: Argon
+# Factor applied to the result of the Lengyel model to give an absolute low-Z impurity concentration.
+lengyel_overestimation_factor: 4.3
+# Ratio of edge impurity concentration in the edge to in the core (c_edge / c_core)
+edge_impurity_enrichment: 5.0
+
+# What set of fitting coefficients for the surface inductance?
+surface_inductance_coefficients: Barr
+# How much flux is availble from the CS for ramp-up and flattop? [Wb]
+total_flux_available_from_CS: 35
+# What is the scaling law factor for resistive flux consumption over the ramp-up?
+ejima_coefficient: 0.6
+# safety-factor on axis
+safety_factor_on_axis: 1
+# Which vertical magnetic field equation based on toroidal force balance?
+vertical_magnetic_field_equation: Barr

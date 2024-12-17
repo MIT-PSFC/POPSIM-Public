@@ -4,7 +4,7 @@ import popsim.enums as popsim_enums
 
 
 def test_enums():
-    impurity_cfspopcon = cfsno.Impurity.Argon
+    impurity_cfspopcon = cfsno.AtomicSpecies.Argon
     impurity_popsim = popsim_enums.Impurity.Argon
 
     cfs_to_popsim = popsim_enums.Impurity(impurity_cfspopcon.value)
