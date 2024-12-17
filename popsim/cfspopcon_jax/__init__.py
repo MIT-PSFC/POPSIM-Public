@@ -3,4 +3,5 @@ __all__ = [
     "geometry",
     "impurity_effects",
     "plasma_profiles",
+    "setup_radas",
 ]

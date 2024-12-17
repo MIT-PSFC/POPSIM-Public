@@ -48,7 +48,7 @@ jobs:
           cache: "poetry"
 
       - name: Setup
-        run: poetry install
+        run: poetry install; poetry run setup-radas
 
       - name: Tests
         # TODO enable -Werror once tests are fixed

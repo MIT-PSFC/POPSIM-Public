@@ -45,6 +45,7 @@ jobs:
 
       - name: Test radas
         run: |
+          poetry run setup-radas
           if [ ! -d "atomic_data/output" ]; then
             echo "Error: Directory atomic_data/output does not exist."
             exit 1
