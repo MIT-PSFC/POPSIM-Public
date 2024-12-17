@@ -24,6 +24,10 @@ from popsim.sim_utils import (
 )
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
 from popsim.xarray_utils import (
+    DEFAULT_SIM_DIM_NAME,
+    DEFAULT_TIME_DIM_NAME,
+    add_dim_to_vars,
+    run_function_with_dim_removed,
     solution_to_xarray,
     time_and_pytree_to_xarray,
 )
@@ -107,7 +111,7 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
     # Vectorize the simulation inputs.
-    sim_inputs_vectorized = tree_transpose(sim_inputs)
+    sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
 
     multi_sim = len(sim_inputs) > 1
     logger.info(f"Running {len(sim_inputs)} simulations.")
@@ -131,10 +135,9 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
 
-    sol = jax.vmap(
-        simulate_fun,
-        in_axes=(None, sim_input_axes),
-    )(module, sim_input)
+    vec_sim_fun = jax.vmap(simulate_fun, in_axes=(None, sim_input_axes))
+
+    sol = run_function_with_dim_removed(vec_sim_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME)
 
     # Remove extraneous dimensions.
     sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
@@ -173,6 +176,8 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=config["DIFFRAX_MAX_STEPS"],
     )
+    # Add simulation dimension to any xr.Variable instances.
+    sol = add_dim_to_vars(sol, DEFAULT_TIME_DIM_NAME)
     return sol
 
 
@@ -212,5 +217,6 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
         return state_next, output_data
 
     _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.time)
-
+    # Add simulation dimension to any xr.Variable instances.
+    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
     return outputs
