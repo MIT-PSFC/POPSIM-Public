@@ -66,7 +66,8 @@ class CometMirror(ModuleBase):
         """
 
         species: SpeciesContainer
-        profile_form: ProfileForm
+        density_profile_form: ProfileForm
+        temp_profile_form: ProfileForm
         rho: Array
         hmode_scaling: ConfinementScaling = ConfinementScaling.instances["ITER98y2"]
         lmode_scaling: ConfinementScaling = ConfinementScaling.instances["ITER89P_ka"]
@@ -88,7 +89,9 @@ class CometMirror(ModuleBase):
         config: Config,
     ):
         self.config = config
-        self.profiles = ProfileCalculator(profile_form=self.config.profile_form, rho=self.config.rho)
+        self.profiles = ProfileCalculator(
+            density_profile_form=self.config.density_profile_form, temp_profile_form=self.config.temp_profile_form, rho=self.config.rho
+        )
         self.hmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.hmode_scaling)
         self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
 
