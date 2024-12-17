@@ -22,6 +22,8 @@ from popsim.physics.geometry import GeometryCFSPopcon
 from popsim.physics.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
 from popsim.physics.profiles import ProfileCalculator
 
+read_confinement_scalings()
+
 
 @chex.dataclass
 class CometMirror(ModuleBase):
@@ -75,7 +77,6 @@ class CometMirror(ModuleBase):
     class Output:
         aux_data: dict[str, Array]
 
-    read_confinement_scalings()
     config: Config
     profiles: ProfileCalculator
     hmode_tau_e_and_P: Callable
