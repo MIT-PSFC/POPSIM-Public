@@ -12,6 +12,7 @@ from popsim.modules.hmode_dynamics import HmodeDynamics
 from popsim.physics.geometry import GeometryCFSPopcon
 
 CRITICAL_THRESHOLD = 0.5
+read_confinement_scalings()
 
 
 @chex.dataclass
