@@ -203,6 +203,7 @@ intrinsic_impurity_concentration:
   Tungsten: 1.5e-5
   Helium: 6.0e-2
   Oxygen: 3.1e-3
+  Argon: 0.0
 
 core_impurity_species: Xenon
 
