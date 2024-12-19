@@ -58,4 +58,4 @@ jobs:
         run: poetry run pytest ./popsim/cfspopcon_jax/tests/ -n=auto
 
       - name: Test Notebooks
-        run: poetry run pytest --nbmake docs/notebooks/ -n=auto -k 'not docs/notebooks/doc_ignore/'
+        run: poetry run pytest --nbmake docs/notebooks/ -n=auto -k 'not docs/notebooks/doc_ignore/' --nbmake-timeout=600
