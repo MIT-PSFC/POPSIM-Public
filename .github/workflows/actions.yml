@@ -55,7 +55,7 @@ jobs:
         run: poetry run pytest popsim/tests -n=auto
 
       - name: CFSPOPCON jax_compatible Tests
-        run: poetry run pytest ./submodules/cfspopcon/cfspopcon/jax_compatible/tests/ -n=auto
+        run: poetry run pytest ./popsim/cfspopcon_jax/tests/ -n=auto
 
       - name: Test Notebooks
         run: poetry run pytest --nbmake docs/notebooks/ -n=auto -k 'not docs/notebooks/doc_ignore/'
