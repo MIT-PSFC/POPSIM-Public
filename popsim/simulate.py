@@ -12,7 +12,7 @@ from loguru import logger
 
 from popsim import ModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
-from popsim.hybrid_state import partition_discrete_cont
+from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
 from popsim.param_utils import param_specs_to_paths
@@ -75,12 +75,25 @@ def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput],
         )
 
 
+def generate_save_output(state: PyTree, params: PyTree, output: PyTree, record_state: bool = True) -> PyTree:
+    """Generate the output data for a simulation."""
+    out = {"output": output, "params": params}
+    if record_state:
+        out["state"] = state
+
+    for key, val in out.items():
+        save, _ = partition_save_no_save(val)
+        out[key] = save
+    return out
+
+
 def simulate(
     module: ModuleBase,
     sim_inputs: typing.Union[SimInput, typing.Sequence[SimInput]],
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
+    record_state: bool = True,
 ) -> typing.Union[diffrax.Solution, xr.Dataset]:
     """Public facing API for simulating a module.
 
@@ -90,6 +103,7 @@ def simulate(
         interp_type (InterpType, optional): interpolation method for params over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
+        record_state (bool, optional): whether to record the state at each time step. Defaults to True.
 
     Returns:
         typing.Union[diffrax.Solution, xr.Dataset]: simulation results.
@@ -104,9 +118,13 @@ def simulate(
 
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:
-        simulate_fun = _simple_euler_simulate
+
+        def simulate_fun(mod, inp):
+            return _simple_euler_simulate(mod, inp, record_state=record_state)
     elif stepper_type == StepperType.DIFFRAX:
-        simulate_fun = _diffrax_simulate
+
+        def simulate_fun(mod, inp):
+            return _diffrax_simulate(mod, inp, record_state=record_state)
     else:
         raise ValueError("Stepper type not recognized.")
 
@@ -145,7 +163,7 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Solution:
+def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
     def module_f(t, y, params, return_aux=False):
@@ -159,7 +177,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
         output, params_resolved = module_f(t, y, args, return_aux=True)
-        out = {"state": y, "output": output, "params": params_resolved}
+        out = generate_save_output(y, params_resolved, output, record_state=record_state)
         return out
 
     # Get the minimum time step that is greater than zero.
@@ -182,7 +200,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput) -> diffrax.Soluti
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
+def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> PyTree:
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
@@ -208,11 +226,8 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput) -> PyTree:
         # Combine the next continuous state with the next discrete state
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
-        output_data = {
-            "state": state,
-            "output": out,
-            "params": params_resolved,
-        }
+        # Generate the output data.
+        output_data = generate_save_output(state, params_resolved, out, record_state=record_state)
 
         return state_next, output_data
 

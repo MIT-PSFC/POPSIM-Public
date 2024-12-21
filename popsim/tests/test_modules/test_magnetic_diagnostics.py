@@ -106,3 +106,21 @@ def test_lown_array_nonexistent_mode():
 
     assert reconstructed_magnitudes[1] < 1e-6*reconstructed_magnitudes[2]
     assert reconstructed_magnitudes[3] < 1e-6*reconstructed_magnitudes[2]
+
+def test_lown_transfer_function_nans():
+    _, func_Bp_per_A = load_lown_config()
+
+    def check_for_nans(array):
+        return jnp.any(jnp.isnan(array))
+
+    # Get the output of the transfer function at many frequencies
+    freqs = jnp.linspace(-100e3, 100e3, 200)
+    Bp_per_A = func_Bp_per_A(freqs)
+    # Ensure no entries are NaN
+    assert not check_for_nans(Bp_per_A), f"Frequency response contains NaNs at {freqs[jnp.where(jnp.isnan(Bp_per_A))]}"
+
+    # Get the output of the transfer function at unreasonably high frequencies
+    freqs_unreasonable = jnp.linspace(-100e5, 100e5, 200)
+    Bp_per_A_unreasonable = func_Bp_per_A(freqs_unreasonable)
+    # Ensure some entries are NaN
+    assert check_for_nans(Bp_per_A_unreasonable), "Test does not properly detect NaNs in an array"

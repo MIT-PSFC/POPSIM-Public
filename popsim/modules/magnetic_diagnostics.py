@@ -12,6 +12,156 @@ from popsim.modules.tearing import Tearing
 Classes which simulate magnetic diagnostics
 """
 
+"""
+B Field Poloidal Probes. Just the magnetic field data from an arbitrary set of probes
+"""
+
+
+def measure_magnetic_field(
+    probe_details: list[dict],
+    filtered_mags: dict[tuple[int, int], float],
+    mode_phases: dict[tuple[int, int], float],
+    modes: list[tuple[int, int]],
+) -> jnp.ndarray:
+    """
+    VERY PRELIMINARY IMPLEMENTATION TODO(ZanderKeith)
+    Measurement of the magnetic field [T] at each probe, assuming cylindrical mode structure
+    This is also sorta assuming the probes are zeroed out once the main background field gets ramped up.
+    Also, should this be the T/s signal that you'd actually get from the probe or is there some integration weirdness going on?
+    What is the thing that SPARC will be working with and that DEFUSE wants to see?
+    """
+
+    mode_perturbations = jnp.zeros((len(modes), len(probe_details)))
+
+    for i, mode in enumerate(modes):
+        mode_mag = filtered_mags[mode]
+        mode_phase = mode_phases[mode]
+        poloidal_mode_number = mode[0]
+        toroidal_mode_number = mode[1]
+        for j, probe in enumerate(probe_details):
+            # Again, expecting something cylindrical-ish for right now. Also a little spaghetti because expects this to be added elsewhere.
+            probe_theta = probe["position"]["theta"]
+            probe_phi = probe["position"]["phi"]
+            poloidal_phase_shift = (probe_theta - mode_phase) * poloidal_mode_number
+            toroidal_phase_shift = (probe_phi - mode_phase) * toroidal_mode_number
+            mode_perturbation = mode_mag * jnp.cos(poloidal_phase_shift + toroidal_phase_shift)
+            mode_perturbations = mode_perturbations.at[i, j].set(mode_perturbation)
+
+    total_perturbation = jnp.sum(mode_perturbations, axis=0)
+
+    return total_perturbation
+
+
+@chex.dataclass
+class BFieldPoloidalProbes(ModuleBase):
+    @chex.dataclass
+    class Config:
+        # Define the data that configures the module and will be static during the simulation.
+
+        # The transfer function from Bp to A for various frequencies
+        func_Bp_per_A: Interpolator1D
+        # List of dictionaries for all the probe details, as defined in the device description
+        probe_details: list[dict]
+        # Major radius. Idk where else to put this but it's needed for the cylindrical math
+        R0: float
+
+    @chex.dataclass
+    class State:
+        # Magnetics don't need to keep track of their own state
+        pass
+
+    @chex.dataclass
+    class Output:
+        # Measured magnetic field at each probe
+        Bp: dict[str, float]  # T
+
+    @chex.dataclass
+    class Params:
+        tearing_out: Tearing.Output  # The output of the Tearing module.
+        modes: list[tuple[int, int]]
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+
+        # For each entry in the config, if there is no "theta" key under "position", calculate it and add it
+        # Note that this is the angle from the midplane with the minor radius as the hypotenuse
+        # Just pre-computing this to make the cylindrical and circular toroidal math more efficient later
+        for i, probe in enumerate(self.config.probe_details):
+            if "theta" not in probe["position"]:
+                magnetic_axis_r = probe["position"]["r"] - self.config.R0
+                probe["position"]["theta"] = jnp.arctan2(probe["position"]["z"], magnetic_axis_r)
+                self.config.probe_details[i] = probe
+
+    def __call__(self, state: State, params: Params) -> Output:
+        """Measure the magnetic field at each probe in the B Field Poloidal Probes module.
+
+        Args:
+            state (State): The state of the B Field Poloidal Probes module. Not used in this module.
+            params (Params): The parameters of the B Field Poloidal Probes module. Includes the output of the Tearing module and the tearing modes to reconstruct.
+
+        Returns:
+            Output: The output of the B Field Poloidal Probes module. Includes the measured magnetic field at each probe.
+        """
+        # Get the perturbed current, phase, and frequency of each tearing mode
+        mode_currents = params.tearing_out.mode_current
+        mode_phases = params.tearing_out.mode_phase
+        mode_freqs = params.tearing_out.mode_freq
+
+        # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
+        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in params.modes}
+
+        measured_signals_array = measure_magnetic_field(self.config.probe_details, filtered_signals, mode_phases, params.modes)
+
+        # Turn measured signals into a dictionary
+        measured_signals = {
+            self.config.probe_details[i]["identifier"]: measured_signals_array[i] for i in range(len(measured_signals_array))
+        }
+
+        out = BFieldPoloidalProbes.Output(Bp=measured_signals)
+
+        return out
+
+    def default_setup(empty: bool = False):
+        """Get a standard instance of the B Field Poloidal Probes module."""
+
+        if empty:
+            probe_details = []
+        else:
+            probe_details = [
+                {
+                    "area": 0.1,
+                    "identifier": "sample_probe_1_identifier",
+                    "name": "sample_probe_1_name",
+                    "poloidal_angle": 0.0,
+                    "position": {"phi": 0.0, "r": 1.0, "z": 0.0},
+                    "type": {"index": 2},
+                },
+                {
+                    "area": 0.1,
+                    "identifier": "sample_probe_2_identifier",
+                    "name": "sample_probe_2_name",
+                    "poloidal_angle": 0.0,
+                    "position": {"phi": 0.5, "r": 1.0, "z": 0.0},
+                    "type": {"index": 2},
+                },
+            ]
+        R0 = 1.0
+        # TODO(ZanderKeith): again, should really be reading from the device description
+        _, func_Bp_per_A = load_lown_config()
+
+        b_field_poloidal_probes_config = BFieldPoloidalProbes.Config(func_Bp_per_A=func_Bp_per_A, probe_details=probe_details, R0=R0)
+
+        b_field_poloidal_probes_module = BFieldPoloidalProbes(config=b_field_poloidal_probes_config)
+
+        return b_field_poloidal_probes_module
+
+
+"""
+Low-N Array, for measuring the toroidal mode number of any type of magnetic perturbation using a differenced array of probes.
+"""
+
 
 def load_lown_config():
     """Load the configuration data for the Low-N array.
@@ -32,12 +182,24 @@ def load_lown_config():
     resp_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/21_mode_resp_data.txt")
     out = np.loadtxt(resp_fullpath, skiprows=1)
 
-    freq = out[:, 0]
+    freqs = out[:, 0]
     Bp_per_A = out[:, 1]  # Bp (poloidal field) per Amp of tearing mode current
+
+    # If the maximum frequency is less than 100 kHz, extrapolate to higher frequencies and print a warning
+    # TODO(ZanderKeith), should ask Ryan if we have higher frequency response data for magnetics
+    max_freq = max(freqs)
+    if max_freq < 100e3:
+        print(f"Warning: Maximum frequency in response data is {max_freq / 1e3} kHz. Repeating response up to 100 kHz.")
+        freqs = np.append(freqs, [100e3])
+        Bp_per_A = np.append(Bp_per_A, [Bp_per_A[-1]])
+
+    # Mirror the transfer function for negative frequencies
+    freqs = np.concatenate((-freqs[::-1], freqs))
+    Bp_per_A = np.concatenate((Bp_per_A[::-1], Bp_per_A))
 
     # Make Jax-compatible interpolators to determine
     # measured field per Amp of tearing mode current at arbitrary rotation frequencies
-    func_Bp_per_A = Interpolator1D(freq, Bp_per_A)
+    func_Bp_per_A = Interpolator1D(freqs, Bp_per_A)
 
     return probe_connections, func_Bp_per_A
 
@@ -93,7 +255,9 @@ def get_differenced_signals(
         for j, (probe1_angle, probe2_angle) in enumerate(probe_connections):
             probe_signal_1 = mode_mag * jnp.cos(toroidal_mode_number * (probe1_angle - mode_phase))
             probe_signal_2 = mode_mag * jnp.cos(toroidal_mode_number * (probe2_angle - mode_phase))
-            differenced_signals = differenced_signals.at[i, j].set(probe_signal_1 - probe_signal_2)
+            differenced_signals = differenced_signals.at[i, j].set(
+                probe_signal_2 - probe_signal_1
+            )  # OMAS definition of differenced probe signal
 
     # Sum the differenced signals for each mode
     differenced_signals = jnp.sum(differenced_signals, axis=0)
@@ -116,8 +280,7 @@ class LowNArray(ModuleBase):
 
     @chex.dataclass
     class State:
-        # Define the differential state variables that will be integrated during the simulation.
-        # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
+        # Magnetics don't need to keep track of their own state
         pass
 
     @chex.dataclass
@@ -192,3 +355,19 @@ class LowNArray(ModuleBase):
         )
 
         return out
+
+    def default_setup(empty: bool = False):
+        """Get a standard instance of the Low-N array module."""
+        if empty:
+            _, func_Bp_per_A = load_lown_config()
+            probe_connections = []
+        else:
+            probe_connections, func_Bp_per_A = load_lown_config()
+
+        lown_array_config = LowNArray.Config(
+            func_Bp_per_A=func_Bp_per_A, probe_connections=probe_connections, reconstructed_modes=[1, 2, 3]
+        )
+
+        lown_array_module = LowNArray(config=lown_array_config)
+
+        return lown_array_module

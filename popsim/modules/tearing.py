@@ -9,6 +9,7 @@ from jaxtyping import ArrayLike
 
 from popsim import ModuleBase
 from popsim.logic_utils import select_w_tuples
+from popsim.simulate import make_time_base
 
 """
 Models the growth of tearing modes in a tokamak plasma.
@@ -163,9 +164,9 @@ class Tearing(ModuleBase):
     class State:
         # Define the differential state variables that will be integrated during the simulation.
         # If a variable is defined in here, then the module must output its time derivative in the __call__ method.
-        W: dict[tuple[int, int], float]  # m, Nxm
-        F: dict[tuple[int, int], float]  # Hz
-        mode_phase: dict[tuple[int, int], float]  # rad``
+        W: dict[tuple[int, int], float]  # [m], Nxm
+        F: dict[tuple[int, int], float]  # [Hz]
+        mode_phase: dict[tuple[int, int], float]  # [rad]
 
     @chex.dataclass
     class Params:
@@ -238,3 +239,54 @@ class Tearing(ModuleBase):
             mode_freq=state.F,
         )
         return state_dot, out
+
+    def default_setup(empty: bool = False):
+        """Get a standard instance, initial state, and params for the Tearing module.
+
+        Args:
+        -----
+        empty : bool, optional (default=False)
+            If True, the modes will be empty.
+
+        Returns:
+        --------
+        tearing_module : Tearing
+
+        tearing_initial_state : Tearing.State
+
+        tearing_params : Tearing.Params
+
+        time_base : np.ndarray
+        """
+
+        if empty:
+            modes = []
+        else:
+            modes = [(2, 1), (3, 1)]
+        tearing_config = Tearing.Config(
+            modes=modes,
+        )
+
+        tearing_initial_state = Tearing.State(
+            W={mode: 0.0 for mode in modes}, F={mode: 0.0 for mode in modes}, mode_phase={mode: 0.0 for mode in modes}
+        )
+
+        dt = 1e-4 / 3  # s
+        time_base = make_time_base(t0=0.0, t1=4.0, dt=dt)
+
+        rot_dur = 1.0
+        locking_dur = 0.2
+        trigger_time = 2.0
+        disrupt_time = 3.5
+        dur_tq_to_spike = 1e-3
+
+        tearing_params = Tearing.Params(
+            rot_dur=rot_dur,  # s
+            locking_dur=locking_dur,  # s
+            disruption_phase=generate_disruption_phase_trajectory(disrupt_time, dur_tq_to_spike, time_base, dt),
+            tearing_phase=generate_tearing_phase_trajectory(trigger_time, rot_dur, locking_dur, time_base, dt),
+        )
+
+        tearing_module = Tearing(config=tearing_config)
+
+        return tearing_module, tearing_initial_state, tearing_params, time_base
