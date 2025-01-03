@@ -1,6 +1,16 @@
 import popsim.param_utils as param_utils
-from popsim.modules.tearing import Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory, DEFAULT_WDOT, TQ_WDOT, CQ_WDOT, INITIAL_ROT_FREQ
+from popsim.modules.tearing import (
+    Tearing, 
+    generate_disruption_phase_trajectory, 
+    generate_tearing_phase_trajectory,
+    load_overlaps_and_sources,
+    DEFAULT_WDOT, 
+    TQ_WDOT, 
+    CQ_WDOT, 
+    INITIAL_ROT_FREQ
+)
 from popsim.simulate import simulate, make_time_base, SimInput
+from popsim import PACKAGE_ROOT
 import pytest
 
 def run_tearing_test_sim():
@@ -75,3 +85,10 @@ def test_mode_growth_and_freq(tearing_test_sim):
         assert F.sel(time=0, method="nearest") == 0.0
         assert F.sel(time=aux_data["trigger_time"], method="nearest") == INITIAL_ROT_FREQ[mode]
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0
+
+
+def test_load_overlaps():
+    overlaps_flattop, coil_sources_flattop = load_overlaps_and_sources(f"{PACKAGE_ROOT}/data/tearing/error_field_sources/flattop_01022025.json")
+
+    assert len(overlaps_flattop) > 0
+    assert len(overlaps_flattop) == len(coil_sources_flattop)

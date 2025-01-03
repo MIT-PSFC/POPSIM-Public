@@ -1,4 +1,5 @@
 import dataclasses
+import json
 from enum import IntEnum
 from typing import Optional
 
@@ -28,6 +29,11 @@ class TearingPhase(IntEnum):
     ROTATING = 2
     DECELERATING = 3
     LOCKED = 4
+
+
+class ShotPhase(IntEnum):
+    STARTUP = 0
+    FLATTOP = 1
 
 
 DEFAULT_WDOT = {
@@ -292,11 +298,69 @@ class Tearing(ModuleBase):
         return tearing_module, tearing_initial_state, tearing_params, time_base
 
 
-def calculate_error_field_overlap(config: "ErrorFieldLocking.Config", delta_static: complex, pf_active_circuit_current: dict[str, float]):
+def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
+    """
+    Load the overlap data and sources for the error field locking module.
+
+    Args:
+        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Overlaps are given in delta per amp
+        tf_error_field_file (str): The path to a JSON file containing the error field data for the TF coils.
+        tf_error_field_percentile (float): The percentile of the error field contribution to use for the TF coils
+
+    Returns:
+        overlaps (dict[str, dict[str, complex]]): The overlap data for each coil source.
+        coil_sources (dict[str, list[str]]): The sources for each coil.
+    """
+
+    rename_dict = {
+        "divl": ["div1l", "div2l"],
+        "divu": ["div1u", "div2u"],
+    }
+
+    with open(error_field_source_file) as f:
+        overlap_data = json.load(f)
+
+    overlaps = {}
+    coil_sources = {}
+
+    # Get overlaps and sources for non-TF coils
+    for data_coil, data in overlap_data.items():
+        overlaps_single = {}
+        coil_sources_single = []
+
+        for source in ["nominal", "shift", "tilt"]:
+            if source in data:
+                overlaps_single[source] = data[source] * (1.0 + 0.00000001j)
+                coil_sources_single.append(source)
+
+        # Special cases for minor renaming
+        if data_coil in rename_dict:
+            for renamed_coil in rename_dict[data_coil]:
+                overlaps[renamed_coil] = overlaps_single
+                coil_sources[renamed_coil] = coil_sources_single
+        else:
+            overlaps[data_coil] = overlaps_single
+            coil_sources[data_coil] = coil_sources_single
+
+    # Get overlaps and sources for TF coils
+    overlaps["TF"] = {}
+    overlaps["TF"]["shift"] = 1e-5 * (1.0 + 0.00000001j) / 3.12e6
+    overlaps["TF"]["tilt"] = 1e-5 * (1.0 + 0.00000001j) / 3.12e6
+    overlaps["TF"]["nominal"] = 0.0 * (1.0 + 0.00000001j) / 3.12e6
+    coil_sources["TF"] = ["shift", "tilt", "nominal"]
+
+    return overlaps, coil_sources
+
+
+def calculate_error_field_overlap(
+    config: "ErrorFieldLocking.Config", delta_static: complex, pf_active_circuit_current: dict[str, float], shot_phase: ShotPhase
+) -> complex:
     """
     Calculates the total overlap of the EF sources based on the
     simulation's current state.
     """
+
+    overlaps = config.overlaps_flattop
 
     # For now, just use the nominal current in TF coils
     tfcoils = range(18)
@@ -312,14 +376,14 @@ def calculate_error_field_overlap(config: "ErrorFieldLocking.Config", delta_stat
     for coil, current in pf_active_circuit_current.items():
         for source in config.coil_sources[coil]:
             amplitude = config.metrology[coil][source]
-            overlap_inst += amplitude * current * config.overlaps[coil][source]
+            overlap_inst += amplitude * current * overlaps[coil][source]
 
     for i in tfcoils:
         phase = np.exp(1j * 2 * np.pi * i / n_tf + config.tf_phase_offset)
         current = tfcurrents[i]
         for source in config.coil_sources["TF"]:
             amplitude = config.metrology["TF"][source]
-            overlap_inst += amplitude * current * config.overlaps["TF"][source] * phase
+            overlap_inst += amplitude * current * overlaps["TF"][source] * phase
 
     return overlap_inst
 
@@ -354,9 +418,12 @@ class ErrorFieldLocking(ModuleBase):
 
         metrology: dict[str, dict[str, complex]]
 
-        overlaps: dict[str, dict[str, complex]]
+        # TODO (zkeith): the error field contribution changes depending on if we're in flattop or startup so that needs to be tracked
+        # This is a naive implementation where we toggle between the two cases. In the future we could have a more sophisticated model.
+        overlaps_flattop: dict[str, dict[str, complex]]
+        overlaps_startup: dict[str, dict[str, complex]]
 
-        static_sources: dict[str, complex]  # Add startup vs flattop sources?
+        static_sources: dict[str, complex]
 
         coil_sources: dict[str, list[str]]
 
@@ -383,8 +450,8 @@ class ErrorFieldLocking(ModuleBase):
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
         scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
         pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
+        shot_phase: ShotPhase  # Whether we are in flattop or startup
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
-        # TODO: the error field contribution changes depending on if we're in flattop or startup so that needs to be tracked
 
     @chex.dataclass
     class Output:
@@ -409,7 +476,10 @@ class ErrorFieldLocking(ModuleBase):
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
         # Just doing the transition from none -> locked -> rotating for now
 
-        error_field_overlap = calculate_error_field_overlap(self.config, self.delta_static, params.pf_active_circuit_current)
+        # TODO (zkeith): switch between flattop and startup
+        error_field_overlap = calculate_error_field_overlap(
+            self.config, self.delta_static, params.pf_active_circuit_current, params.shot_phase
+        )
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 
         Wdot = {mode: 0.0 for mode in self.config.modes}
