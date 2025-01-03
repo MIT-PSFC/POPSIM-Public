@@ -31,11 +31,6 @@ class TearingPhase(IntEnum):
     LOCKED = 4
 
 
-class ShotPhase(IntEnum):
-    STARTUP = 0
-    FLATTOP = 1
-
-
 DEFAULT_WDOT = {
     (3, 2): 4e-2 / 0.5,  # m/s
     (2, 1): 10e-2 / 0.5,
@@ -330,7 +325,9 @@ def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, d
 
         for source in ["nominal", "shift", "tilt"]:
             if source in data:
-                overlaps_single[source] = data[source] * (1.0 + 0.00000001j)
+                overlaps_single[source] = (
+                    data[source] * (1.0 + 0.00000001j) / 1e9
+                )  # TODO (zkeith) there's something funny going on with this conversion
                 coil_sources_single.append(source)
 
         # Special cases for minor renaming
@@ -411,6 +408,36 @@ def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
     return delta
 
 
+def locked_mode_dynamics(
+    config: "ErrorFieldLocking.Config", state: "ErrorFieldLocking.State", overlap: float, locking_threshold: float
+) -> TearingPhase:
+    """Determine how the locked mode evolves based on the overlap and the locking threshold.
+
+    If there is no mode, and the overlap exceeds the locking threshold, then a locked mode will form.
+    If there is a locked mode, and the overlap drops below the hystereis fraction of the locking threshold, then the mode will go away.
+
+    Args:
+        config (ErrorFieldLocking.Config): The configuration for the module.
+        state (ErrorFieldLocking.State): The state of the module.
+        overlap (float): The overlap of the error field.
+        locking_threshold (float): The threshold for locking the mode.
+
+    Returns:
+        TearingPhase: The new phase of the mode
+    """
+
+    # TODO(zkeith): In the future when we may need to do more than just locked and unlocked, we should make this more sophisticated.
+    # Might get a little screwy since select_w_tuples only works with one condition at a time.
+    threshold_check = [
+        (overlap > locking_threshold, TearingPhase.LOCKED),
+        (overlap < locking_threshold * config.hysteresis, TearingPhase.NONE),
+    ]
+
+    new_tearing_phase = select_w_tuples(threshold_check, default=state.tearing_phase)
+
+    return new_tearing_phase
+
+
 @chex.dataclass
 class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
@@ -477,10 +504,16 @@ class ErrorFieldLocking(ModuleBase):
         )
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 
+        # If the overlap is greater than the threshold, the mode is locked
+        new_tearing_phase = locked_mode_dynamics(self.config, state, error_field_overlap, locking_threshold)
+
+        # TODO (zkeith): Right now we're only doing the 2/1 mode, I'm unsure if we need to account for all modes in this.
+        for mode in self.config.modes:
+            state.W[mode] = jnp.where(new_tearing_phase == TearingPhase.LOCKED, 1e-2, 0)
+
         Wdot = {mode: 0.0 for mode in self.config.modes}
         Fdot = {mode: 0.0 for mode in self.config.modes}
         mode_phase_dot = {mode: 0.0 for mode in self.config.modes}
-        new_tearing_phase = {mode: TearingPhase.NONE for mode in self.config.modes}
 
         state_dot = ErrorFieldLocking.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot, tearing_phase=new_tearing_phase)
 
