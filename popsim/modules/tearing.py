@@ -353,14 +353,15 @@ def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, d
 
 
 def calculate_error_field_overlap(
-    config: "ErrorFieldLocking.Config", delta_static: complex, pf_active_circuit_current: dict[str, float], shot_phase: ShotPhase
+    config: "ErrorFieldLocking.Config",
+    delta_static: complex,
+    pf_active_circuit_current: dict[str, float],
+    overlaps: dict[str, dict[str, complex]],
 ) -> complex:
     """
     Calculates the total overlap of the EF sources based on the
     simulation's current state.
     """
-
-    overlaps = config.overlaps_flattop
 
     # For now, just use the nominal current in TF coils
     tfcoils = range(18)
@@ -418,11 +419,6 @@ class ErrorFieldLocking(ModuleBase):
 
         metrology: dict[str, dict[str, complex]]
 
-        # TODO (zkeith): the error field contribution changes depending on if we're in flattop or startup so that needs to be tracked
-        # This is a naive implementation where we toggle between the two cases. In the future we could have a more sophisticated model.
-        overlaps_flattop: dict[str, dict[str, complex]]
-        overlaps_startup: dict[str, dict[str, complex]]
-
         static_sources: dict[str, complex]
 
         coil_sources: dict[str, list[str]]
@@ -450,7 +446,7 @@ class ErrorFieldLocking(ModuleBase):
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
         scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
         pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
-        shot_phase: ShotPhase  # Whether we are in flattop or startup
+        overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
     @chex.dataclass
@@ -476,9 +472,8 @@ class ErrorFieldLocking(ModuleBase):
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
         # Just doing the transition from none -> locked -> rotating for now
 
-        # TODO (zkeith): switch between flattop and startup
         error_field_overlap = calculate_error_field_overlap(
-            self.config, self.delta_static, params.pf_active_circuit_current, params.shot_phase
+            self.config, self.delta_static, params.pf_active_circuit_current, params.overlaps
         )
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 
