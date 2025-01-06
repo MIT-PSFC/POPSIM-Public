@@ -1,5 +1,6 @@
 import time
 import typing
+from os import PathLike
 
 import equinox as eqx
 import jax
@@ -11,7 +12,7 @@ from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
-from popsim.ml.checkpointing import TrainState
+from popsim.ml.checkpointing import TrainState, create_default_checkpoint_manager, restore_train_state, save_train_state
 from popsim.ml.dataloading import DataLoader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import EvalData, EvaluationSuite, batch_loss, make_val_loss_eval_fn, run_evals
@@ -118,7 +119,7 @@ class Trainer:
         model: TrainableModel,
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
-        checkpoint_manager: typing.Optional[ocp.CheckpointManager] = None,
+        checkpoint_path: typing.Optional[PathLike] = None,
         trainable_getter: typing.Optional[typing.Callable[[TrainableModel], PyTree]] = None,
     ):
         """Initialize a Trainer object.
@@ -127,7 +128,7 @@ class Trainer:
             model (TrainableModel): the model to train.
             loss_fn (LossFunction): the loss function to use.
             optimizer (optax.GradientTransformation): the optimizer to use.
-            checkpoint_manager (typing.Optional[ocp.CheckpointManager], optional): a checkpoint manager. Defaults to None.
+            checkpoint_path (typing.Optional[PathLike], optional): path to the directory to save checkpoints at / load checkpoints from. Defaults to None.
             trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
 
         """
@@ -143,7 +144,7 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.checkpoint_manager = checkpoint_manager
+        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_path) if checkpoint_path else None
 
     def train(
         self,
@@ -207,9 +208,25 @@ class Trainer:
                     | eval_results
                 )
 
-                # TODO(allenw): add checkpointing and other callbacks.
                 if self.checkpoint_manager:
-                    self.checkpoint_manager.save(epoch, args=ocp.args.StandardSave())
+                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss)
+
+    def restore_best_checkpoint(self, path: typing.Optional[PathLike] = None):
+        """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
+
+        Args:
+            path (typing.Optional[PathLike], optional): _description_. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+        """
+        if path:
+            checkpoint_manager = create_default_checkpoint_manager(path)
+            self.train_state = restore_train_state(checkpoint_manager, self.train_state)
+        else:
+            if not self.checkpoint_manager:
+                raise ValueError("A path is not provided and the trainer doesn't have a checkpoint manager.")
+            self.train_state = restore_train_state(self.checkpoint_manager, self.train_state)
 
     def run_evals(
         self, dataloader: DataLoader, eval_suite: typing.Optional[EvaluationSuite] = None
