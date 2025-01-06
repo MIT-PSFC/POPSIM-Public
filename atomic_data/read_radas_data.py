@@ -34,12 +34,12 @@ def read_atomic_data(
 ) -> dict[Impurity, xr.DataArray]:
     """Read the atomic data files and return a dictionary mapping Impurity keys to xr.DataArrays of atomic data."""
     if directory is None:
-        directory =  os.path.join(Path(__file__).parent, "output")
+        directory = os.path.join(Path(__file__).parent, "output")
 
     atomic_data_files = {
-        Impurity.Hydrogen: directory/ "hydrogen.nc",
-        Impurity.Deuterium: directory/ "deuterium.nc",
-        Impurity.Tritium: directory/ "tritium.nc",
+        Impurity.Hydrogen: directory / "hydrogen.nc",
+        Impurity.Deuterium: directory / "deuterium.nc",
+        Impurity.Tritium: directory / "tritium.nc",
         Impurity.Helium: directory / "helium.nc",
         Impurity.Lithium: directory / "lithium.nc",
         Impurity.Beryllium: directory / "beryllium.nc",
