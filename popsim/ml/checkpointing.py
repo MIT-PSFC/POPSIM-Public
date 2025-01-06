@@ -3,7 +3,6 @@ Utilities for saving and loading model and training checkpoints.
 """
 import os
 from os import PathLike
-from typing import TypeVar
 
 import chex
 import equinox as eqx
@@ -13,8 +12,6 @@ from jaxtyping import PyTree
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.partition import PartitionFn
-
-T = TypeVar("T")
 
 
 @chex.dataclass
