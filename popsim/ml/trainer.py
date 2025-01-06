@@ -1,5 +1,6 @@
 import time
 import typing
+import warnings
 from os import PathLike
 
 import equinox as eqx
@@ -119,7 +120,7 @@ class Trainer:
         model: TrainableModel,
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
-        checkpoint_path: typing.Optional[PathLike] = None,
+        checkpoint_dir: typing.Optional[PathLike] = None,
         trainable_getter: typing.Optional[typing.Callable[[TrainableModel], PyTree]] = None,
     ):
         """Initialize a Trainer object.
@@ -128,7 +129,7 @@ class Trainer:
             model (TrainableModel): the model to train.
             loss_fn (LossFunction): the loss function to use.
             optimizer (optax.GradientTransformation): the optimizer to use.
-            checkpoint_path (typing.Optional[PathLike], optional): path to the directory to save checkpoints at / load checkpoints from. Defaults to None.
+            checkpoint_dir (typing.Optional[PathLike], optional): path to the directory to save checkpoints at / load checkpoints from. Defaults to None.
             trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
 
         """
@@ -144,12 +145,12 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_path) if checkpoint_path else None
+        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_dir) if checkpoint_dir else None
 
     def train(
         self,
         train_dl: DataLoader,
-        val_dl: typing.Optional[DataLoader],
+        val_dl: typing.Optional[DataLoader] = None,
         eval_suite: typing.Optional[EvaluationSuite] = None,
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
@@ -169,6 +170,9 @@ class Trainer:
         eval_suite = eval_suite or {}
         if "loss" not in eval_suite:
             eval_suite["loss"] = make_val_loss_eval_fn(self.loss_fn)
+
+        if not val_dl and self.checkpoint_manager:
+            warnings.warn("No validation DataLoader provided. Checkpoints will not be saved.", stacklevel=2)
 
         val_loss_history = np.array([])
 
@@ -209,16 +213,14 @@ class Trainer:
                 )
 
                 if self.checkpoint_manager:
-                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss)
+                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=float(val_loss["mean"]))
 
     def restore_best_checkpoint(self, path: typing.Optional[PathLike] = None):
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
 
         Args:
-            path (typing.Optional[PathLike], optional): _description_. Defaults to None.
+            path (typing.Optional[PathLike], optional): path to the checkpoint that should be loaded. Defaults to None.
 
-        Raises:
-            ValueError: _description_
         """
         if path:
             checkpoint_manager = create_default_checkpoint_manager(path)

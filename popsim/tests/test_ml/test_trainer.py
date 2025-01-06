@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import pytest
-
+import os
 
 @chex.dataclass
 class NeuralODE(ModuleBase):
@@ -62,7 +62,7 @@ class NeuralODEEnv(ModuleTrainingEnv):
 @pytest.mark.parametrize("use_val", [True, False])
 @pytest.mark.parametrize("train_seg_length", [None, 50])
 @pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
-def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer):
+def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, tmpdir):
     ds = oscillator_dataset
 
     
@@ -104,14 +104,50 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         model=env,
         loss_fn=IntegralLoss(loss),
         optimizer=optimizer,
+        checkpoint_dir=tmpdir,
     )
 
     loss_start = trainer.compute_loss(dl if not use_val else val_dl)
     trainer.train(
         train_dl=dl,
         val_dl=val_dl,
-        max_epochs=50
+        # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
+        max_epochs=50,
+        epochs_per_val=50,
     )
     loss_end = trainer.compute_loss(dl if not use_val else val_dl)
 
     assert loss_end["mean"]/loss_start["mean"] < 0.5
+
+
+    if use_val:
+        # Checkpoints are only saved when using a validation set.
+        # Check that the checkpoint directory only has one file.
+        assert len(os.listdir(tmpdir)) == 1
+
+
+        # Create a new trainer and load the checkpoint.
+        new_trainer = Trainer(
+            model=env,
+            loss_fn=IntegralLoss(loss),
+            optimizer=optimizer,
+            checkpoint_dir=tmpdir,
+        )
+
+        # Check that the train_state of the new_trainer is not the same as the old trainer.
+        assert new_trainer.train_state.step == 0
+        assert new_trainer.train_state.epoch == 0
+
+        # Check that the models are not the same.
+        equals_tree = jax.tree.map(lambda x, y: jnp.all(x == y), trainer.train_state.model, new_trainer.train_state.model)
+        equals_tree_leaves = jax.tree.leaves(equals_tree)
+        # Check that the leaves of the equals_tree are not all True.
+        assert not all(equals_tree_leaves)
+
+        # Now restore the best checkpoint with the new_trainer.
+        new_trainer.restore_best_checkpoint()
+        assert new_trainer.train_state.step > 0
+        assert new_trainer.train_state.epoch > 0
+
+        # Check that the restored new_trainer is the same as the old trainer at the end of training.
+        chex.assert_trees_all_equal(trainer.train_state, new_trainer.train_state)
