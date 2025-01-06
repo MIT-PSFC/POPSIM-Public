@@ -1,7 +1,6 @@
 import time
 import typing
 
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -12,6 +11,7 @@ from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
+from popsim.ml.checkpointing import TrainState
 from popsim.ml.dataloading import DataLoader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import EvalData, EvaluationSuite, batch_loss, make_val_loss_eval_fn, run_evals
@@ -19,25 +19,6 @@ from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
 from popsim.tree_util import any_nans
-
-
-@chex.dataclass
-class TrainState:
-    step: int
-    epoch: int
-    model: TrainableModel
-    opt_state: optax.OptState
-
-    @classmethod
-    def create_new(
-        cls,
-        model: TrainableModel,
-        partition_fn: PartitionFn,
-        optimizer: optax.GradientTransformation,
-    ) -> "TrainState":
-        trainable, _ = partition_fn(model)
-        opt_state = optimizer.init(trainable)
-        return cls(step=0, epoch=0, model=model, opt_state=opt_state)
 
 
 @eqx.filter_jit
@@ -227,6 +208,8 @@ class Trainer:
                 )
 
                 # TODO(allenw): add checkpointing and other callbacks.
+                if self.checkpoint_manager:
+                    self.checkpoint_manager.save(epoch, args=ocp.args.StandardSave())
 
     def run_evals(
         self, dataloader: DataLoader, eval_suite: typing.Optional[EvaluationSuite] = None
