@@ -337,14 +337,33 @@ def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, d
             overlaps[data_coil] = overlaps_single
             coil_sources[data_coil] = coil_sources_single
 
-    # Get overlaps and sources for TF coils
-    overlaps["TF"] = {}
-    overlaps["TF"]["shift"] = 1e-5 * (1.0 + 0.00000001j) / 3.12e6
-    overlaps["TF"]["tilt"] = 1e-5 * (1.0 + 0.00000001j) / 3.12e6
-    overlaps["TF"]["nominal"] = 0.0 * (1.0 + 0.00000001j) / 3.12e6
-    coil_sources["TF"] = ["shift", "tilt", "nominal"]
-
     return overlaps, coil_sources
+
+
+def load_tf_overlap(tf_overlap_file: str, overlap_percentile: float) -> dict[str, complex]:
+    """
+    Load the cumulative overlap data for all TF coils.
+
+    Args:
+        tf_overlap_file (str): The path to a .dat file containing the overlap data for the TF coils.
+        overlap_percentile (float): The percentile of the probable overlap distribution to use for the TF coils (0-1).
+
+    Returns:
+        tf_overlap (dict[str, complex]): The overlap data for the TF coils.
+    """
+
+    if overlap_percentile < 0 or overlap_percentile > 1:
+        raise ValueError("overlap_percentile must be between 0 and 1")
+
+    data = np.genfromtxt(tf_overlap_file, dtype=float, delimiter="  ").T
+
+    overlaps = data[0]
+    percentiles = data[1]
+
+    # Interpolate the data to get the error field at the desired percentile
+    tf_overlap = np.interp(overlap_percentile, percentiles, overlaps)
+
+    return tf_overlap
 
 
 def calculate_error_field_overlap(
@@ -358,28 +377,13 @@ def calculate_error_field_overlap(
     simulation's current state.
     """
 
-    # For now, just use the nominal current in TF coils
-    tfcoils = range(18)
-    tfcurrents = np.ones(18) * 3.12e6
-
-    # 3.12 MA per TF coil for 12.2 T at 1.85 m
-    n_tf = len(tfcoils)
-
-    # Instantaneous overlap starts with that from the static sources
-    overlap_inst = delta_static
+    # Instantaneous overlap starts with that from the TF's and static sources
+    overlap_inst = config.tf_overlap + delta_static
 
     # for coil in pfcscoils:
     for coil, current in pf_active_circuit_current.items():
         for source in config.coil_sources[coil]:
-            amplitude = config.metrology[coil][source]
-            overlap_inst += amplitude * current * overlaps[coil][source]
-
-    for i in tfcoils:
-        phase = np.exp(1j * 2 * np.pi * i / n_tf + config.tf_phase_offset)
-        current = tfcurrents[i]
-        for source in config.coil_sources["TF"]:
-            amplitude = config.metrology["TF"][source]
-            overlap_inst += amplitude * current * overlaps["TF"][source] * phase
+            overlap_inst += current * overlaps[coil][source]
 
     return overlap_inst
 
@@ -440,15 +444,20 @@ def locked_mode_dynamics(
 class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
     class Config:
-        modes: list[tuple[int, int]]
+        # Total overlap from the TF coils (pre-calculated since this shouldn't change over time)
+        tf_overlap: float
 
-        metrology: dict[str, dict[str, complex]]
-
+        # Static EF sources from ferritic materials in the Tokamak Hall.
         static_sources: dict[str, complex]
 
+        # EF sources from PF/CS/any coil with a current that changes over time, in terms of delta per amp
         coil_sources: dict[str, list[str]]
 
+        # The phase offset of the first TF coil proceeding from the +x axis counter-clockwise
         tf_phase_offset: float = 0.0
+
+        # The modes that are being considered for locking. 2/1 is most dangerous so that's the one we're doing for now.
+        modes: list[tuple[int, int]] = dataclasses.field(default_factory=lambda: [(2, 1)])
 
         # Hysteresis fraction of the locked mode.
         # This is the fraction of the threshold that must be reached to unlock the mode.
@@ -461,10 +470,10 @@ class ErrorFieldLocking(ModuleBase):
 
     @chex.dataclass
     class State:
-        W: dict[tuple[int, int], float]
-        F: dict[tuple[int, int], float]
-        mode_phase: dict[tuple[int, int], float]
         tearing_phase: TearingPhase = discrete_time_field()
+        W: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
+        F: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
+        mode_phase: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
 
     @chex.dataclass
     class Params:
@@ -490,6 +499,10 @@ class ErrorFieldLocking(ModuleBase):
 
     def __init__(self, config):
         self.config = config
+
+        # TODO(zkeith): verify with Matt that this calculation is no longer necessary with new data file
+        # Also ask what current was in the TF's for this data file, and how much is expected to change between 12T and 8T operation phase = np.exp(1j * 2 * np.pi * i / n_tf + config.tf_phase_offset)
+
         self.delta_static: complex = np.sum([self.config.overlaps[key]["nominal"] for key in self.config.static_sources])
 
     def __call__(
