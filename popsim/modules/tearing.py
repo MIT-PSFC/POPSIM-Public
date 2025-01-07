@@ -323,11 +323,9 @@ def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, d
         overlaps_single = {}
         coil_sources_single = []
 
-        for source in ["nominal", "shift", "tilt"]:
+        for source in ["nominal"]:
             if source in data:
-                overlaps_single[source] = (
-                    data[source] * (1.0 + 0.00000001j) / 1e9
-                )  # TODO (zkeith) there's something funny going on with this conversion
+                overlaps_single[source] = data[source] * (1.0 + 0.00000001j)
                 coil_sources_single.append(source)
 
         # Special cases for minor renaming
@@ -497,7 +495,7 @@ class ErrorFieldLocking(ModuleBase):
     def __call__(
         self, state: "ErrorFieldLocking.State", params: "ErrorFieldLocking.Params"
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
-        # Just doing the transition from none -> locked -> rotating for now
+        # Just doing the transition from none -> locked -> none for now
 
         error_field_overlap = calculate_error_field_overlap(
             self.config, self.delta_static, params.pf_active_circuit_current, params.overlaps
