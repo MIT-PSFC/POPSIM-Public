@@ -1,3 +1,4 @@
 popsim/data/** filter=lfs diff=lfs merge=lfs -text
 popsim/data/**/*.py !filter=lfs !diff=lfs !merge=lfs
 popsim/data/**/*.ipynb !filter=lfs !diff=lfs !merge=lfs
+popsim/data/**/*.nc filter=lfs diff=lfs merge=lfs -text

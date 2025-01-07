@@ -2,7 +2,8 @@ import typing
 
 import diffrax
 import jax.tree_util as tu
-from jaxtyping import ArrayLike, Float, PyTree
+from jax import Array
+from jaxtyping import ArrayLike, Float, PRNGKeyArray, PyTree
 
 """
 A "PathSpec" is a user-specification for a time dependent trajectory.
@@ -31,3 +32,9 @@ ParamSpec = PyTree[ConstantOrPathSpec]
 
 # Type alias for a Jax PyTree key.
 PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]
+
+
+@typing.runtime_checkable
+class StaticSamplerFn(typing.Protocol):
+    def __call__(self, key: PRNGKeyArray) -> Array:
+        ...

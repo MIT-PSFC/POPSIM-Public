@@ -1,38 +1,19 @@
 import typing
-from dataclasses import dataclass
 
 import jax.numpy as jnp
 import tabulate
 import xarray as xr
+from jax_dataloader import DataLoader
 from jaxtyping import Array
 
+from popsim.ml._types import TrainingMetadata
+from popsim.ml.dataloading import make_standard_dataloaders
 from popsim.ml.envs import ModuleEvalEnvInput
+from popsim.ml.split_utils import split_dataset_along_dim
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
     return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
-
-
-@dataclass
-class TrainingMetadata:
-    """Metadata for a training task."""
-
-    @dataclass
-    class TimeDepMetadata:
-        state_init_vars: list[str]
-        time_coord: str
-        time_dim: str
-
-    sample_coord: str
-    sample_dim: str
-    param_vars: list[str]
-    target_vars: list[str]
-    time_dep_metadata: typing.Optional[TimeDepMetadata] = None
-
-    @property
-    def is_time_dependent(self) -> bool:
-        """Check if the metadata is for a time-dependent training task."""
-        return self.time_dep_metadata is not None
 
 
 @xr.register_dataset_accessor("popsim_ml")
@@ -88,6 +69,19 @@ class PopsimMLAccessor:
     def n_samples(self) -> int:
         """Get the number of samples in the dataset."""
         return self.sample_coord.size
+
+    def split_along_dim(self, dim: str, fracs: typing.Sequence[float], key: int) -> typing.Sequence[xr.Dataset]:
+        """Split the dataset along a dimension according to the provided fractions.
+
+        Args:
+            dim (str): dimension to split the dataset along.
+            fracs (typing.Sequence[float]): fractions of splits to be produced.
+            key (int): seed for psuedo-random number generation.
+
+        Returns:
+            typing.Sequence[xr.Dataset]: list of datasets split along the dimension.
+        """
+        return split_dataset_along_dim(self._ds, fracs, dim, key)
 
     def generate_nan_report(self) -> tuple[str, bool]:
         """Generate a report of NaN values in the dataset.
@@ -145,3 +139,54 @@ class PopsimMLAccessor:
         )
 
         return env_input, targets
+
+    def make_dataloaders(
+        self,
+        time_coord: str,
+        episode_coord: str,
+        input_vars: list[str],
+        target_vars: list[str],
+        split_fracs: typing.Sequence[float],
+        key: int,
+        state_init_vars: typing.Optional[list[str]] = None,
+        extra_vars: typing.Optional[list[str]] = None,
+        batch_size: typing.Optional[int] = None,
+        segment_length: typing.Optional[int] = None,
+        segment_overlap: typing.Optional[int] = 0,
+    ) -> tuple[DataLoader]:
+        """Build dataloaders for training, validation, and testing, where the data will be split along the dimension corresponding to "episode_coord" according to the fractions provided by "split_fracs".
+
+        To specify that the dataloader should be for a time-dependent model, provide the state_init_vars argument. If this argument is not provided, the dataloader will be for a time-independent model.
+
+        By default, the first dataloader of the returned tuple will shuffle the data, while the others will not.
+
+        Args:
+            time_coord (str): name of the time coordinate.
+            episode_coord (str): name of the episode coordinate.
+            input_vars (list[str]): module input variables.
+            target_vars (list[str]): module target variables.
+            split_fracs (typing.Sequence[float]): fractions of splits to be produced. Must sum to 1.0. For example, [0.7, 0.15, 0.15] would split the data into 70% training, 15% validation, and 15% testing.
+            key (int): seed for psuedo-random number generation for splitting the dataset.
+            state_init_vars (typing.Optional[list[str]], optional): variables needed to initialize the state of the module, if it is time-dependent. Defaults to None.
+            extra_vars (typing.Optional[list[str]], optional): additional variables to include in the dataloaders. Defaults to None.
+            batch_size (typing.Optional[int], optional): sizes of batches for dataloading. If None, then full batches will be loaded. Defaults to None.
+            segment_length (typing.Optional[int], optional): For time-dependent modules, specifies the length of training segments. Defaults to None.
+            segment_overlap (typing.Optional[int], optional): For time-dependent modules, specifies how many time steps the segments overlap. Defaults to 0.
+
+        Returns:
+            tuple[DataLoader]: tuple of DataLoaders, where the first is for training (i.e. shuffled), and the subsequent one are for validation, testing, and any other purposes.
+        """
+        return make_standard_dataloaders(
+            ds=self._ds,
+            time_coord=time_coord,
+            episode_coord=episode_coord,
+            input_vars=input_vars,
+            target_vars=target_vars,
+            split_fracs=split_fracs,
+            key=key,
+            state_init_vars=state_init_vars,
+            extra_vars=extra_vars,
+            batch_size=batch_size,
+            segment_length=segment_length,
+            segment_overlap=segment_overlap,
+        )

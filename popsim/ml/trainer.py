@@ -8,13 +8,13 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
-from jax_dataloader import DataLoader
 from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
+from popsim.ml.dataloading import DataLoader
 from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.eval import EvaluationSuite, batch_loss, eval_module_on_data, make_val_loss_eval_fn
+from popsim.ml.eval import EvalData, EvaluationSuite, batch_loss, make_val_loss_eval_fn, run_evals
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
@@ -138,12 +138,25 @@ class Trainer:
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
         checkpoint_manager: typing.Optional[ocp.CheckpointManager] = None,
+        trainable_getter: typing.Optional[typing.Callable[[TrainableModel], PyTree]] = None,
     ):
+        """Initialize a Trainer object.
+
+        Args:
+            model (TrainableModel): the model to train.
+            loss_fn (LossFunction): the loss function to use.
+            optimizer (optax.GradientTransformation): the optimizer to use.
+            checkpoint_manager (typing.Optional[ocp.CheckpointManager], optional): a checkpoint manager. Defaults to None.
+            trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
+
+        """
         if isinstance(model, ModuleTrainingEnv):
             assert isinstance(loss_fn, IntegralLoss), "When using a ModuleTrainingEnv, the loss function must be an IntegralLoss."
             partition_fn = make_partition_by_members(lambda m: m.get_trainable())
+            if trainable_getter:
+                raise ValueError("trainable_getter is not supposed to be provided when training a ModuleTrainingEnv.")
         else:
-            raise NotImplementedError("Only ModuleTrainingEnv is supported for now.")
+            partition_fn = make_partition_by_members(trainable_getter or (lambda m: m))
 
         self.partition_fn = partition_fn
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
@@ -215,17 +228,19 @@ class Trainer:
 
                 # TODO(allenw): add checkpointing and other callbacks.
 
-    def run_evals(self, dataloader: DataLoader, eval_suite: EvaluationSuite) -> dict[str, typing.Any]:
+    def run_evals(
+        self, dataloader: DataLoader, eval_suite: typing.Optional[EvaluationSuite] = None
+    ) -> typing.Union[dict[str, typing.Any], EvalData]:
         """Run an evaluation suite on the given dataloader.
 
         Args:
             dataloader (DataLoader): DataLoader to evaluate the model on.
-            eval_suite (EvaluationSuite): Evaluation suite to run.
+            evaluation_suite (Optional[EvaluationSuite], optional): Optional evaluation suite to run. This is a dictionary of evaluation functions that take in an EvalData structure and returns the evaluation results. If None is provided, just return the EvalData generated. Defaults to None.
 
         Returns:
-            dict[str, typing.Any]: Dictionary of results from running the evaluation suite.
+            typing.Union[dict[str, typing.Any], EvalData]: Dictionary of results from running the evaluation suite.
         """
-        eval_results = eval_module_on_data(self.train_state.model, dataloader, eval_suite)
+        eval_results = run_evals(self.train_state.model, dataloader, eval_suite)
         return eval_results
 
     def compute_loss(self, dataloader: DataLoader) -> dict[str, typing.Any]:
@@ -239,5 +254,5 @@ class Trainer:
         """
         loss_eval_fn = make_val_loss_eval_fn(self.loss_fn)
         eval_suite = {"loss": loss_eval_fn}
-        results = eval_module_on_data(self.train_state.model, dataloader, eval_suite)
+        results = run_evals(self.train_state.model, dataloader, eval_suite)
         return results["loss"]

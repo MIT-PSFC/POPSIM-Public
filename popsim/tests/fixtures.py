@@ -56,6 +56,17 @@ def cmod_test_dataset():
     return load_cmod_test_dataset()
 
 @pytest.fixture(scope="session")
+def reduced_cmod_test_dataset(cmod_test_dataset):
+    # Downsample to 100 shots for faster testing.
+    ds = cmod_test_dataset
+    n_shots_test = 100
+    ds = ds.isel(shot=slice(0, n_shots_test))
+    state_init_vars = ["Wmhd"]
+    param_vars = ["ip", "n_e"]
+    target_vars = ["Wmhd"]
+    return ds, state_init_vars, param_vars, target_vars
+
+@pytest.fixture(scope="session")
 def mast_thomson_test_dataset():
     return load_mast_thomson_test_dataset()
 
