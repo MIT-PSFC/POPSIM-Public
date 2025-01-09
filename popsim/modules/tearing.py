@@ -293,18 +293,17 @@ class Tearing(ModuleBase):
         return tearing_module, tearing_initial_state, tearing_params, time_base
 
 
-def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
+def load_coil_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
     """
     Load the overlap data and sources for the error field locking module.
 
     Args:
-        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Overlaps are given in delta per amp
+        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per mm displacement.
         tf_error_field_file (str): The path to a JSON file containing the error field data for the TF coils.
         tf_error_field_percentile (float): The percentile of the error field contribution to use for the TF coils
 
     Returns:
-        overlaps (dict[str, dict[str, complex]]): The overlap data for each coil source.
-        coil_sources (dict[str, list[str]]): The sources for each coil.
+        overlaps (dict[str, dict[str, complex]]): The overlap data for each coil source in terms of delta per amp.
     """
 
     rename_dict = {
@@ -312,32 +311,89 @@ def load_overlaps_and_sources(error_field_source_file: str) -> tuple[dict[str, d
         "divu": ["div1u", "div2u"],
     }
 
+    # PRD currents for pulse 2000 from Clayton
+    PRD_currents = {
+        "cs1u": 40515,
+        "cs1l": 40515,
+        "cs2u": 46138.1262307066,
+        "cs2l": 46138.1249076037,
+        "cs3u": 47499.9999999937,
+        "cs3l": 47499.9999999937,
+        "pf1u": 47499.9999682539,
+        "pf1l": 47499.9999682538,
+        "pf2u": 15879.211658726,
+        "pf2l": 15879.2158972162,
+        "pf3u": 12313.866888292,
+        "pf3l": 12313.8618192826,
+        "pf4u": -9.52441472684439e-10,
+        "pf4l": -9.52441623562183e-10,
+        "div1u": -10136,
+        "div1l": -10136,
+        "div2u": -11623,
+        "div2l": -11623,
+        "vsc": 0,
+        # Things from the previous implementation that I'm not sure about
+        "tfjumpers": 31250,
+        "om4tflare_upper": 45000,
+        "om4tflare_lower": 45000,
+    }
+
     with open(error_field_source_file) as f:
         overlap_data = json.load(f)
 
     overlaps = {}
-    coil_sources = {}
 
-    # Get overlaps and sources for non-TF coils
-    for data_coil, data in overlap_data.items():
+    # List of name tuples, where the first is the actual name and the second is the name in the error field source file
+    name_pairs = [
+        (coil_name, data_key) if data_key in rename_dict else (data_key, data_key)
+        for data_key in overlap_data
+        for coil_name in rename_dict.get(data_key, [data_key])
+    ]
+
+    for name_pair in name_pairs:
+        coil_name = name_pair[0]
+        data_key = name_pair[1]
+        data = overlap_data[data_key]
+
         overlaps_single = {}
-        coil_sources_single = []
 
-        for source in ["nominal"]:
+        # Nominal is in terms of delta per amp, so this is easy (will be multiplied by actual current later)
+        if "nominal" in data:
+            overlaps_single[coil_name] = data["nominal"] * (1.0 + 0.00000001j)
+
+        # Shift and tilt are in terms of delta per meter displacement
+        for source in ["shift", "tilt"]:
             if source in data:
-                overlaps_single[source] = data[source] * (1.0 + 0.00000001j)
-                coil_sources_single.append(source)
+                base_factor = data[source] * (1.0 + 0.00000001j)
+                try:
+                    tolerance = data[f"{source}_tol"]
+                except KeyError:
+                    raise ValueError(f"Missing tolerance for {source} in {data_key}") from KeyError
 
-        # Special cases for minor renaming
-        if data_coil in rename_dict:
-            for renamed_coil in rename_dict[data_coil]:
-                overlaps[renamed_coil] = overlaps_single
-                coil_sources[renamed_coil] = coil_sources_single
-        else:
-            overlaps[data_coil] = overlaps_single
-            coil_sources[data_coil] = coil_sources_single
+                # Draw position error from U-shape distribution
+                position_error = (np.random.random() ** 0.3) * tolerance
 
-    return overlaps, coil_sources
+                # Random phase for tilt/shift
+                phase = 1 / np.sqrt(2) * (np.random.random() + 1.0j * np.random.random())
+
+                # Convert into delta per amp
+                try:
+                    if coil_name.endswith("_feed"):
+                        coil_name = coil_name[:-5]
+                    PRD_current = PRD_currents[coil_name]
+                    if abs(PRD_current) < 1e-6:
+                        source_overlap = 0  # No current, no field
+                    else:
+                        source_overlap = base_factor * position_error * phase / (PRD_currents[coil_name])
+                except KeyError:
+                    print(f"Warning! Missing PRD current for {coil_name}, assuming 0")
+                    source_overlap = 0
+
+            overlaps_single[coil_name] = overlaps_single.get(coil_name, 0) + source_overlap
+
+        overlaps[coil_name] = overlaps_single
+
+    return overlaps
 
 
 def load_tf_overlap(tf_overlap_file: str, overlap_percentile: float) -> dict[str, complex]:
@@ -370,7 +426,7 @@ def calculate_error_field_overlap(
     config: "ErrorFieldLocking.Config",
     delta_static: complex,
     pf_active_circuit_current: dict[str, float],
-    overlaps: dict[str, dict[str, complex]],
+    overlaps: dict[str, complex],
 ) -> complex:
     """
     Calculates the total overlap of the EF sources based on the
@@ -382,8 +438,7 @@ def calculate_error_field_overlap(
 
     # for coil in pfcscoils:
     for coil, current in pf_active_circuit_current.items():
-        for source in config.coil_sources[coil]:
-            overlap_inst += current * overlaps[coil][source]
+        overlap_inst += current * overlaps[coil][coil]
 
     return overlap_inst
 
@@ -449,9 +504,6 @@ class ErrorFieldLocking(ModuleBase):
 
         # Static EF sources from ferritic materials in the Tokamak Hall.
         static_sources: dict[str, complex]
-
-        # EF sources from PF/CS/any coil with a current that changes over time, in terms of delta per amp
-        coil_sources: dict[str, list[str]]
 
         # The phase offset of the first TF coil proceeding from the +x axis counter-clockwise
         tf_phase_offset: float = 0.0
