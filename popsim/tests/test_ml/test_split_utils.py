@@ -81,3 +81,10 @@ def test_split_dataset_along_dim(cmod_test_dataset):
     # Check that the function errors if the split fractions do not sum to 1
     with pytest.raises(ValueError):
         split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", 42)
+
+    # Check that the is ordered between splits if ordered=True
+    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=True)
+    for i in range(1, len(split_datasets)):
+        max_prev = split_datasets[i - 1]["shot"].values.max()
+        min_curr = split_datasets[i]["shot"].values.min()
+        assert max_prev < min_curr

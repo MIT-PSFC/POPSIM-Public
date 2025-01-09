@@ -67,7 +67,7 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, seed: int) -> Sequence[xr.Dataset]:
+def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, seed: int, ordered: bool = False) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
     Args:
@@ -75,10 +75,25 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, se
         fracs (Sequence[float]): fractions of splits to be produced.
         dim (str): dimension to split the dataset along.
         seed (int): seed for psuedo-random number generation.
+        ordered (bool): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data.
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
     """
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
+    if ordered:
+        sorted_idxs = np.argsort(ds[dim].values)
+        sorted_idxs_splits = [sorted_idxs[sum(lengths[:i]) : sum(lengths[: i + 1])] for i in range(len(lengths))]
+
+        # Shuffle within each split
+        shuffle_idxs_splits = []
+        rng_key = jax.random.PRNGKey(seed)
+        for sorted_idxs_split in sorted_idxs_splits:
+            rng_key, subkey = jax.random.split(rng_key)
+            shuffle_idxs_split = jax.random.permutation(subkey, sorted_idxs_split.size)
+            shuffle_idxs_splits.append(sorted_idxs_split[shuffle_idxs_split])
+
+        return [ds.isel({dim: np.asarray(idxs)}) for idxs in shuffle_idxs_splits]
+    else:
+        return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
