@@ -2,19 +2,45 @@ import typing
 import warnings
 
 import jax.numpy as jnp
+import jax_dataloader as jdl
 import xarray as xr
 import xbatcher
-from jax_dataloader import DataLoader, Dataset
+from jax_dataloader.loaders.jax import DataLoaderJAX
 from jaxtyping import Array
 
 from popsim.array_utils import contiguous_true_end_of_axis_mask
+from popsim.ml._types import TrainingMetadata
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
-from popsim.ml.xarray_accessor import TrainingMetadata
 
 DEFAULT_SAMPLE_DIM = "sample"
 
 
-class XarrayPreppedDataset(Dataset):
+class DataLoader:
+    """A thin wrapper around a jax_dataloader.DataLoader with convenience properties."""
+
+    dl: DataLoaderJAX
+
+    def __init__(self, dl: DataLoaderJAX):
+        self.dl = dl
+        # Check that training metadata is set.
+        if dl.dataset.ds.popsim_ml.training_metadata is None:
+            raise ValueError("Training metadata must be set in the dataset.")
+
+    def __len__(self):
+        return len(self.dl)
+
+    def __next__(self):
+        return next(self.dl)
+
+    def __iter__(self):
+        return iter(self.dl)
+
+    @property
+    def ds(self) -> xr.Dataset:
+        return self.dl.dataset.ds
+
+
+class XarrayPreppedDataset(jdl.Dataset):
     """A thin wrapper around an xr.Dataset that implements the Dataset interface for jax_dataloader."""
 
     ds: xr.Dataset
@@ -75,12 +101,67 @@ def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, 
     return episode_var_dim, time_var_dim
 
 
+def make_standard_dataloaders(
+    ds: xr.Dataset,
+    time_coord: str,
+    episode_coord: str,
+    input_vars: list[str],
+    target_vars: list[str],
+    split_fracs: typing.Sequence[float],
+    key: int,
+    extra_vars: typing.Optional[list[str]] = None,
+    state_init_vars: typing.Optional[list[str]] = None,
+    batch_size: typing.Optional[int] = None,
+    segment_length: typing.Optional[int] = None,
+    segment_overlap: typing.Optional[int] = 0,
+) -> typing.Sequence[DataLoader]:
+    if state_init_vars is None and segment_length is not None or segment_overlap != 0:
+        raise ValueError("segment_length and segment_overlap are only valid when state_init_vars are provided")
+    if state_init_vars is None:
+
+        def dl_fun(ds_, shuffle):
+            return make_time_indep_dataloader(
+                ds=ds_,
+                time_coord=time_coord,
+                episode_coord=episode_coord,
+                input_vars=input_vars,
+                target_vars=target_vars,
+                extra_vars=extra_vars,
+                batch_size=batch_size,
+                shuffle=shuffle,
+            )
+    else:
+
+        def dl_fun(ds_, shuffle):
+            return make_dataloader(
+                ds=ds_,
+                time_coord=time_coord,
+                episode_coord=episode_coord,
+                state_init_vars=state_init_vars,
+                param_vars=input_vars,
+                target_vars=target_vars,
+                extra_vars=extra_vars,
+                segment_length=segment_length,
+                segment_overlap=segment_overlap,
+                batch_size=batch_size,
+                shuffle=shuffle,
+            )
+
+    episode_var_dim, _ = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+    datasets = ds.popsim_ml.split_along_dim(episode_var_dim, split_fracs, key)
+
+    # By default, only shuffle the first dataset.
+    shuffle = (True if i == 0 else False for i in range(len(datasets)))
+    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle)]
+
+
 def make_time_indep_dataloader(
     ds: xr.Dataset,
     time_coord: str,
     episode_coord: str,
     input_vars: list[str],
     target_vars: list[str],
+    extra_vars: typing.Optional[list[str]] = None,
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
 ) -> DataLoader:
@@ -92,15 +173,17 @@ def make_time_indep_dataloader(
         episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         input_vars (list[str]): Names of the input variables that go into the model.
         target_vars (list[str]): Names of the target variables that the model predicts.
+        extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
-    ds = ds[input_vars + target_vars]
+    ds = ds[input_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
-    sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM, how="any")
+    sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM)
+    sample_ds = sample_ds.transpose(DEFAULT_SAMPLE_DIM, ...)
 
     if batch_size is None:
         batch_size = len(sample_ds[DEFAULT_SAMPLE_DIM])
@@ -110,16 +193,25 @@ def make_time_indep_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         param_vars=input_vars,
         target_vars=target_vars,
+        episode_coord=episode_coord,
+        episode_dim=episode_var_dim,
         time_dep_metadata=None,
     )
 
     sample_ds.popsim_ml.training_metadata = train_meta
 
+    nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
+
+    if nans_found:
+        warnings.warn(f"NaNs found in dataset. NaN report: \n{nan_report}", stacklevel=2)
+
     dl = DataLoader(
-        XarrayPreppedDataset(ds=sample_ds),
-        backend="jax",
-        batch_size=batch_size,
-        shuffle=shuffle,
+        DataLoaderJAX(
+            XarrayPreppedDataset(ds=sample_ds),
+            backend="jax",
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
     )
     return dl
 
@@ -131,6 +223,7 @@ def make_dataloader(
     state_init_vars: list[str],
     param_vars: list[str],
     target_vars: list[str],
+    extra_vars: typing.Optional[list[str]] = None,
     segment_length: typing.Optional[int] = None,
     segment_overlap: int = 0,
     batch_size: typing.Optional[int] = None,
@@ -148,6 +241,7 @@ def make_dataloader(
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
         param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
+        extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         segment_length (typing.Optional[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment. Defaults to None.
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
@@ -164,7 +258,7 @@ def make_dataloader(
         raise ValueError("segment_overlap should be 0 when segment_length is None.")
 
     input_vars = state_init_vars + param_vars
-    ds = ds[input_vars + target_vars]
+    ds = ds[input_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=input_vars)
@@ -208,6 +302,8 @@ def make_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         param_vars=param_vars,
         target_vars=target_vars,
+        episode_coord=episode_coord,
+        episode_dim=episode_var_dim,
         time_dep_metadata=TrainingMetadata.TimeDepMetadata(
             state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
         ),
@@ -222,10 +318,12 @@ def make_dataloader(
         sample_ds = sample_ds.ffill(time_dim_sample_ds)
 
     dl = DataLoader(
-        XarrayPreppedDataset(ds=sample_ds),
-        backend="jax",
-        batch_size=batch_size,
-        shuffle=shuffle,
+        DataLoaderJAX(
+            XarrayPreppedDataset(ds=sample_ds),
+            backend="jax",
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
     )
     return dl
 

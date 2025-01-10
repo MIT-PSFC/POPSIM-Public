@@ -11,7 +11,8 @@ python = ">=3.10,<3.12"
 diffrax = "^0.6.0"
 equinox = "^0.11.7"
 jax = "0.4.33"
-interpax = {git = "https://github.com/f0uriest/interpax.git"}
+interpax = "^0.3.4"
+xarray = "^2024.10.0"
 optimistix = "^0.0.7"
 chex = "^0.1.84"
 hvplot = "^0.9.2"
@@ -30,6 +31,9 @@ tabulate = "^0.9.0"
 xarray_jax = "0.0.5"
 cfspopcon = "^7.0.2"
 certifi = "^2024.8.30"
+torax = {git = "https://github.com/google-deepmind/torax.git"}
+xeofs = "^3.0.4"
+zarr = "^2.18.3"
 omas = "^0.94.1"
 
 [tool.poetry.group.dev.dependencies]

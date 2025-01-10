@@ -33,7 +33,7 @@ def partition_by_arraylike(pytree: PyTree) -> tuple[PyTree, PyTree]:
 
 def make_partition_by_members(
     member_getter: typing.Callable[[PyTree], PyTree],
-    leaf_filter: Callable[[typing.Any], bool] = eqx.is_inexact_array_like,
+    leaf_filter: Callable[[typing.Any], bool] = eqx.is_inexact_array,
 ) -> PartitionFn:
     """Generate a partition function that partitions a PyTree into two PyTrees, where the first contains the user specified members and the second contains everything else. The primary use case of this function is to allow the user to specify subsets of a model to train (e.g. perhaps you only want to tune some of the coefficients in a power law, but not all of them).
 
@@ -43,7 +43,7 @@ def make_partition_by_members(
 
     def member_getter(pytree):
         leaves_of_nn = jax.tree.leaves(pytree["b"])
-        floats_of_nn = eqx.filter(leaves_of_nn, eqx.is_inexact_array_like)
+        floats_of_nn = eqx.filter(leaves_of_nn, eqx.is_inexact_array)
         return floats_of_nn
 
     partition_fn = make_partition_by_members(member_getter)
@@ -56,12 +56,12 @@ def make_partition_by_members(
     def member_getter(pytree):
         return pytree["b"]
 
-    partition_fn = make_partition_by_members(member_getter, leaf_filter=eqx.is_inexact_array_like)
+    partition_fn = make_partition_by_members(member_getter, leaf_filter=eqx.is_inexact_array)
     ```
 
     Args:
         member_getter (typing.Callable[[PyTree], PyTree]): A function that takes a PyTree and returns a PyTree of objects that specify what the first output PyTree should contain.
-        leaf_filter (Callable[[typing.Any], bool], optional): A function that filters out values from the leaves specified by "member_getter". Defaults to eqx.is_inexact_array_like.
+        leaf_filter (Callable[[typing.Any], bool], optional): A function that filters out values from the leaves specified by "member_getter". Defaults to eqx.is_inexact_array.
 
     Returns:
         PartitionFn: A partition function that returns (tree_with_members, tree_without_members).

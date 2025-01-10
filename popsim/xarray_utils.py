@@ -2,10 +2,12 @@ import typing
 import warnings
 
 import diffrax
+import equinox as eqx
 import jax
+import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jaxtyping import Array, PyTree
+from jaxtyping import Array, ArrayLike, PyTree
 from loguru import logger
 from xarray_jax import var_change_on_unflatten
 
@@ -88,6 +90,46 @@ def _handle_xr_types(data: xr.DataArray | xr.Variable, base_coords, name) -> xr.
         raise ValueError("Only xr.Variable and xr.DataArray are supported.")
 
 
+def pytree_to_xarray(
+    tree: PyTree[Array | xr.Variable | xr.DataArray],
+    base_dims: typing.Optional[list[str]] = None,
+    base_coords: typing.Optional[dict[str, xr.DataArray]] = None,
+) -> xr.Dataset:
+    """Convert a PyTree of array-likes, xr.Variables, and xr.DataArrays to an xarray Dataset.
+
+    Args:
+        tree (PyTree[ArrayLike  |  xr.Variable  |  xr.DataArray]): tree containing array-like quantities, xr.Variables, and xr.DataArrays.
+        base_dims (list[str]): list of dimension names for leaf arrays.
+        base_coords (dict[str, xr.DataArray]): coordinates to add to all leaves.
+
+    Returns:
+        xr.Dataset: dataset containing the converted PyTree.
+    """
+
+    if base_coords is None:
+        base_coords = []
+    if base_dims is None:
+        base_dims = []
+
+    def process_tree_leaf(path, data: np.ndarray | ArrayLike | xr.DataArray | xr.Variable) -> xr.DataArray:
+        name = ptu.keypath_to_string(path)
+        if isinstance(data, (xr.Variable, xr.DataArray)):
+            return _handle_xr_types(data, base_coords, name)
+        elif eqx.is_array_like(data):
+            data = np.asarray(data) if not eqx.is_array(data) else data
+            return make_data_array(name=name, array=jnp.asarray(data), dims=base_dims, coords=base_coords)
+        else:
+            raise ValueError("Expected ArrayLike, xr.Variable, or xr.DataArray.")
+
+    # Construct a tree of DataArrays.
+    paths_and_leaves = jax.tree_util.tree_leaves_with_path(tree, is_leaf=lambda x: isinstance(x, (xr.DataArray, xr.Variable, ArrayLike)))
+
+    dataarrays = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
+
+    ds = xr.merge(dataarrays)
+    return ds
+
+
 def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
     """Convert a time array and a PyTree of arrays, xr.Variable, and xr.DataArray instances to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
 
@@ -140,23 +182,7 @@ def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr
         DEFAULT_TIME_DIM_NAME: time_coord,
         DEFAULT_SIM_DIM_NAME: sim_coord,
     }
-
-    def process_tree_leaf(path, data: np.ndarray | Array | xr.DataArray | xr.Variable) -> xr.DataArray:
-        name = ptu.keypath_to_string(path)
-        if isinstance(data, (np.ndarray, Array)):
-            return make_data_array(name=name, array=data, dims=base_dims, coords=base_coords)
-        elif isinstance(data, (xr.Variable, xr.DataArray)):
-            return _handle_xr_types(data, base_coords, name)
-        else:
-            raise ValueError("Expected Array, xr.Variable, or xr.DataArray.")
-
-    # Construct a tree of DataArrays.
-    paths_and_leaves = jax.tree_util.tree_leaves_with_path(tree, is_leaf=lambda x: isinstance(x, (xr.DataArray, xr.Variable, Array)))
-
-    dataarrays = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
-
-    ds = xr.merge(dataarrays)
-    return ds
+    return pytree_to_xarray(tree, base_dims, base_coords)
 
 
 def add_dim_to_vars(tree: PyTree, dim_name: str) -> PyTree:

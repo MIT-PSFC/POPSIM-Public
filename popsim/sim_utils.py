@@ -6,9 +6,10 @@ import chex
 import equinox as eqx
 import jax
 import numpy as np
-from jaxtyping import Array, PyTree
+from jaxtyping import Array, PRNGKeyArray, PyTree
 
 from popsim.tree_util import get_instances_from_tree_leaves
+from popsim.types import StaticSamplerFn
 
 
 @chex.dataclass
@@ -25,6 +26,15 @@ class SimInput:
         """
         return generate_cases(self)
 
+    def sample(self, key: PRNGKeyArray, n_samples: int) -> list["SimInput"]:
+        """Sample from all instances of StaticSampler in the SimInput tree.
+
+        Args:
+            key (PRNGKeyArray): Random key to generate random numbers.
+            n_samples (int): Number of samples to generate.
+        """
+        return sample_samplers(self, key, n_samples)
+
 
 @chex.dataclass
 class CombinatorialCases:
@@ -34,6 +44,17 @@ class CombinatorialCases:
 @chex.dataclass
 class MultiCases:
     cases: list = dataclasses.field(default_factory=list)
+
+
+class StaticSampler:
+    sampler_fn: StaticSamplerFn
+
+    def __init__(self, sampler_fn: StaticSamplerFn):
+        self.sampler_fn = sampler_fn
+        assert isinstance(sampler_fn, StaticSamplerFn), f"{sampler_fn} is not an instance of StaticSamplerFn."
+
+    def __call__(self, key: PRNGKeyArray) -> Array:
+        return self.sampler_fn(key)
 
 
 def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
@@ -82,6 +103,60 @@ def generate_cases(
         return generate_combinatorial_cases(tree)
     else:
         return tree
+
+
+def draw_sample(
+    key: PRNGKeyArray,
+    tree: PyTree[typing.Union[typing.Any, StaticSampler]],
+) -> PyTree[typing.Any]:
+    """Sample from all instances of StaticSampler in the tree, using a different key for each StaticSampler.
+
+    Args:
+        key (PRNGKeyArray): initial key to generate random numbers.
+        tree (PyTree[typing.Union[typing.Any, StaticSampler]]): PyTree where some leaves are instances of StaticSampler.
+
+    Returns:
+        PyTree[typing.Any]: PyTree where all instances of StaticSampler have been replaced with their sampled values.
+    """
+    combinatorial_cases = get_instances_from_tree_leaves(tree, CombinatorialCases)
+    multi_cases = get_instances_from_tree_leaves(tree, MultiCases)
+    assert not combinatorial_cases, "CombinatorialCases are not supported in draw_sample."
+    assert not multi_cases, "MultiCases are not supported in draw_sample."
+
+    samplers_tree, non_samplers_tree = eqx.partition(
+        tree, lambda x: isinstance(x, StaticSampler), is_leaf=lambda x: isinstance(x, StaticSampler)
+    )
+
+    list_of_samplers, treedef = jax.tree.flatten(samplers_tree, is_leaf=lambda x: isinstance(x, StaticSampler))
+
+    keys = jax.random.split(key, len(list_of_samplers))
+
+    sampled_samplers = [sampler(k) for sampler, k in zip(list_of_samplers, keys)]
+
+    reconstructed_samplers_tree = jax.tree.unflatten(treedef, sampled_samplers)
+
+    return eqx.combine(non_samplers_tree, reconstructed_samplers_tree)
+
+
+def sample_samplers(
+    tree: PyTree[typing.Union[typing.Any, StaticSampler]],
+    key: PRNGKeyArray,
+    n_samples: int,
+) -> list[PyTree[typing.Any]]:
+    """Draw n_samples samples from the tree.
+
+    Args:
+        tree (PyTree[typing.Union[typing.Any, StaticSampler]]): PyTree where some leaves are instances of StaticSampler.
+        key (PRNGKeyArray): initial key to generate random numbers.
+        n_samples (int): number of samples to generate.
+
+    Returns:
+        list[PyTree[typing.Any]]: A list of PyTrees where all instances of StaticSampler have been replaced with their sampled values.
+    """
+    keys = jax.random.split(key, n_samples)
+
+    list_of_samples = [draw_sample(k, tree) for k in keys]
+    return list_of_samples
 
 
 def generate_multi_cases(tree: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:

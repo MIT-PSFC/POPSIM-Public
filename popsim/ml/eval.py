@@ -1,24 +1,32 @@
-from typing import Any, Callable, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import xarray as xr
-from jax_dataloader import DataLoader
 from jaxtyping import Array, PyTree
 
 from popsim.ml._types import TrainableModel
-from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, XarrayPreppedDataset
+from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, DataLoader, XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
-from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, solution_to_xarray
+from popsim.xarray_utils import (
+    DEFAULT_SIM_DIM_NAME,
+    DEFAULT_TIME_DIM_NAME,
+    pytree_to_xarray,
+    run_function_with_dim_removed,
+    solution_to_xarray,
+)
+
+if TYPE_CHECKING:
+    import diffrax
 
 """
 This module contains utilities for evaluating models on data.
 """
 
 
-class EvalFnInput(NamedTuple):
+class EvalData(NamedTuple):
     model: TrainableModel  # The model to train.
     dataloader: DataLoader  # DataLoader that was used to evaluate the module.
     output_ds: xr.Dataset  # Output dataset from the module evaluation.
@@ -28,35 +36,30 @@ class EvalFnInput(NamedTuple):
         """
         Get the xarray dataset that was used as input to the module evaluation.
         """
-        return self.dataloader.dataloader.dataset.ds
+        return self.dataloader.ds
 
 
-# An evaluation function is a function that takes an EvalFnInput and returns a value.
-EvaluationFn = Callable[[EvalFnInput], Any]
+# An evaluation function is a function that takes an EvalData and returns a value.
+EvaluationFn = Callable[[EvalData], Any]
 
 # An evaluation suite is defined as a dictionary of evaluation functions
-EvaluationSuite = dict[str, Callable[[xr.Dataset, xr.Dataset], Any]]
+EvaluationSuite = dict[str, EvaluationFn]
 
 
-def eval_module_on_data(
-    env: ModuleEvalEnv, dataloader: DataLoader, evaluation_suite: Optional[EvaluationSuite] = None
-) -> tuple[xr.Dataset, dict[str, Any]]:
-    """Evaluate a module given data from a dataloader and an evaluation suite.
+def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalData:
+    """Evaluate a module on data from a dataloader.
 
     Args:
-        env (ModuleEvalEnv): the module wrapped in an evaluation environment.
+        env (TrainableModel): the module wrapped in an evaluation environment.
         dataloader (DataLoader): the dataloader to use for evaluation.
-        evaluation_suite (Optional[EvaluationSuite], optional): The evaluation suite. Defaults to None.
 
     Returns:
-        tuple[xr.Dataset, dict[str, Any]]: the output dataset and the evaluation results.
+        EvalData: evaluation results.
     """
-    if evaluation_suite is None:
-        evaluation_suite = {"eval_fn_inputs": lambda eval_fn_input: eval_fn_input}
 
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
-        ds = dataset.ds
-        inputs, _ = ds.popsim_ml.prep_inputs_and_targets()
+        ds_in = dataset.ds
+        inputs, _ = ds_in.popsim_ml.prep_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         vec_env = jax.vmap(env, in_axes=(inputs_spec,))
 
@@ -66,21 +69,56 @@ def eval_module_on_data(
 
         # Rename the dimensions to match the input dataset.
         ds_out = ds_out.rename({DEFAULT_SIM_DIM_NAME: DEFAULT_SAMPLE_DIM})
-        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: ds.popsim_ml.sample_coord})
-        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: ds.popsim_ml.training_metadata.time_dep_metadata.time_dim})
+        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: ds_in.popsim_ml.sample_coord})
+        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: ds_in.popsim_ml.training_metadata.time_dep_metadata.time_dim})
         return ds_out
 
-    sim_outs_and_batches = [(eval_env_return_xarray(env, batch), batch) for batch in dataloader]
+    def eval_model_return_xarray(model: TrainableModel, dataset: XarrayPreppedDataset) -> xr.Dataset:
+        ds_in = dataset.ds
+        inputs, _ = ds_in.popsim_ml.prep_inputs_and_targets()
+        inputs_spec = jax.tree.map(lambda _: 0, inputs)
+        fn = jax.vmap(model, in_axes=(inputs_spec,))
+
+        out = run_function_with_dim_removed(fn, (inputs,), DEFAULT_SAMPLE_DIM)
+
+        ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: ds_in.popsim_ml.sample_coord})
+        return ds_out
+
+    if isinstance(model, ModuleEvalEnv):
+        eval_fn = eval_env_return_xarray
+    else:
+        eval_fn = eval_model_return_xarray
+
+    sim_outs_and_batches = [(eval_fn(model, batch), batch) for batch in dataloader]
     sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
 
     # The evaluation process can get the order of the samples wrong, so we need to reindex the output dataset.
     ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
-    ds_sim = ds_sim.reindex_like(dataloader.dataloader.dataset.ds)
+    ds_sim = ds_sim.reindex_like(dataloader.ds)
 
-    eval_fn_input = EvalFnInput(model=env, dataloader=dataloader, output_ds=ds_sim)
+    eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds=ds_sim)
+    return eval_fn_input
 
-    out = {key: eval_fn(eval_fn_input) for key, eval_fn in evaluation_suite.items()}
-    return out
+
+def run_evals(
+    model: TrainableModel, dataloader: DataLoader, evaluation_suite: Optional[EvaluationSuite] = None
+) -> Union[dict[str, Any], EvalData]:
+    """Given a model, a dataloader, and an evaluation suite, run the evaluation suite on the model and return the results.
+
+    Args:
+        model (TrainableModel): the model to evaluate.
+        dataloader (DataLoader): the dataloader to use for evaluation.
+        evaluation_suite (Optional[EvaluationSuite], optional): Optional evaluation suite to run. This is a dictionary of evaluation functions that take in an EvalData structure and returns the evaluation results. If None is provided, just return the EvalData generated. Defaults to None.
+
+    Returns:
+        Union[dict[str, Any], EvalData]: the evaluation results.
+    """
+    eval_fn_input = eval_model_on_data(model, dataloader)
+    if evaluation_suite is None:
+        return eval_fn_input
+
+    eval_results = {key: eval_fn(eval_fn_input) for key, eval_fn in evaluation_suite.items()}
+    return eval_results
 
 
 @eqx.filter_jit
@@ -106,7 +144,7 @@ def model_eval_and_loss(
             loss_fn, not isinstance(loss_fn, IntegralLoss), "When using a ModuleEvalEnv, the loss function must be an IntegralLoss."
         )
         # When using a ModuleEvalEnv, the loss function is an IntegralLoss, which requires special handling.
-        output = model(inputs)  # Output is a diffrax solution.
+        output: diffrax.Solution = model(inputs)
         loss = loss_fn(output.ys["output"], targets, inputs.time)
     else:
         output = model(inputs)
@@ -172,7 +210,7 @@ def make_val_loss_eval_fn(
         EvaluationFn: the evaluation function.
     """
 
-    def eval_fn(inp: EvalFnInput) -> float:
+    def eval_fn(inp: EvalData) -> float:
         loss_vecs = []
         for batch in inp.dataloader:
             inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()

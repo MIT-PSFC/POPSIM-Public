@@ -73,7 +73,7 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, se
     Args:
         ds (xr.Dataset): dataset to be split.
         fracs (Sequence[float]): fractions of splits to be produced.
-        coord (str): dimension to split the dataset along.
+        dim (str): dimension to split the dataset along.
         seed (int): seed for psuedo-random number generation.
 
     Returns:
