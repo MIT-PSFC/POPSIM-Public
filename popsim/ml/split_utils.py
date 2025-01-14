@@ -117,7 +117,7 @@ def split_dataset_along_dim(
 
     if ordered:
         ds = ds.sortby(dim)
-        split_idxs = [slice(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
+        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
     else:
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]

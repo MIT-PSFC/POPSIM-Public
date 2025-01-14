@@ -4,6 +4,7 @@ import random
 import jax
 import pytest
 import jax.numpy as jnp
+import xarray as xr
 
 from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_along_dim
 from popsim.tests.fixtures import cmod_test_dataset
@@ -93,9 +94,9 @@ def test_split_dataset_along_dim(cmod_test_dataset):
         split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
 
 
-@pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []]])
+@pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []], [[1], [3], [2]]])
 @pytest.mark.parametrize("ordered", [True, False])
-def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset, pre_split_idxs, ordered):
+def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset: xr.Dataset, pre_split_idxs, ordered):
     ds = cmod_test_dataset
 
     if pre_split_idxs is None:
@@ -105,7 +106,12 @@ def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset, pre_sp
 
     split_fracs = [0.68, 0.21, 0.11]
 
-    def check_splits_ordered(split_datasets, dim):
+    def check_splits_ordered(split_datasets, dim, pre_split):
+        if pre_split:
+            for split_dataset, pre_split_vals in zip(split_datasets, pre_split):
+                if len(pre_split_vals) > 0:
+                    split_dataset = split_dataset.drop_sel({dim: jnp.asarray(pre_split_vals)})
+
         for i in range(1, len(split_datasets)):
             max_prev = split_datasets[i - 1][dim].values.max()
             min_curr = split_datasets[i][dim].values.min()
@@ -119,4 +125,4 @@ def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset, pre_sp
     if pre_split:
         check_splits_contain_pre_split(split_datasets, pre_split)
     if ordered:
-        check_splits_ordered(split_datasets, "shot")
+        check_splits_ordered(split_datasets, "shot", pre_split)
