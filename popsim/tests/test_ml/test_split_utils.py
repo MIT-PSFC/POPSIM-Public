@@ -93,6 +93,11 @@ def test_split_dataset_along_dim(cmod_test_dataset):
     with pytest.raises(ValueError):
         split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
 
+    # Check that an error is thrown if too many pre split values are provided
+    pre_split = [all_shots[:10], []]
+    with pytest.raises(ValueError):
+        split_dataset_along_dim(ds, [0.001, 0.999], "shot", 42, pre_split=pre_split)
+
 
 @pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []], [[1], [3], [2]]])
 @pytest.mark.parametrize("ordered", [True, False])
@@ -107,10 +112,11 @@ def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset: xr.Dat
     split_fracs = [0.68, 0.21, 0.11]
 
     def check_splits_ordered(split_datasets, dim, pre_split):
+        # Ordered except for the pre_split values
         if pre_split:
-            for split_dataset, pre_split_vals in zip(split_datasets, pre_split):
-                if len(pre_split_vals) > 0:
-                    split_dataset = split_dataset.drop_sel({dim: jnp.asarray(pre_split_vals)})
+            for i in range(len(pre_split)):
+                if len(pre_split[i]) > 0:
+                    split_datasets[i] = split_datasets[i].drop_sel({dim: jnp.asarray(pre_split[i])})
 
         for i in range(1, len(split_datasets)):
             max_prev = split_datasets[i - 1][dim].values.max()
@@ -122,6 +128,11 @@ def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset: xr.Dat
             assert jnp.all(jnp.isin(pre_split, split["shot"].values))
 
     split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=ordered, pre_split=pre_split)
+
+    num_shots_original = len(ds["shot"])
+    num_shots_split = sum(len(split["shot"]) for split in split_datasets)
+    assert num_shots_original == num_shots_split
+
     if pre_split:
         check_splits_contain_pre_split(split_datasets, pre_split)
     if ordered:
