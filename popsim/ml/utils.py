@@ -29,7 +29,7 @@ def _count_repeat_elements(times: Array) -> Array:
 
 def _repeat_time_hack(times: Array, eps_mult: int = 1) -> Array:
     """Diffrax has issues with both repeated times and nans in the time array. The solution is to repeat the last
-    time but with a small epsilon added to it.
+    time but with a small epsilon added to it. Note the epsilon is the machine epsilon scaled by the maximum time (without the scaling, there are edge cases where the number won't change at all).
 
     Example:
         jnp.array([0, 1, 2, 3, 4, 4, 4]) -> jnp.array([0, 1, 2, 3, 4, 4 + eps_mult * eps, 4 + 2 * eps_mult * eps])
@@ -42,4 +42,8 @@ def _repeat_time_hack(times: Array, eps_mult: int = 1) -> Array:
     """
     repeat_counts = _count_repeat_elements(times)
     epsilon = jnp.finfo(times.dtype).eps  # Machine epsilon for the dtype of times.
-    return times + eps_mult * epsilon * repeat_counts
+
+    # We need to add a scaled epsilon, as adding too small an epsilon will sometimes result in the same time.
+    scaled_eps = epsilon * jnp.maximum(1.0, jnp.max(jnp.abs(times)))
+
+    return times + eps_mult * scaled_eps * repeat_counts

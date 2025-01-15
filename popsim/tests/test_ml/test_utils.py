@@ -29,3 +29,13 @@ def test_count_repeat_elements(times, expected):
 def test_repeat_time_hack(times, eps_mult, expected):
     result = _repeat_time_hack(times, eps_mult)
     np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
+    assert (result[1:] > result[:-1]).all()
+
+@pytest.mark.parametrize("times", [
+    jnp.array([2.11699986, 2.12600017, 2.13499999,
+       2.14500022, 2.15400004, 2.16400027, 2.1730001 , 2.18299985,
+       2.19200015, 2.20099998, 2.2110002 , 2.2110002 , 2.2110002])]
+)
+def test_repeat_time_hack_only_inequality(times):
+    out = _repeat_time_hack(times)
+    assert (out[1:] > out[:-1]).all()
