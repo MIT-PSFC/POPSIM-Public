@@ -8,12 +8,12 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from cfspopcon.jax_compatible.current_drive import calc_f_shaping, calc_q_star
-from cfspopcon.jax_compatible.geometry import calc_plasma_volume
 from jaxtyping import Array
 from scipy.constants import eV, mu_0
 
 from popsim.basis import Basis1DProtocol, BSplineBasis, InterpedLinearBasis
+from popsim.cfspopcon_jax.current_drive import calc_f_shaping, calc_q_star
+from popsim.cfspopcon_jax.geometry import calc_plasma_volume
 from popsim.ml import DataLoader
 
 
