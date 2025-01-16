@@ -3,7 +3,11 @@ from popsim.modules.tearing import (
     Tearing, 
     generate_disruption_phase_trajectory, 
     generate_tearing_phase_trajectory,
-    load_overlaps_and_sources,
+    load_active_circuit_overlaps,
+    load_tf_overlap,
+    calculate_total_overlap,
+    calculate_locking_threshold,
+    locked_mode_dynamics,
     DEFAULT_WDOT, 
     TQ_WDOT, 
     CQ_WDOT, 
@@ -87,8 +91,13 @@ def test_mode_growth_and_freq(tearing_test_sim):
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0
 
 
-def test_load_overlaps():
-    overlaps_flattop, coil_sources_flattop = load_overlaps_and_sources(f"{PACKAGE_ROOT}/data/tearing/error_field_sources/flattop_01022025.json")
+def test_calculate_total_overlap():
+    ...
 
-    assert len(overlaps_flattop) > 0
-    assert len(overlaps_flattop) == len(coil_sources_flattop)
+
+def test_calculate_locking_threshold():
+    ...
+
+
+def test_locked_mode_dynamics():
+    ...

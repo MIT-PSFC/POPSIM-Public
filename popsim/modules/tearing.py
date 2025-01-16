@@ -293,14 +293,12 @@ class Tearing(ModuleBase):
         return tearing_module, tearing_initial_state, tearing_params, time_base
 
 
-def load_coil_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
+def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
     """
-    Load the overlap data and sources for the error field locking module.
+    Load the overlap data for the active circuits
 
     Args:
-        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per mm displacement.
-        tf_error_field_file (str): The path to a JSON file containing the error field data for the TF coils.
-        tf_error_field_percentile (float): The percentile of the error field contribution to use for the TF coils
+        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per m displacement.
 
     Returns:
         overlaps (dict[str, dict[str, complex]]): The overlap data for each coil source in terms of delta per amp.
@@ -423,7 +421,7 @@ def load_tf_overlap(tf_overlap_file: str, overlap_percentile: float) -> dict[str
     return tf_overlap
 
 
-def calculate_error_field_overlap(
+def calculate_total_overlap(
     config: "ErrorFieldLocking.Config",
     delta_static: complex,
     pf_active_circuit_current: dict[str, float],
@@ -441,27 +439,28 @@ def calculate_error_field_overlap(
     for coil, current in pf_active_circuit_current.items():
         overlap_inst += current * overlaps[coil][coil]
 
+    overlap_inst *= config.efc_efficiency
+
     return overlap_inst
 
 
-def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
+def calculate_locking_threshold(scaling_law_params: dict[str, float], scaling_law_terms: dict[str, list[float]]) -> float:
     """
-    Calculate the locking scaling law.
+    Calculate the locking threshold based on an arbitrary scaling law.
 
-    NOTE: This does not work well when the simulation includes early time points at which ne=0. This will cause the scaling to be 0.
-    Thus, we have added a catch that checks that ne > 0.3e20 m^-3. This needs to be addressed before integrating with POPSIM.
+    Args:
+        scaling_law_params (dict[str, float]): The parameters for the scaling law.
+        scaling_law_terms (dict[str, list[float]]): The terms for the scaling law, where the first element is the power of the parameter and the second is the error.
 
-    TODO(ZanderKeith): Put everything in SI units, and make sure the scaling law is correct.
+    Returns:
+        float: The locking threshold.
     """
 
-    # We're assuming that the parameters are a superset of the terms
+    # We're assuming that the parameters are a superset of the terms. If not, this will throw an error.
     delta = 1.0
     for key, value in scaling_law_params.items():
         if key in scaling_law_terms:
-            if key == "ne":
-                delta *= jnp.maximum(value, 3) ** scaling_law_terms[key][0]
-            else:
-                delta *= value ** scaling_law_terms[key][0]
+            delta *= value ** scaling_law_terms[key][0]
 
     return delta
 
@@ -506,11 +505,11 @@ def locked_mode_dynamics(
 class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
     class Config:
-        # Total overlap from the TF coils (pre-calculated since this shouldn't change over time)
+        # Combined overlap from the TF coils (pre-calculated since this shouldn't change over time)
         tf_overlap: float
 
         # Static EF sources from ferritic materials in the Tokamak Hall.
-        static_sources: dict[str, complex]
+        static_source_overlaps: dict[str, complex]
 
         # The phase offset of the first TF coil proceeding from the +x axis counter-clockwise
         tf_phase_offset: float = 0.0
@@ -539,7 +538,7 @@ class ErrorFieldLocking(ModuleBase):
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
         scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
         pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
-        overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source
+        active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source
         rational_surface_exists: int  # Placeholder. Must have some term (be it q90 or something) that indicates the existence of a rational surface
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
@@ -550,29 +549,29 @@ class ErrorFieldLocking(ModuleBase):
         mode_current: dict[tuple[int, int], float]
         mode_phase: dict[tuple[int, int], float]
         mode_freq: dict[tuple[int, int], float]
-        error_field_overlap: dict[tuple[int, int], float]
+        total_overlap: dict[tuple[int, int], float]
         locking_threshold: dict[tuple[int, int], float]
         aux_data: dict = None
 
     config: Config
-    delta_static: complex
+    static_overlap: complex
 
     def __init__(self, config):
         self.config = config
-        self.delta_static: complex = np.sum([self.config.overlaps[key]["nominal"] for key in self.config.static_sources])
+        self.static_overlap = sum(config.static_source_overlaps.values())
 
     def __call__(
         self, state: "ErrorFieldLocking.State", params: "ErrorFieldLocking.Params"
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
         # Just doing the transition from none -> locked -> none for now
 
-        error_field_overlap = calculate_error_field_overlap(
-            self.config, self.delta_static, params.pf_active_circuit_current, params.overlaps
+        total_overlap = calculate_total_overlap(
+            self.config, self.static_overlap, params.pf_active_circuit_current, params.active_circuit_overlaps
         )
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 
         # If the overlap is greater than the threshold, the mode is locked
-        new_tearing_phase = locked_mode_dynamics(self.config, state, error_field_overlap, locking_threshold, params.rational_surface_exists)
+        new_tearing_phase = locked_mode_dynamics(self.config, state, total_overlap, locking_threshold, params.rational_surface_exists)
 
         for mode in self.config.modes:
             state.W[mode] = jnp.where(new_tearing_phase == TearingPhase.LOCKED, 1e-2, 0)
@@ -589,7 +588,7 @@ class ErrorFieldLocking(ModuleBase):
             mode_current={},
             mode_phase={},
             mode_freq={},
-            error_field_overlap=error_field_overlap,
+            total_overlap=total_overlap,
             locking_threshold=locking_threshold,
         )
 
