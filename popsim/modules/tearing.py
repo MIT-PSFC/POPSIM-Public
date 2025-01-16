@@ -456,11 +456,12 @@ def calculate_locking_threshold(scaling_law_params: dict[str, float], scaling_la
         float: The locking threshold.
     """
 
-    # We're assuming that the parameters are a superset of the terms. If not, this will throw an error.
+    if scaling_law_params.keys() != scaling_law_terms.keys():
+        raise ValueError("scaling_law_params and scaling_law_terms must have the same keys")
+
     delta = 1.0
     for key, value in scaling_law_params.items():
-        if key in scaling_law_terms:
-            delta *= value ** scaling_law_terms[key][0]
+        delta *= value ** scaling_law_terms[key][0]
 
     return delta
 

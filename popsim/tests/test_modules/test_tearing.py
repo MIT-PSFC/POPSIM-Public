@@ -144,8 +144,50 @@ def test_calculate_total_overlap():
 
 
 def test_calculate_locking_threshold():
-    ...
+    # Ensure the locking threshold function can be called with arbitrary parameters and terms
+    scaling_law_params = {"a": 2, "b": 1, "c": 3}
+    scaling_law_terms = {"a": [2, .1], "b": [3, .2], "c": [4, .2]}
+
+    computed_result = calculate_locking_threshold(scaling_law_params, scaling_law_terms)
+
+    expected_result = (2 ** 2) * (1 ** 3) * (3 ** 4)
+
+    assert np.isclose(computed_result, expected_result)
+
+    # Ensure that if there is a term that isn't one of the parameters, an error is raised
+    scaling_law_terms = {"a": [2, .1], "d": [3, .2]}
+    with pytest.raises(ValueError):
+        calculate_locking_threshold(scaling_law_params, scaling_law_terms)
 
 
-def test_locked_mode_dynamics():
-    ...
+@pytest.mark.parametrize("overlap, threshold, present_phase, expected_phase",
+    [
+        # Test case 1: No mode, overlap is less than threshold
+        (0.1, 0.9, TearingPhase.NONE, TearingPhase.NONE),
+        # Test case 2: No mode, overlap is greater than threshold
+        (1.0, 0.9, TearingPhase.NONE, TearingPhase.LOCKED),
+        # Test case 3: Mode exists, overlap is significantly less than threshold
+        (0.1, 0.9, TearingPhase.LOCKED, TearingPhase.NONE),
+        # Test case 4: Mode exists, overlap is only slightly less than threshold
+        (0.89, 0.9, TearingPhase.LOCKED, TearingPhase.LOCKED),
+        # Test case 5: Mode exists, overlap is greater than threshold
+        (1.0, 0.9, TearingPhase.LOCKED, TearingPhase.LOCKED)
+    ]
+)
+@pytest.mark.parametrize("rational_surface_exists", [0, 1])
+def test_locked_mode_dynamics(overlap, threshold, present_phase, expected_phase, rational_surface_exists):
+    # Ensure the locked mode dynamics function behaves as expected
+    if rational_surface_exists == 0:
+        expected_phase = TearingPhase.NONE
+
+    config = ErrorFieldLocking.Config(
+        tf_overlap = 1,
+        static_source_overlaps={},
+        efc_efficiency=0.5,
+        hysteresis=0.9,
+    )
+    state = ErrorFieldLocking.State(tearing_phase=present_phase)
+    
+    computed_phase = locked_mode_dynamics(config, state, overlap, threshold, rational_surface_exists)
+
+    assert computed_phase == expected_phase
