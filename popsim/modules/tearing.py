@@ -295,7 +295,7 @@ class Tearing(ModuleBase):
 
 def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
     """
-    Load the overlap data for the active circuits
+    Load the overlap data for the active circuits. This is mostly just a placeholder until we get the real data.
 
     Args:
         error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per m displacement.
@@ -373,7 +373,7 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
                 position_error = (np.random.random() ** 0.3) * tolerance
 
                 # Random phase for tilt/shift
-                phase = 1 / np.sqrt(2) * (np.random.random() + 1.0j * np.random.random())
+                phase = (1 / np.sqrt(2)) * (np.random.random() + 1.0j * np.random.random())
 
                 # Convert into delta per amp
                 try:
@@ -390,7 +390,8 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
 
             overlaps_single[coil_name] = overlaps_single.get(coil_name, 0) + source_overlap
 
-        overlaps[coil_name] = overlaps_single
+        for key, value in overlaps_single.items():
+            overlaps[key] = value
 
     return overlaps
 
@@ -424,20 +425,19 @@ def load_tf_overlap(tf_overlap_file: str, overlap_percentile: float) -> dict[str
 def calculate_total_overlap(
     config: "ErrorFieldLocking.Config",
     delta_static: complex,
-    pf_active_circuit_current: dict[str, float],
-    overlaps: dict[str, complex],
+    active_circuit_currents: dict[str, float],
+    active_circuit_overlaps: dict[str, complex],
 ) -> complex:
     """
     Calculates the total overlap of the EF sources based on the
     simulation's current state.
     """
 
-    # Instantaneous overlap starts with that from the TF's and static sources
+    # Instantaneous overlap starts with the TF's and static sources
     overlap_inst = config.tf_overlap + delta_static
 
-    # for coil in pfcscoils:
-    for coil, current in pf_active_circuit_current.items():
-        overlap_inst += current * overlaps[coil][coil]
+    for circuit, current in active_circuit_currents.items():
+        overlap_inst += current * active_circuit_overlaps[circuit]
 
     overlap_inst *= config.efc_efficiency
 
@@ -537,8 +537,8 @@ class ErrorFieldLocking(ModuleBase):
     class Params:
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
         scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
-        pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
-        active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source
+        active_circuit_currents: dict[str, float]  # Current in active circuits [A]
+        active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source [delta per A]
         rational_surface_exists: int  # Placeholder. Must have some term (be it q90 or something) that indicates the existence of a rational surface
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
@@ -566,7 +566,7 @@ class ErrorFieldLocking(ModuleBase):
         # Just doing the transition from none -> locked -> none for now
 
         total_overlap = calculate_total_overlap(
-            self.config, self.static_overlap, params.pf_active_circuit_current, params.active_circuit_overlaps
+            self.config, self.static_overlap, params.active_circuit_currents, params.active_circuit_overlaps
         )
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 

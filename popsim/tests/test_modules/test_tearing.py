@@ -1,6 +1,7 @@
 import popsim.param_utils as param_utils
 from popsim.modules.tearing import (
-    Tearing, 
+    Tearing,
+    ErrorFieldLocking,
     generate_disruption_phase_trajectory, 
     generate_tearing_phase_trajectory,
     load_active_circuit_overlaps,
@@ -11,11 +12,13 @@ from popsim.modules.tearing import (
     DEFAULT_WDOT, 
     TQ_WDOT, 
     CQ_WDOT, 
-    INITIAL_ROT_FREQ
+    INITIAL_ROT_FREQ,
+    TearingPhase,
 )
 from popsim.simulate import simulate, make_time_base, SimInput
 from popsim import PACKAGE_ROOT
 import pytest
+import numpy as np
 
 def run_tearing_test_sim():
     """Ensure the simulated mode growth and rotation frequency match the hard-coded values"""
@@ -63,6 +66,7 @@ def run_tearing_test_sim():
 def tearing_test_sim():
     return run_tearing_test_sim()
 
+
 def test_mode_growth_and_freq(tearing_test_sim):
     sol_xarray, aux_data = tearing_test_sim
 
@@ -91,8 +95,52 @@ def test_mode_growth_and_freq(tearing_test_sim):
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0
 
 
+def test_load_tf_overlap():
+    tf_overlap_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/tfef.dat"
+
+    # Ensure an error is raised if the percentile is out of range
+    with pytest.raises(ValueError):
+        load_tf_overlap(tf_overlap_file, -0.1)
+    with pytest.raises(ValueError):
+        load_tf_overlap(tf_overlap_file, 1.1)
+
+    # Ensure the 99th percentile is greater than the 1st percentile
+    tf_overlap_1 = load_tf_overlap(tf_overlap_file, 0.01)
+    tf_overlap_2 = load_tf_overlap(tf_overlap_file, 0.99)
+
+    assert tf_overlap_1 < tf_overlap_2
+
+
 def test_calculate_total_overlap():
-    ...
+    # Make sure total overlap is calculated correctly in a simple case
+    sample_config = ErrorFieldLocking.Config(
+        tf_overlap = 10,
+        static_source_overlaps={"microwave": 2, "fridge": 1},
+        efc_efficiency=0.5,
+    )
+
+    sample_params = ErrorFieldLocking.Params(
+        scaling_law_terms = {},
+        scaling_law_params={},
+        active_circuit_currents={"pf1": 3, "pf2": 4},
+        active_circuit_overlaps={"pf1": 0.5, "pf2": 0.7},
+        rational_surface_exists=1,
+    )
+
+    sample_module = ErrorFieldLocking(config=sample_config)
+
+    _, out = sample_module(
+        state = ErrorFieldLocking.State(tearing_phase=TearingPhase.NONE),
+        params=sample_params
+    )
+    calculated_total = out["total_overlap"]
+
+    expected_tf = 10
+    expected_static = 3
+    expected_active = (3 * 0.5) + (4 * 0.7)
+    expected_total = (expected_tf + expected_static + expected_active) * 0.5
+
+    assert np.isclose(calculated_total, expected_total)
 
 
 def test_calculate_locking_threshold():
