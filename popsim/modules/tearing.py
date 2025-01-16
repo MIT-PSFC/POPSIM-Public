@@ -350,6 +350,7 @@ def load_coil_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str
         for coil_name in rename_dict.get(data_key, [data_key])
     ]
 
+    np.random.seed(0)  # Reproducibility of the random shift/tilt and phase between startup and flattop for now until we get the real data
     for name_pair in name_pairs:
         coil_name = name_pair[0]
         data_key = name_pair[1]
