@@ -27,15 +27,22 @@ def test_count_repeat_elements(times, expected):
      jnp.array([1., 2., 3., 3. + 3. * jnp.finfo(jnp.float64).eps, 3. + 6. * jnp.finfo(jnp.float64).eps, 4., 4. + 3. * jnp.finfo(jnp.float64).eps])),
 ])
 def test_repeat_time_hack(times, eps_mult, expected):
-    result = _repeat_time_hack(times, eps_mult)
+    result = _repeat_time_hack(times)
     np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
     assert (result[1:] > result[:-1]).all()
 
 @pytest.mark.parametrize("times", [
     jnp.array([2.11699986, 2.12600017, 2.13499999,
        2.14500022, 2.15400004, 2.16400027, 2.1730001 , 2.18299985,
-       2.19200015, 2.20099998, 2.2110002 , 2.2110002 , 2.2110002])]
-)
+       2.19200015, 2.20099998, 2.2110002 , 2.2110002 , 2.2110002]),
+    jnp.array([1e10, np.nan, 1e11, 1e12, 1e12]),
+    jnp.array([1e-200, 1e-200, 1e-200, 2e-200, 3e-200]),
+    jnp.ones(10),
+    # TODO(ZanderKeith): jnp.zeros(10),
+    # For the case of jnp.zeros(10), the function works but I don't know how to write a test for it
+    # The > operator always returns False even though the array is strictly increasing.
+    # Also, you can't do subtraction on floats too close to zero (~1e-324), it will just return zero.
+])
 def test_repeat_time_hack_only_inequality(times):
     out = _repeat_time_hack(times)
     assert (out[1:] > out[:-1]).all()
