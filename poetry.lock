@@ -6182,7 +6182,7 @@ dev = ["pyink", "pylint (>=2.6.0)", "pytest", "pytest-shard", "pytest-xdist", "s
 type = "git"
 url = "https://github.com/google-deepmind/torax.git"
 reference = "HEAD"
-resolved_reference = "731413b258da4473b6856731c02954b44d871fba"
+resolved_reference = "7bd6805ec7d4285215f76589ffa8b0620ed83479"
 
 [[package]]
 name = "tornado"
