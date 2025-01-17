@@ -174,6 +174,5 @@ atomic_data/
 
 # Large data files
 docs/notebooks/test_tearing_out.h5
-popsim/data/tearing/pcs_data_for_onsim2.h5
 popsim/data/tearing/sparc_delta_per_m_n1_final_LMODE_QGT1_time11.nc
 submodules/Device-description
