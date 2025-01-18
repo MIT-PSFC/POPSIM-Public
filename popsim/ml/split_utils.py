@@ -38,29 +38,6 @@ def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
     return segment_lengths
 
 
-def manual_split(ds: xr.Dataset, dim: str, splits: Sequence[Sequence]) -> tuple[xr.Dataset, Sequence[xr.Dataset]]:
-    """Specify the values of dim to include in each split.
-
-    Args:
-        ds (xr.Dataset): dataset to be split.
-        dim (str): dimension to split the dataset along.
-        splits (Sequence[Sequence]): values of dim to include in each split.
-
-    Returns:
-        reduced_dataset: xr.Dataset: dataset with the values of dim specified in splits removed.
-        manual_splits: Sequence[xr.Dataset]: sequence of datasets with the values of dim specified in splits.
-    """
-
-    covered_vals = np.concatenate(splits)
-    missing_values = [val for val in covered_vals if val not in ds[dim]]
-    if missing_values:
-        raise ValueError(f"The following values in splits are not in ds[{dim}]: {missing_values}")
-
-    manual_splits = [ds.sel({dim: np.asarray(vals)}) for vals in splits]
-    reduced_dataset = ds.drop_sel({dim: covered_vals})
-    return reduced_dataset, manual_splits
-
-
 def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], seed: int) -> list[jax.Array]:
     """Generate indicies to split a dataset into non-overlapping new datasets.
 
@@ -90,7 +67,7 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_along_dim(
+def split_dataset_by_fracs(
     ds: xr.Dataset,
     fracs: Sequence[float],
     dim: str,
@@ -121,3 +98,26 @@ def split_dataset_along_dim(
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
 
     return dataset_splits
+
+
+def split_dataset_by_vals(ds: xr.Dataset, vals: Sequence[Sequence], dim: str) -> tuple[xr.Dataset, Sequence[xr.Dataset]]:
+    """Split a dataset into multiple datasets along a dimension by specifying the values of the dimension to include in each split.
+
+    Args:
+        ds (xr.Dataset): dataset to be split.
+        vals (Sequence[Sequence]): values of dim to include in each split.
+        dim (str): dimension to split the dataset along.
+
+    Returns:
+        dataset_splits: Sequence[xr.Dataset]: sequence of datasets with the vals of dim specified.
+        reduced_dataset: xr.Dataset: dataset with the vals of dim specified removed.
+    """
+
+    covered_vals = np.concatenate(vals)
+    missing_values = [val for val in covered_vals if val not in ds[dim]]
+    if missing_values:
+        raise ValueError(f"The following values in splits are not in ds[{dim}]: {missing_values}")
+
+    dataset_splits = [ds.sel({dim: np.asarray(val)}) for val in vals]
+    reduced_dataset = ds.drop_sel({dim: covered_vals})
+    return dataset_splits, reduced_dataset
