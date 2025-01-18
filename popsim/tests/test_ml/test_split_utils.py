@@ -6,7 +6,7 @@ import pytest
 import jax.numpy as jnp
 import xarray as xr
 
-from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_along_dim
+from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_along_dim, manual_split
 from popsim.tests.fixtures import cmod_test_dataset
 
 def test_fracs_to_lengths():
@@ -83,21 +83,22 @@ def test_split_dataset_along_dim(cmod_test_dataset):
     with pytest.raises(ValueError):
         split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", 42)
 
-    # Check that an error is thrown if the pre split length doesn't match the split fracs length
-    pre_split = [[0, 10, 20], []]
-    with pytest.raises(ValueError):
-        split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
+
+def test_manual_split(cmod_test_dataset):
+    ds = cmod_test_dataset
+
+    # Check that the lengths of the splits are correct and the reduced dataset does not contain the values specified in the splits
+    split_idxs = [[0, 1, 2, 3, 4], [5, 6, 7], [8, 9]]
+    splits = [ds["shot"].values[idxs] for idxs in split_idxs]
+    reduced_dataset, manual_splits = manual_split(ds, "shot", splits)
+    assert len(manual_splits) == len(splits)
+    for shot in jnp.concatenate(splits):
+        assert shot not in reduced_dataset["shot"].values
 
     # Check than an error is thrown if the pre split doesn't contain dims that are in the dataset
-    pre_split = [[-1], [], []]
+    splits = [[-1], [], []]
     with pytest.raises(ValueError):
-        split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
-
-    # Check that an error is thrown if too many pre split values are provided
-    pre_split = [all_shots[:10], []]
-    with pytest.raises(ValueError):
-        split_dataset_along_dim(ds, [0.001, 0.999], "shot", 42, pre_split=pre_split)
-
+        manual_split(ds, "shot", splits)
 
 @pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []], [[1], [3], [2]]])
 @pytest.mark.parametrize("ordered", [True, False])
@@ -127,7 +128,15 @@ def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset: xr.Dat
         for split, pre_split in zip(split_datasets, pre_split):
             assert jnp.all(jnp.isin(pre_split, split["shot"].values))
 
-    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=ordered, pre_split=pre_split)
+    if pre_split:
+        reduced_ds, manual_splits = manual_split(ds, "shot", pre_split)
+        random_splits = split_dataset_along_dim(reduced_ds, split_fracs, "shot", 42, ordered=ordered)
+        split_datasets = [
+            xr.concat([manual_split, random_split], dim="shot") if len(manual_split["shot"]) > 0 else random_split
+            for manual_split, random_split in zip(manual_splits, random_splits)
+        ]
+    else:
+        split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=ordered)
 
     num_shots_original = len(ds["shot"])
     num_shots_split = sum(len(split["shot"]) for split in split_datasets)

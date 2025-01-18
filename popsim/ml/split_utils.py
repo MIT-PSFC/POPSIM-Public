@@ -38,6 +38,29 @@ def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
     return segment_lengths
 
 
+def manual_split(ds: xr.Dataset, dim: str, splits: Sequence[Sequence]) -> tuple[xr.Dataset, Sequence[xr.Dataset]]:
+    """Specify the values of dim to include in each split.
+
+    Args:
+        ds (xr.Dataset): dataset to be split.
+        dim (str): dimension to split the dataset along.
+        splits (Sequence[Sequence]): values of dim to include in each split.
+
+    Returns:
+        reduced_dataset: xr.Dataset: dataset with the values of dim specified in splits removed.
+        manual_splits: Sequence[xr.Dataset]: sequence of datasets with the values of dim specified in splits.
+    """
+
+    covered_vals = np.concatenate(splits)
+    missing_values = [val for val in covered_vals if val not in ds[dim]]
+    if missing_values:
+        raise ValueError(f"The following values in splits are not in ds[{dim}]: {missing_values}")
+
+    manual_splits = [ds.sel({dim: np.asarray(vals)}) for vals in splits]
+    reduced_dataset = ds.drop_sel({dim: covered_vals})
+    return reduced_dataset, manual_splits
+
+
 def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], seed: int) -> list[jax.Array]:
     """Generate indicies to split a dataset into non-overlapping new datasets.
 
@@ -73,7 +96,6 @@ def split_dataset_along_dim(
     dim: str,
     seed: int,
     ordered: Optional[bool] = False,
-    pre_split: Optional[Sequence[Sequence]] = None,
 ) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
@@ -83,7 +105,6 @@ def split_dataset_along_dim(
         dim (str): dimension to split the dataset along.
         seed (int): seed for psuedo-random number generation.
         ordered (bool, optional): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data. Defaults to False.
-        pre_split (Sequence[Sequence], optional): Values of dim to include in each split. Defaults to None. Throws an error if the lengths of the pre_split and fracs are not equal, if there are too many values for the split fraction, or if the pre_split values are not a subset of the values in ds[dim].
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
@@ -92,39 +113,11 @@ def split_dataset_along_dim(
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
 
-    # Take out the pre_split values beforehand and adjust lengths accordingly
-    if pre_split is not None:
-        if len(pre_split) != len(fracs):
-            raise ValueError(f"The lengths of the pre_split ({len(pre_split)}) and fracs ({len(fracs)}) must be equal.")
-
-        covered_vals = np.concatenate(pre_split)
-        missing_values = [val for val in covered_vals if val not in ds[dim]]
-        if missing_values:
-            raise ValueError(f"The following values in pre_split are not in ds[dim]: {missing_values}")
-
-        original_lengths = lengths
-        lengths = [length - len(vals) for length, vals in zip(lengths, pre_split)]
-        if any(length < 0 for length in lengths):
-            raise ValueError(
-                f"Too many pre_split values for the split fractions. Allocated {original_lengths} from {fracs}, but pre_split has {[len(vals) for vals in pre_split]} values."
-            )
-
-        dataset_splits_pre = [ds.sel({dim: np.asarray(vals)}) for vals in pre_split]
-        ds = ds.drop_sel({dim: covered_vals})
-        n_data = ds.sizes[dim]
-    else:
-        dataset_splits_pre = None
-
     if ordered:
         ds = ds.sortby(dim)
         split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
     else:
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
-
-    if dataset_splits_pre is not None:
-        for i in range(len(fracs)):
-            if len(pre_split[i]) > 0:
-                dataset_splits[i] = xr.concat([dataset_splits[i], dataset_splits_pre[i]], dim=dim)
 
     return dataset_splits
