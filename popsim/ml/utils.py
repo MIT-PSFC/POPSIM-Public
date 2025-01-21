@@ -27,19 +27,29 @@ def _count_repeat_elements(times: Array) -> Array:
     return counts
 
 
-def _repeat_time_hack(times: Array, eps_mult: int = 1) -> Array:
-    """Diffrax has issues with both repeated times and nans in the time array. The solution is to repeat the last
-    time but with a small epsilon added to it.
+def _repeat_time_hack(times: Array) -> Array:
+    """Diffrax has issues with both repeated times and nans in the time array.
+    The solution is to repeat the last time but with a small epsilon added to it.
+    This epsilon addition is handled by jnp.nextafter, which accounts for properly scaling the epsilon
+    to yield a number which is actually greater than the input given floating point accuracy.
 
-    Example:
-        jnp.array([0, 1, 2, 3, 4, 4, 4]) -> jnp.array([0, 1, 2, 3, 4, 4 + eps_mult * eps, 4 + 2 * eps_mult * eps])
+    Examples:
+        jnp.array([0, 1, 2, 3, 4, 4, 4]) -> jnp.array([0, 1, 2, 3, 4, 4 + eps, 4 + 2 * eps])
+        jnp.array([0, 1, nan, 3, 4, 4, 5]) -> jnp.array([0, 1, 1 + eps, 3, 4, 4 + eps, 5])
 
     Args:
-        times (Array): array of times in ascending order possibly with repeat elements at the end.
+        times (Array): array of times in ascending order possibly with repeat elements or nans.
     Returns:
-        Array: Given an array of times that is sorted in ascending order and may contain repeat elements at
-        the end, pad the repeated elements with a small epsilon.
+        Array: Given an array of times that is sorted in ascending order and may contain repeat elements or nan elements in arbitrary locations,
+        pad later elements with a small epsilon to ensure the times are strictly increasing.
     """
-    repeat_counts = _count_repeat_elements(times)
-    epsilon = jnp.finfo(times.dtype).eps  # Machine epsilon for the dtype of times.
-    return times + eps_mult * epsilon * repeat_counts
+
+    def scan_func(carry, current_val):
+        prev_val, _ = carry
+        current_val = jax.lax.cond(
+            jnp.greater(current_val, prev_val), lambda _: current_val, lambda _: jnp.nextafter(prev_val, jnp.inf), operand=None
+        )
+        return (current_val, _), current_val
+
+    _, times = jax.lax.scan(scan_func, (times[0], -1), times)
+    return times
