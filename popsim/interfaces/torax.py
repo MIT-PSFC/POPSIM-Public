@@ -9,8 +9,10 @@ import xarray as xr
 from jaxtyping import Array
 from loguru import logger
 from torax import output, simulation_app
-from torax.config import build_sim, config_loader
+from torax.config import build_sim
 from tqdm import tqdm
+
+import popsim
 
 
 def monitor_memory():
@@ -21,19 +23,12 @@ def monitor_memory():
     return memory, snapshot
 
 
-import popsim
 from popsim.jax_utils import jax_cpu
 from popsim.xarray_utils import pytree_to_xarray
 
 """
 Helper functions to run Torax simulations given a Torax config dictionary.
 """
-
-
-def config_to_sim(config: dict[str, Any]):
-    config_loader.maybe_update_config_with_qlknn_model_path(config, popsim.TORAX_QLKNN_MODEL_PATH)
-    sim = build_sim.build_sim_from_config(config)
-    return sim
 
 
 def _run_torax(config: dict[str, Any]) -> xr.Dataset:
@@ -49,7 +44,7 @@ def _run_torax(config: dict[str, Any]) -> xr.Dataset:
     # Convert jax arrays to lists
     config = jax.tree.map(lambda x: x.tolist() if isinstance(x, Array) else x, config)
 
-    sim = config_to_sim(config)
+    sim = build_sim.build_sim_from_config(config)
     geo = sim.geometry_provider(sim.initial_state.t)
 
     simulation_app.log_to_stdout("Starting simulation.", color=simulation_app.AnsiColors.GREEN)
@@ -57,7 +52,13 @@ def _run_torax(config: dict[str, Any]) -> xr.Dataset:
     simulation_app.log_to_stdout("Finished running simulation.", color=simulation_app.AnsiColors.GREEN)
     state_history = output.StateHistory(sim_outputs, sim.source_models)
 
-    ds = state_history.simulation_output_to_xr(geo, sim.file_restart)
+    dt = state_history.simulation_output_to_xr(geo, sim.file_restart)
+
+    # Convert the DataTree to an xarray Dataset.
+    # In the future, as Torax grows in complexity, it will likely make more sense to operate with datatrees.
+    datasets = [dt.to_dataset()] + [node.to_dataset() for node in dt.descendants]
+
+    ds = xr.merge(datasets)
 
     # It's more convienient to work with the normalized rho_cell dimension
     ds = ds.swap_dims({"rho_cell": "rho_cell_norm"})
@@ -176,10 +177,10 @@ def get_sparc_lmode_base_config():
         "runtime_params": {
             "plasma_composition": {
                 # physical inputs
-                "Ai": 2.5,  # amu of main ion (if multiple isotope, make average)
+                "main_ion": {"D": 0.5, "T": 0.5},  # (bundled isotope average)
                 "Zeff": 1.5,  # needed for qlknn and fusion power
                 # effective impurity charge state.
-                "Zimp": 10,
+                "Zimp_override": 10,
             },
             "profile_conditions": {
                 "Ip_tot": 8.7,  # total plasma current in MA
@@ -194,10 +195,6 @@ def get_sparc_lmode_base_config():
                 "ne_is_fGW": False,
                 "ne": {0: {0.0: 5.0, 1.0: 2.0}},  # Initial electron density profile
                 "set_pedestal": True,
-                "Tiped": 1.0,  # ion pedestal top temperature in keV for Ti and Te
-                "Teped": 1.0,  # electron pedestal top temperature in keV for Ti and Te
-                "neped": 2.0,  # pedestal top electron density in units of nref
-                "Ped_top": 0.95,
             },
             "numerics": {
                 # simulation control
@@ -212,6 +209,12 @@ def get_sparc_lmode_base_config():
                 "dtmult": 50,
                 "dt_reduction_factor": 3,
             },
+        },
+        "pedestal": {
+            "Tiped": 1.0,  # ion pedestal top temperature in keV for Ti and Te
+            "Teped": 1.0,  # electron pedestal top temperature in keV for Ti and Te
+            "neped": 2.0,  # pedestal top electron density in units of nref
+            "rho_norm_ped_top": 0.95,
         },
         "geometry": {
             "geometry_type": "circular",
@@ -282,6 +285,7 @@ def get_sparc_lmode_base_config():
                 # effective D
                 "An_min": 0.05,
                 "ITG_flux_ratio_correction": 1,
+                "model_path": popsim.TORAX_QLKNN_MODEL_PATH,
             },
         },
         "stepper": {
