@@ -75,8 +75,8 @@ def test_dynamics():
     assert jnp.isclose(float(dataset['output.tau_E'][0]),0.1834906)
     assert jnp.isclose(float(dataset['output.tau_E'][1]),0.67667817)
 
-    assert jnp.isclose(float(dataset['output.species_confinement_time.Impurity.Tungsten'][0]),1.834906)
-    assert jnp.isclose(float(dataset['output.species_confinement_time.Impurity.Tungsten'][1]),6.7667817)
+    assert jnp.isclose(float(dataset['output.species_confinement_time.AtomicSpecies.Tungsten'][0]),1.834906)
+    assert jnp.isclose(float(dataset['output.species_confinement_time.AtomicSpecies.Tungsten'][1]),6.7667817)
 
     in_hmodes = dataset['output.in_hmode']
     assert in_hmodes[0] == False

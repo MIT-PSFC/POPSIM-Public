@@ -26,7 +26,8 @@ def build_comet_mirror_config():
 
     config = CometMirror.Config(
         species=species_container,
-        profile_form=input_parameters["profile_form"],
+        density_profile_form=input_parameters["density_profile_form"],
+        temp_profile_form=input_parameters["temp_profile_form"],
         rho=np.linspace(0, 1, 30),
     )
 

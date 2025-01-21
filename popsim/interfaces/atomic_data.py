@@ -7,8 +7,8 @@ import chex
 import interpax
 import jax.numpy as jnp
 import xarray as xr
-from cfspopcon import atomic_data
 
+import atomic_data
 from popsim import ATOMIC_DATA_PATH
 from popsim.enums import Impurity
 
@@ -84,9 +84,7 @@ def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, int
 def read_atomic_data() -> RadasCurves:
     # Check that the path exists.
     if ATOMIC_DATA_PATH.exists() is False:
-        raise FileNotFoundError(
-            f"Could not find the atomic data directory {ATOMIC_DATA_PATH}. Try running bash .github/workflows/build_radas.sh from the root of the repo."
-        )
+        raise FileNotFoundError(f"Could not find the atomic data directory {ATOMIC_DATA_PATH}.")
 
     data = atomic_data.read_atomic_data(ATOMIC_DATA_PATH, build_interpolator=_build_interpolator)
     # Convert the enums to popsim types.

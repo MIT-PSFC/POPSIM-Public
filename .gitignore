@@ -164,4 +164,8 @@ cython_debug/
 *.code-workspace
 
 # Atomic data
-atomic_data/
+atomic_data/output
+atomic_data/data_files
+
+# Ignore .DS_Store
+*.DS_Store

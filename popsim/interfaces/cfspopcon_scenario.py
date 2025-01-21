@@ -4,13 +4,13 @@ import cfspopcon
 import xarray as xr
 from cfspopcon.unit_handling import Quantity
 
-from popsim import SUBMODULES_DIR
+from popsim import PACKAGE_ROOT
 from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 
 
 def load_cfspopcon_scenario(case_name: str = "SPARC_PRD"):
-    case_path = os.path.join(SUBMODULES_DIR, f"cfspopcon/example_cases/{case_name}")
-    input_parameters, algorithm, points = cfspopcon.read_case(case_path)
+    case_path = os.path.join(PACKAGE_ROOT, f"cfspopcon_jax/example_cases/{case_name}")
+    input_parameters, algorithm, points, plots = cfspopcon.read_case(case_path)
     return input_parameters, algorithm, points
 
 
@@ -27,7 +27,7 @@ def load_cfspopcon_scenario_for_comet_mirror(case_name: str = "SPARC_PRD"):
 
     algorithm.validate_inputs(input_parameters)
 
-    impurity_types = [Impurity(impurity.value) for impurity in input_parameters["impurities"].dim_species.data]
+    impurity_types = [Impurity(impurity.value) for impurity in input_parameters["intrinsic_impurity_concentration"].dim_species.data]
 
     species_container = SpeciesContainer(species=[FuelSpecies.Deuterium, FuelSpecies.Tritium, *impurity_types])
 
@@ -43,7 +43,7 @@ def load_cfspopcon_scenario_for_comet_mirror(case_name: str = "SPARC_PRD"):
     impurity_concentrations = dict(
         zip(
             impurity_types,
-            input_parameters["impurities"].values,
+            input_parameters["intrinsic_impurity_concentration"].values,
         )
     )
 

@@ -5,22 +5,24 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from cfspopcon.jax_compatible import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
-from cfspopcon.jax_compatible.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
-from cfspopcon.jax_compatible.energy_confinement_time_scalings import tau_e_from_Wp
-from cfspopcon.jax_compatible.fusion_rates import ReactionType
-from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume_cylindrical
-from cfspopcon.named_options import ConfinementScaling
+from cfspopcon.formulas.energy_confinement.read_energy_confinement_scalings import ConfinementScaling, read_confinement_scalings
 from jaxtyping import Array
 
 import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
 from popsim import ModuleBase
+from popsim.cfspopcon_jax import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
+from popsim.cfspopcon_jax.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
+from popsim.cfspopcon_jax.energy_confinement_time_scalings import tau_e_from_Wp
+from popsim.cfspopcon_jax.fusion_rates import ReactionType
+from popsim.cfspopcon_jax.helpers import integrate_profile_over_volume_cylindrical
 from popsim.enums import FuelSpecies, Impurity, ProfileForm, Species, SpeciesContainer
 from popsim.interfaces.atomic_data import RadasCurves, read_atomic_data
 from popsim.physics.geometry import GeometryCFSPopcon
 from popsim.physics.impurities import calc_impurity_radiated_power_radas, calc_impurity_state
 from popsim.physics.profiles import ProfileCalculator
+
+read_confinement_scalings()
 
 
 @chex.dataclass
@@ -64,10 +66,11 @@ class CometMirror(ModuleBase):
         """
 
         species: SpeciesContainer
-        profile_form: ProfileForm
+        density_profile_form: ProfileForm
+        temp_profile_form: ProfileForm
         rho: Array
-        hmode_scaling: ConfinementScaling = ConfinementScaling.ITER98y2
-        lmode_scaling: ConfinementScaling = ConfinementScaling.ITER89P_ka
+        hmode_scaling: ConfinementScaling = ConfinementScaling.instances["ITER98y2"]
+        lmode_scaling: ConfinementScaling = ConfinementScaling.instances["ITER89P_ka"]
         fusion_reaction: ReactionType = ReactionType.DT
         radas_curves: RadasCurves = dataclasses.field(default_factory=read_atomic_data)
 
@@ -86,7 +89,9 @@ class CometMirror(ModuleBase):
         config: Config,
     ):
         self.config = config
-        self.profiles = ProfileCalculator(profile_form=self.config.profile_form, rho=self.config.rho)
+        self.profiles = ProfileCalculator(
+            density_profile_form=self.config.density_profile_form, temp_profile_form=self.config.temp_profile_form, rho=self.config.rho
+        )
         self.hmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.hmode_scaling)
         self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
 
@@ -98,7 +103,7 @@ class CometMirror(ModuleBase):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params) -> State:  # noqa: PLR0915
+    def __call__(self, state: State, params: Params) -> State:
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
             params.magnetic_field_on_axis,

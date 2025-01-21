@@ -11,7 +11,7 @@ def test_prf_profiles():
     transp_profiles = load_prd_transp_profiles()
 
     # calculate profiles
-    pcalc = ProfileCalculator(profile_form=input_parameters["profile_form"], rho=transp_profiles.rho.values)
+    pcalc = ProfileCalculator(density_profile_form=input_parameters["density_profile_form"], temp_profile_form=input_parameters["temp_profile_form"], rho=transp_profiles.rho.values)
 
     """
     Prepare profile inputs

@@ -63,7 +63,7 @@ fi
 # Install dependencies
 echo "Installing dependencies with Poetry..."
 poetry install
-
+poetry run setup-radas # Install radas
 
 # Optional installations
 install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "$INSTALL_GPU")
@@ -80,13 +80,6 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     poetry install --with dev
     poetry run pre-commit install # Install pre-commit hooks
 fi
-
-install_radas=$(prompt_user "Do you want to install RADAS? (y/n):" "y")
-# If install_radas starts with y or Y then install.
-if [[ "$install_radas" =~ ^[yY] ]]; then
-    bash .github/workflows/build_radas.sh
-fi
-
 
 # Check for git lfs and install if not present
 echo "Checking for git LFS..."

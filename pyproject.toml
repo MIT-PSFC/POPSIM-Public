@@ -11,7 +11,6 @@ python = ">=3.10,<3.12"
 diffrax = "^0.6.0"
 equinox = "^0.11.7"
 jax = "0.4.33"
-cfspopcon = { path = "./submodules/cfspopcon", develop = true }
 interpax = "^0.3.4"
 xarray = "^2024.10.0"
 optimistix = "^0.0.7"
@@ -30,7 +29,9 @@ bottleneck = "^1.4.0"
 plotly = "^5.24.1"
 tabulate = "^0.9.0"
 xarray_jax = "0.0.5"
-torax = {git = "https://github.com/google-deepmind/torax.git", tag = "v0.2.0"}
+cfspopcon = "^7.0.2"
+certifi = "^2024.8.30"
+torax = {git = "https://github.com/google-deepmind/torax.git"}
 xeofs = "^3.0.4"
 zarr = "^2.18.3"
 omas = "^0.94.1"
@@ -57,6 +58,9 @@ optional = true
 
 [tool.poetry.group.gpu.dependencies]
 jax = {version = "0.4.33", extras=["cuda12"]}
+
+[tool.poetry.scripts]
+setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
 
 [[tool.poetry.source]]
 name = "PyPI"
@@ -108,3 +112,6 @@ pyupgrade.keep-runtime-typing=true
 pydocstyle.convention = "google"
 target-version = "py39"
 line-length = 140
+
+[tool.ruff.lint.pylint]
+max-statements = 75

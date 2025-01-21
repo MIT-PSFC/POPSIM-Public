@@ -1,7 +1,8 @@
 import chex
-from cfspopcon.jax_compatible.helpers import integrate_profile_over_volume
 from numpy import float64
 from numpy.typing import NDArray
+
+from popsim.cfspopcon_jax.helpers import integrate_profile_over_volume
 
 
 @chex.dataclass
