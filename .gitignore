@@ -173,6 +173,7 @@ atomic_data/
 *.DS_Store
 
 # Large data files
-docs/notebooks/test_tearing_out.h5
-popsim/data/tearing/sparc_delta_per_m_n1_final_LMODE_QGT1_time11.nc
+popsim/data/gitignore
+
+# Closed source submodules
 submodules/Device-description
