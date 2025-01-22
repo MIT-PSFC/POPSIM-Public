@@ -292,13 +292,36 @@ class Tearing(ModuleBase):
         return tearing_module, tearing_initial_state, tearing_params, time_base
 
 
-def calculate_error_field_overlap():
+def calculate_error_field_overlap(config: "ErrorFieldLocking.Config", delta_static: complex, pf_active_circuit_current: dict[str, float]):
     """
     Calculates the total overlap of the EF sources based on the
     simulation's current state.
     """
 
-    return 0
+    # For now, just use the nominal current in TF coils
+    tfcoils = range(18)
+    tfcurrents = np.ones(18) * 3.12e6
+
+    # 3.12 MA per TF coil for 12.2 T at 1.85 m
+    n_tf = len(tfcoils)
+
+    # Instantaneous overlap starts with that from the static sources
+    overlap_inst = delta_static
+
+    # for coil in pfcscoils:
+    for coil, current in pf_active_circuit_current.items():
+        for source in config.coil_sources[coil]:
+            amplitude = config.metrology[coil][source]
+            overlap_inst += amplitude * current * config.overlaps[coil][source]
+
+    for i in tfcoils:
+        phase = np.exp(1j * 2 * np.pi * i / n_tf + config.tf_phase_offset)
+        current = tfcurrents[i]
+        for source in config.coil_sources["TF"]:
+            amplitude = config.metrology["TF"][source]
+            overlap_inst += amplitude * current * config.overlaps["TF"][source] * phase
+
+    return overlap_inst
 
 
 def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
@@ -307,13 +330,18 @@ def calculate_locking_threshold(scaling_law_params, scaling_law_terms):
 
     NOTE: This does not work well when the simulation includes early time points at which ne=0. This will cause the scaling to be 0.
     Thus, we have added a catch that checks that ne > 0.3e20 m^-3. This needs to be addressed before integrating with POPSIM.
+
+    TODO(ZanderKeith): Put everything in SI units, and make sure the scaling law is correct.
     """
 
     # We're assuming that the parameters are a superset of the terms
     delta = 1.0
     for key, value in scaling_law_params.items():
         if key in scaling_law_terms:
-            delta *= value ** scaling_law_terms[key][0]
+            if key == "ne":
+                delta *= jnp.maximum(value, 3) ** scaling_law_terms[key][0]
+            else:
+                delta *= value ** scaling_law_terms[key][0]
 
     return delta
 
@@ -329,6 +357,10 @@ class ErrorFieldLocking(ModuleBase):
         overlaps: dict[str, dict[str, complex]]
 
         static_sources: dict[str, complex]
+
+        coil_sources: dict[str, list[str]]
+
+        tf_phase_offset: float = 0.0
 
         # Hysteresis fraction of the locked mode.
         # This is the fraction of the threshold that must be reached to unlock the mode.
@@ -349,7 +381,8 @@ class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
     class Params:
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
-        scaling_law_params: dict[str, np.ndarray]  # Values for each parameter in the scaling law
+        scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
+        pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
     @chex.dataclass
@@ -364,16 +397,18 @@ class ErrorFieldLocking(ModuleBase):
         aux_data: dict = None
 
     config: Config
+    delta_static: complex
 
     def __init__(self, config):
         self.config = config
+        self.delta_static: complex = np.sum([self.config.overlaps[key]["nominal"] for key in self.config.static_sources])
 
     def __call__(
         self, state: "ErrorFieldLocking.State", params: "ErrorFieldLocking.Params"
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
         # Just doing the transition from none -> locked -> rotating for now
 
-        error_field_overlap = 0  # calculate_error_field_overlap()
+        error_field_overlap = calculate_error_field_overlap(self.config, self.delta_static, params.pf_active_circuit_current)
         locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
 
         Wdot = {mode: 0.0 for mode in self.config.modes}
