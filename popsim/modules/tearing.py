@@ -356,7 +356,7 @@ class ErrorFieldLocking(ModuleBase):
 
         overlaps: dict[str, dict[str, complex]]
 
-        static_sources: dict[str, complex]
+        static_sources: dict[str, complex]  # Add startup vs flattop sources?
 
         coil_sources: dict[str, list[str]]
 
@@ -384,6 +384,7 @@ class ErrorFieldLocking(ModuleBase):
         scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
         pf_active_circuit_current: dict[str, float]  # Current in PF coils over time
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
+        # TODO: the error field contribution changes depending on if we're in flattop or startup so that needs to be tracked
 
     @chex.dataclass
     class Output:
