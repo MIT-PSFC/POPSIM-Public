@@ -9,7 +9,7 @@ from jaxtyping import Array
 from popsim.ml._types import TrainingMetadata
 from popsim.ml.dataloading import make_standard_dataloaders
 from popsim.ml.envs import ModuleEvalEnvInput
-from popsim.ml.split_utils import split_dataset_along_dim
+from popsim.ml.split_utils import split_dataset_by_fracs
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
@@ -81,7 +81,7 @@ class PopsimMLAccessor:
         Returns:
             typing.Sequence[xr.Dataset]: list of datasets split along the dimension.
         """
-        return split_dataset_along_dim(self._ds, fracs, dim, key)
+        return split_dataset_by_fracs(self._ds, fracs, dim, key)
 
     def generate_nan_report(self) -> tuple[str, bool]:
         """Generate a report of NaN values in the dataset.

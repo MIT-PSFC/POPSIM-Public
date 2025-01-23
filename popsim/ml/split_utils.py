@@ -1,7 +1,7 @@
 import math
 from collections.abc import Sequence
 from itertools import accumulate
-from typing import Union
+from typing import Optional, Union
 
 import jax
 import numpy as np
@@ -67,7 +67,13 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, seed: int) -> Sequence[xr.Dataset]:
+def split_dataset_by_fracs(
+    ds: xr.Dataset,
+    fracs: Sequence[float],
+    dim: str,
+    seed: int,
+    ordered: Optional[bool] = False,
+) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
     Args:
@@ -75,10 +81,43 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, se
         fracs (Sequence[float]): fractions of splits to be produced.
         dim (str): dimension to split the dataset along.
         seed (int): seed for psuedo-random number generation.
+        ordered (bool, optional): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data. Defaults to False.
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
     """
+
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
+
+    if ordered:
+        ds = ds.sortby(dim)
+        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
+        dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
+    else:
+        dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
+
+    return dataset_splits
+
+
+def split_dataset_by_vals(ds: xr.Dataset, vals: Sequence[Sequence], dim: str) -> tuple[xr.Dataset, Sequence[xr.Dataset]]:
+    """Split a dataset into multiple datasets along a dimension by specifying the values of the dimension to include in each split.
+
+    Args:
+        ds (xr.Dataset): dataset to be split.
+        vals (Sequence[Sequence]): values of dim to include in each split.
+        dim (str): dimension to split the dataset along.
+
+    Returns:
+        dataset_splits: Sequence[xr.Dataset]: sequence of datasets with the vals of dim specified.
+        reduced_dataset: xr.Dataset: dataset with the vals of dim specified removed.
+    """
+
+    covered_vals = np.concatenate(vals)
+    missing_values = [val for val in covered_vals if val not in ds[dim]]
+    if missing_values:
+        raise ValueError(f"The following values in splits are not in ds[{dim}]: {missing_values}")
+
+    dataset_splits = [ds.sel({dim: np.asarray(val)}) for val in vals]
+    reduced_dataset = ds.drop_sel({dim: covered_vals})
+    return dataset_splits, reduced_dataset

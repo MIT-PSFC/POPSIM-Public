@@ -5,7 +5,7 @@ from popsim.ml.dataloading import make_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
-from popsim.ml.split_utils import split_dataset_along_dim
+from popsim.ml.split_utils import split_dataset_by_fracs
 from popsim import ModuleBase
 import chex
 import equinox as eqx
@@ -77,7 +77,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
 
     if use_val:
-        ds, val_ds = split_dataset_along_dim(ds, (0.8, 0.2), "simulation", 42)
+        ds, val_ds = split_dataset_by_fracs(ds, (0.8, 0.2), "simulation", 42)
         val_dl = make_dataloader(
             val_ds,
             time_coord="time",
