@@ -23,7 +23,7 @@ def db_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    workers = max(workers, len(paths))
+    workers = min(workers, len(paths))
 
     if workers > 1 and not use_zarr:
         raise ValueError("Parallel processing is only supported with Zarr output.")
