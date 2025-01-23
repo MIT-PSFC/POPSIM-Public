@@ -16,7 +16,7 @@ from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr
 )
 @click.option("--use-zarr", is_flag=True, help="Save files in Zarr format instead of NetCDF.")
 @click.option("--workers", default=1, type=int, help="Number of workers for parallel processing.")
-def convert_ss_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
+def db_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
     if isinstance(paths, str):
         paths = glob.glob(paths)
 
@@ -52,4 +52,4 @@ def convert_ss_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
 
 
 if __name__ == "__main__":
-    convert_ss_mat_to_xr_cli()
+    db_mat_to_xr_cli()
