@@ -358,7 +358,7 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
 
         # Nominal is in terms of delta per amp, so this is easy (will be multiplied by actual current later)
         if "nominal" in data:
-            overlaps_single[coil_name] = data["nominal"] * (1.0 + 0.00000001j)
+            overlaps_single[coil_name] = data["nominal"]
 
         # Shift and tilt are in terms of delta per meter displacement
         for source in ["shift", "tilt"]:
@@ -441,7 +441,8 @@ def calculate_total_overlap(
 
     overlap_inst *= config.efc_efficiency
 
-    return overlap_inst
+    # Only get the magnitude at the end. Up to here, the overlap is a complex number to allow constructive/destructive interference.
+    return jnp.abs(overlap_inst)
 
 
 def calculate_locking_threshold(scaling_law_params: dict[str, float], scaling_law_terms: dict[str, list[float]]) -> float:
