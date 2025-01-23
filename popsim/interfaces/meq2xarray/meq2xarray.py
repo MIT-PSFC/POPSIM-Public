@@ -197,7 +197,7 @@ def build_coordinates(data_dict: dict) -> dict[str, xr.DataArray]:
         attrs={"description": "z coordinates of the 'y' grid"},
     )
     xpoint = xr.DataArray(
-        np.arange(max(data_dict["LY.nX"])),
+        np.arange(data_dict["LY.rX"].shape[0]),
         dims=["xpoint"],
         name="xpoint",
         attrs={"description": "x-point number"},
