@@ -9,11 +9,10 @@ from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr
 
 
 @click.command()
-@click.argument("paths", type=click.STRING, help="Path or glob pattern to .mat files.")
+@click.argument("paths", type=click.STRING)
 @click.argument(
     "output_dir",
     type=click.Path(),
-    help="Output directory. Files will have the same name as the input files but with a different extension.",
 )
 @click.option("--use-zarr", is_flag=True, help="Save files in Zarr format instead of NetCDF.")
 @click.option("--workers", default=1, type=int, help="Number of workers for parallel processing.")
@@ -23,6 +22,11 @@ def convert_ss_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    workers = max(workers, len(paths))
+
+    if workers > 1 and not use_zarr:
+        raise ValueError("Parallel processing is only supported with Zarr output.")
 
     def process_file(mat_path):
         try:
