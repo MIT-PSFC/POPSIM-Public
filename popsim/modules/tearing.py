@@ -358,14 +358,15 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
 
         # Nominal is in terms of delta per amp, so this is easy (will be multiplied by actual current later)
         if "nominal" in data:
-            overlaps_single[coil_name] = data["nominal"]
+            overlaps_single[coil_name] = complex(data["nominal"])
 
         # Shift and tilt are in terms of delta per meter displacement
         for source in ["shift", "tilt"]:
             if source in data:
-                base_factor = data[source] * (1.0 + 0.00000001j)
+                base_factor = complex(data[source])
                 try:
-                    tolerance = data[f"{source}_tol"]
+                    # TODO(ZanderKeith) No tolerance at the moment, fix this later
+                    tolerance = 0.0025  # 2.5 mm for both shift and tilt for all sources for now
                 except KeyError:
                     raise ValueError(f"Missing tolerance for {source} in {data_key}") from KeyError
 
