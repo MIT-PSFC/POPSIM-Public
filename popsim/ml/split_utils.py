@@ -1,7 +1,7 @@
 import math
 from collections.abc import Sequence
 from itertools import accumulate
-from typing import Union
+from typing import Optional, Union
 
 import jax
 import numpy as np
@@ -67,7 +67,14 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
     return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
 
 
-def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, seed: int, ordered: bool = False) -> Sequence[xr.Dataset]:
+def split_dataset_along_dim(
+    ds: xr.Dataset,
+    fracs: Sequence[float],
+    dim: str,
+    seed: int,
+    ordered: Optional[bool] = False,
+    pre_split: Optional[Sequence[Sequence]] = None,
+) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
     Args:
@@ -75,25 +82,49 @@ def split_dataset_along_dim(ds: xr.Dataset, fracs: Sequence[float], dim: str, se
         fracs (Sequence[float]): fractions of splits to be produced.
         dim (str): dimension to split the dataset along.
         seed (int): seed for psuedo-random number generation.
-        ordered (bool): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data.
+        ordered (bool, optional): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data. Defaults to False.
+        pre_split (Sequence[Sequence], optional): Values of dim to include in each split. Defaults to None. Throws an error if the lengths of the pre_split and fracs are not equal, if there are too many values for the split fraction, or if the pre_split values are not a subset of the values in ds[dim].
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
     """
+
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
-    if ordered:
-        sorted_idxs = np.argsort(ds[dim].values)
-        sorted_idxs_splits = [sorted_idxs[sum(lengths[:i]) : sum(lengths[: i + 1])] for i in range(len(lengths))]
 
-        # Shuffle within each split
-        shuffle_idxs_splits = []
-        rng_key = jax.random.PRNGKey(seed)
-        for sorted_idxs_split in sorted_idxs_splits:
-            rng_key, subkey = jax.random.split(rng_key)
-            shuffle_idxs_split = jax.random.permutation(subkey, sorted_idxs_split.size)
-            shuffle_idxs_splits.append(sorted_idxs_split[shuffle_idxs_split])
+    # Take out the pre_split values beforehand and adjust lengths accordingly
+    if pre_split is not None:
+        if len(pre_split) != len(fracs):
+            raise ValueError(f"The lengths of the pre_split ({len(pre_split)}) and fracs ({len(fracs)}) must be equal.")
 
-        return [ds.isel({dim: np.asarray(idxs)}) for idxs in shuffle_idxs_splits]
+        covered_vals = np.concatenate(pre_split)
+        missing_values = [val for val in covered_vals if val not in ds[dim]]
+        if missing_values:
+            raise ValueError(f"The following values in pre_split are not in ds[dim]: {missing_values}")
+
+        original_lengths = lengths
+        lengths = [length - len(vals) for length, vals in zip(lengths, pre_split)]
+        if any(length < 0 for length in lengths):
+            raise ValueError(
+                f"Too many pre_split values for the split fractions. Allocated {original_lengths} from {fracs}, but pre_split has {[len(vals) for vals in pre_split]} values."
+            )
+
+        dataset_splits_pre = [ds.sel({dim: np.asarray(vals)}) for vals in pre_split]
+        ds = ds.drop_sel({dim: covered_vals})
+        n_data = ds.sizes[dim]
     else:
-        return [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
+        dataset_splits_pre = None
+
+    if ordered:
+        ds = ds.sortby(dim)
+        split_idxs = [slice(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
+        dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
+    else:
+        dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]
+
+    if dataset_splits_pre is not None:
+        for i in range(len(fracs)):
+            if len(pre_split[i]) > 0:
+                dataset_splits[i] = xr.concat([dataset_splits[i], dataset_splits_pre[i]], dim=dim)
+
+    return dataset_splits

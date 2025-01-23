@@ -82,9 +82,41 @@ def test_split_dataset_along_dim(cmod_test_dataset):
     with pytest.raises(ValueError):
         split_dataset_along_dim(ds, [0.5, 0.5, 0.01], "shot", 42)
 
-    # Check that the is ordered between splits if ordered=True
-    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=True)
-    for i in range(1, len(split_datasets)):
-        max_prev = split_datasets[i - 1]["shot"].values.max()
-        min_curr = split_datasets[i]["shot"].values.min()
-        assert max_prev < min_curr
+    # Check that an error is thrown if the pre split length doesn't match the split fracs length
+    pre_split = [[0, 10, 20], []]
+    with pytest.raises(ValueError):
+        split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
+
+    # Check than an error is thrown if the pre split doesn't contain dims that are in the dataset
+    pre_split = [[-1], [], []]
+    with pytest.raises(ValueError):
+        split_dataset_along_dim(ds, split_fracs, "shot", 42, pre_split=pre_split)
+
+
+@pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []]])
+@pytest.mark.parametrize("ordered", [True, False])
+def test_split_dataset_along_dim_ordered_and_pre_split(cmod_test_dataset, pre_split_idxs, ordered):
+    ds = cmod_test_dataset
+
+    if pre_split_idxs is None:
+        pre_split = None
+    else:
+        pre_split = [ds["shot"].values[idxs] for idxs in pre_split_idxs]
+
+    split_fracs = [0.68, 0.21, 0.11]
+
+    def check_splits_ordered(split_datasets, dim):
+        for i in range(1, len(split_datasets)):
+            max_prev = split_datasets[i - 1][dim].values.max()
+            min_curr = split_datasets[i][dim].values.min()
+            assert max_prev < min_curr
+
+    def check_splits_contain_pre_split(split_datasets, pre_split):
+        for split, pre_split in zip(split_datasets, pre_split):
+            assert jnp.all(jnp.isin(pre_split, split["shot"].values))
+
+    split_datasets = split_dataset_along_dim(ds, split_fracs, "shot", 42, ordered=ordered, pre_split=pre_split)
+    if pre_split:
+        check_splits_contain_pre_split(split_datasets, pre_split)
+    if ordered:
+        check_splits_ordered(split_datasets, "shot")
