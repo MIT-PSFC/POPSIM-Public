@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
 
-from popsim import ModuleBase, discrete_time_field
+from popsim import PACKAGE_ROOT, ModuleBase, discrete_time_field
 from popsim.logic_utils import select_w_tuples
 from popsim.simulate import make_time_base
 
@@ -29,6 +29,24 @@ class TearingPhase(IntEnum):
     ROTATING = 2
     DECELERATING = 3
     LOCKED = 4
+
+
+class EFUniverse(IntEnum):
+    """Choices of Monte-Carlo universe for shifts/tilts of active circuits.
+    Either flattop or startup, 1st, 50th, and 99.9th percentile (higher means larger EF overlap).
+    """
+
+    STARTUP_01 = 3
+    STARTUP_50 = 4
+    STARTUP_99p9 = 5
+    FLATTOP_01 = 0
+    FLATTOP_50 = 1
+    FLATTOP_99p9 = 2
+
+
+class OverlapPhase(IntEnum):
+    STARTUP = 0
+    FLATTOP = 1
 
 
 DEFAULT_WDOT = {
@@ -293,12 +311,15 @@ class Tearing(ModuleBase):
         return tearing_module, tearing_initial_state, tearing_params, time_base
 
 
-def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
+def load_active_circuit_overlaps(
+    overlap_phase: OverlapPhase, ef_universe: EFUniverse
+) -> tuple[dict[str, dict[str, complex]], dict[str, list[str]]]:
     """
     Load the overlap data for the active circuits. This is mostly just a placeholder until we get the real data.
 
     Args:
-        error_field_source_file (str): The path to the JSON file containing the overlap data and sources. Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per m displacement.
+        overlap_phase (OverlapPhase): The phase of the overlap data to load.
+        ef_universe (EFUniverse): The universe of the EF data to load.
 
     Returns:
         overlaps (dict[str, dict[str, complex]]): The overlap data for each coil source in terms of delta per amp.
@@ -309,35 +330,33 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
         "divu": ["div1u", "div2u"],
     }
 
-    # PRD currents for pulse 2000 from Clayton
-    PRD_currents = {
-        "cs1u": 40515,
-        "cs1l": 40515,
-        "cs2u": 46138.1262307066,
-        "cs2l": 46138.1249076037,
-        "cs3u": 47499.9999999937,
-        "cs3l": 47499.9999999937,
-        "pf1u": 47499.9999682539,
-        "pf1l": 47499.9999682538,
-        "pf2u": 15879.211658726,
-        "pf2l": 15879.2158972162,
-        "pf3u": 12313.866888292,
-        "pf3l": 12313.8618192826,
-        "pf4u": -9.52441472684439e-10,
-        "pf4l": -9.52441623562183e-10,
-        "div1u": -10136,
-        "div1l": -10136,
-        "div2u": -11623,
-        "div2l": -11623,
-        "vsc": 0,
-        # Things from the previous implementation that I'm not sure about
-        "tfjumpers": 31250,
-        "om4tflare_upper": 45000,
-        "om4tflare_lower": 45000,
-    }
+    # Load overlaps for active circuits
+    # Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per m displacement.
+    if overlap_phase == OverlapPhase.STARTUP:
+        error_field_source_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/startup_01132025.json"
+    elif overlap_phase == OverlapPhase.FLATTOP:
+        error_field_source_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/flattop_01132025.json"
+    else:
+        raise ValueError(f"Invalid overlap_phase: {overlap_phase}")
 
     with open(error_field_source_file) as f:
         overlap_data = json.load(f)
+
+    # Load perturbation shifts/tilts for active circuits
+    if ef_universe in [EFUniverse.STARTUP_01, EFUniverse.STARTUP_50, EFUniverse.STARTUP_99p9]:
+        perts_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/perts_startup.json"
+    elif ef_universe in [EFUniverse.FLATTOP_01, EFUniverse.FLATTOP_50, EFUniverse.FLATTOP_99p9]:
+        perts_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/perts_flattop.json"
+
+    with open(perts_file) as f:
+        perts_data = json.load(f)
+
+    if ef_universe in [EFUniverse.STARTUP_01, EFUniverse.FLATTOP_01]:
+        perts = perts_data["1st_percentile"]
+    elif ef_universe in [EFUniverse.STARTUP_50, EFUniverse.FLATTOP_50]:
+        perts = perts_data["50th_percentile"]
+    elif ef_universe in [EFUniverse.STARTUP_99p9, EFUniverse.FLATTOP_99p9]:
+        perts = perts_data["99p9th_percentile"]
 
     overlaps = {}
 
@@ -360,34 +379,13 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
         if "nominal" in data:
             overlaps_single[coil_name] = complex(data["nominal"])
 
-        # Shift and tilt are in terms of delta per meter displacement
+        # Shift and tilt are in terms of delta per amp per meter displacement (or perturbation)
         for source in ["shift", "tilt"]:
-            if source in data:
-                base_factor = complex(data[source])
-                try:
-                    # TODO(ZanderKeith) No tolerance at the moment, fix this later
-                    tolerance = 0.0025  # 2.5 mm for both shift and tilt for all sources for now
-                except KeyError:
-                    raise ValueError(f"Missing tolerance for {source} in {data_key}") from KeyError
+            base_factor = complex(data[source])
+            pert = complex(perts[data_key][source])
 
-                # Draw position error from U-shape distribution
-                position_error = (np.random.random() ** 0.3) * tolerance
-
-                # Random phase for tilt/shift
-                phase = (1 / np.sqrt(2)) * (np.random.random() + 1.0j * np.random.random())
-
-                # Convert into delta per amp
-                try:
-                    if coil_name.endswith("_feed"):
-                        coil_name = coil_name[:-5]
-                    PRD_current = PRD_currents[coil_name]
-                    if abs(PRD_current) < 1e-6:
-                        source_overlap = 0  # No current, no field
-                    else:
-                        source_overlap = base_factor * position_error * phase / (PRD_currents[coil_name])
-                except KeyError:
-                    print(f"Warning! Missing PRD current for {coil_name}, assuming 0")
-                    source_overlap = 0
+            # Convert into delta per amp
+            source_overlap = base_factor * pert
 
             overlaps_single[coil_name] = overlaps_single.get(coil_name, 0) + source_overlap
 
@@ -397,21 +395,34 @@ def load_active_circuit_overlaps(error_field_source_file: str) -> tuple[dict[str
     return overlaps
 
 
-def load_tf_overlap(tf_overlap_file: str, overlap_percentile: float) -> dict[str, complex]:
+def load_tf_overlap(overlap_percentile) -> dict[str, complex]:
     """
     Load the cumulative overlap data for all TF coils.
 
     Args:
-        tf_overlap_file (str): The path to a .dat file containing the overlap data for the TF coils.
-        overlap_percentile (float): The percentile of the probable overlap distribution to use for the TF coils (0-1).
+        overlap_percentile: The percentile of the probable overlap distribution to use for the TF coils. Either a float (0-1) or a EFUniverse enum.
 
     Returns:
         tf_overlap (dict[str, complex]): The overlap data for the TF coils.
     """
 
-    if overlap_percentile < 0 or overlap_percentile > 1:
-        raise ValueError("overlap_percentile must be between 0 and 1")
+    if isinstance(overlap_percentile, EFUniverse):
+        if overlap_percentile in [EFUniverse.STARTUP_01, EFUniverse.FLATTOP_01]:
+            overlap_percentile = 0.01
+        elif overlap_percentile in [EFUniverse.STARTUP_50, EFUniverse.FLATTOP_50]:
+            overlap_percentile = 0.5
+        elif overlap_percentile in [EFUniverse.STARTUP_99p9, EFUniverse.FLATTOP_99p9]:
+            overlap_percentile = 0.999
+        else:
+            raise ValueError(f"Invalid EFUniverse: {overlap_percentile}")
 
+    elif isinstance(overlap_percentile, float):
+        if overlap_percentile < 0 or overlap_percentile > 1:
+            raise ValueError(f"overlap_percentile must be between 0 and 1, got {overlap_percentile}")
+    else:
+        raise ValueError(f"overlap_percentile must be a float or EFUniverse enum, got {type(overlap_percentile)}")
+
+    tf_overlap_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/tfef.dat"
     data = np.genfromtxt(tf_overlap_file, dtype=float, delimiter="  ").T
 
     overlaps = data[0]
