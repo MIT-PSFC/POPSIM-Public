@@ -395,7 +395,7 @@ def load_active_circuit_overlaps(
     return overlaps
 
 
-def load_tf_overlap(overlap_percentile) -> dict[str, complex]:
+def load_tf_overlap(overlap_percentile: EFUniverse | float) -> dict[str, complex]:
     """
     Load the cumulative overlap data for all TF coils.
 

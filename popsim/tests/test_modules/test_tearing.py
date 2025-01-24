@@ -14,6 +14,7 @@ from popsim.modules.tearing import (
     CQ_WDOT, 
     INITIAL_ROT_FREQ,
     TearingPhase,
+    EFUniverse,
 )
 from popsim.simulate import simulate, make_time_base, SimInput
 from popsim import PACKAGE_ROOT
@@ -96,19 +97,28 @@ def test_mode_growth_and_freq(tearing_test_sim):
 
 
 def test_load_tf_overlap():
-    tf_overlap_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/tfef.dat"
-
     # Ensure an error is raised if the percentile is out of range
     with pytest.raises(ValueError):
-        load_tf_overlap(tf_overlap_file, -0.1)
+        load_tf_overlap(-0.1)
     with pytest.raises(ValueError):
-        load_tf_overlap(tf_overlap_file, 1.1)
+        load_tf_overlap(1.1)
 
-    # Ensure the 99th percentile is greater than the 1st percentile
-    tf_overlap_1 = load_tf_overlap(tf_overlap_file, 0.01)
-    tf_overlap_2 = load_tf_overlap(tf_overlap_file, 0.99)
+    # Ensure the 99th percentile is greater than the 1st percentile when using floats
+    tf_overlap_1 = load_tf_overlap(0.01)
+    tf_overlap_2 = load_tf_overlap(0.99)
 
     assert tf_overlap_1 < tf_overlap_2
+
+    # Ensure overlaps increase with increasing percentile
+    tf_overlap_1 = load_tf_overlap(EFUniverse.STARTUP_01)
+    tf_overlap_2 = load_tf_overlap(EFUniverse.STARTUP_50)
+    tf_overlap_3 = load_tf_overlap(EFUniverse.STARTUP_99p9)
+    assert tf_overlap_1 < tf_overlap_2 < tf_overlap_3
+
+    tf_overlap_1 = load_tf_overlap(EFUniverse.FLATTOP_01)
+    tf_overlap_2 = load_tf_overlap(EFUniverse.FLATTOP_50)
+    tf_overlap_3 = load_tf_overlap(EFUniverse.FLATTOP_99p9)
+    assert tf_overlap_1 < tf_overlap_2 < tf_overlap_3
 
 
 def test_calculate_total_overlap():
