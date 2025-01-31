@@ -263,7 +263,7 @@ def make_dataloader(
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=model_vars)
 
-    # Construct the input_dims dictionary to define the input dimension the model will see.
+    # Construct the model_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.
     # However, we want to keep all other dimensions the same.
     non_episode_time_dims = {k: v for k, v in ds.sizes.items() if k not in [episode_var_dim, time_var_dim]}
@@ -272,12 +272,12 @@ def make_dataloader(
         # If the segment length is not specified, use the full episode as the segment.
         segment_length = ds.sizes[time_var_dim]
 
-    input_dims = {time_var_dim: segment_length} | non_episode_time_dims
+    model_dims = {time_var_dim: segment_length} | non_episode_time_dims
 
     # Use a first call to Xbatcher to segment the episodes to the desired length and create a dataset with dimensions
     # (sample, time, other_dims).
     sample_ds = next(
-        iter(xbatcher.BatchGenerator(ds, input_dims=input_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True))
+        iter(xbatcher.BatchGenerator(ds, input_dims=model_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True))
     )
 
     # By convention, the BatchGenerator adds "_input" to the time dimension.
