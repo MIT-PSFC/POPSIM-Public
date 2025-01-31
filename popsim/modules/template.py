@@ -27,7 +27,7 @@ class ExampleTemplate(ModuleBase):
 
     @chex.dataclass
     class Inputs:
-        # Define the, possibly time dependent, parameters that will be passed to the module.
+        # Define the, possibly time dependent, inputs that will be passed to the module.
         pass
 
     config: Config

@@ -13,9 +13,9 @@ from loguru import logger
 from popsim import ModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
 from popsim.field_labels import partition_discrete_cont, partition_save_no_save
+from popsim.input_utils import input_specs_to_paths
 from popsim.interp import InterpType, resolve_paths
 from popsim.modules.prng import PRNGModule
-from popsim.param_utils import param_specs_to_paths
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
@@ -113,8 +113,8 @@ def simulate(
 
     _check_sim_inputs(module, sim_inputs, stepper_type)
 
-    # Resolve the param specifications to paths.
-    sim_inputs = param_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
+    # Resolve the input specifications to paths.
+    sim_inputs = input_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
 
     # Choose the simulation function based on the stepper type.
     if stepper_type == StepperType.SIMPLE_EULER:

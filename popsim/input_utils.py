@@ -10,7 +10,7 @@ import popsim.types as ptypes
 from popsim.sim_utils import SimInput
 
 
-def build_param_paths(
+def build_input_paths(
     inputs: ptypes.Inputspec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
 ) -> PyTree[diffrax.AbstractPath]:
     """Given a user-specified inputs specification that is a PyTree of "ConstantOrPathSpec", generate
@@ -22,10 +22,10 @@ def build_param_paths(
 
     Why interpolate everything? This is done to ensure the inputs to jax.jitted functions are all the same shape across
     calls to prevent re-compiling (which is the main computational cost right now). This way, if the user switches from
-    specifying a inputs as a constant to trajectory, the function will not need to be re-compiled.
+    specifying an inputs as a constant to trajectory, the function will not need to be re-compiled.
 
     Args:
-        inputs (ptypes.Inputspec): A user-specified param specification.
+        inputs (ptypes.Inputspec): A user-defined input specification.
         interp_type (pinterp.InterpType): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
         time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
@@ -85,7 +85,7 @@ def build_param_paths(
     return jax.tree.map(interp_onto_timebase, inputs, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
-def param_specs_to_paths(
+def input_specs_to_paths(
     sim_inputs: typing.Sequence[SimInput],
     interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR,
 ) -> typing.Sequence[SimInput]:
@@ -109,8 +109,8 @@ def param_specs_to_paths(
         if not jnp.all(jnp.diff(sim_input.time) >= 0):
             raise ValueError("Time base must be monotonic.")
 
-    def resolve_param_spec(sim_input):
-        resolved_inputs = build_param_paths(sim_input.inputs, sim_input.time, interp_type)
+    def resolve_input_spec(sim_input):
+        resolved_inputs = build_input_paths(sim_input.inputs, sim_input.time, interp_type)
         return SimInput(time=sim_input.time, initial_state=sim_input.initial_state, inputs=resolved_inputs)
 
-    return [resolve_param_spec(sim_input) for sim_input in sim_inputs]
+    return [resolve_input_spec(sim_input) for sim_input in sim_inputs]

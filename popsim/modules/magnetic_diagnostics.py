@@ -99,7 +99,7 @@ class BFieldPoloidalProbes(ModuleBase):
 
         Args:
             state (State): The state of the B Field Poloidal Probes module. Not used in this module.
-            inputs (Inputs): The parameters of the B Field Poloidal Probes module. Includes the output of the Tearing module and the tearing modes to reconstruct.
+            inputs (Inputs): The inputs of the B Field Poloidal Probes module. Includes the output of the Tearing module and the tearing modes to reconstruct.
 
         Returns:
             Output: The output of the B Field Poloidal Probes module. Includes the measured magnetic field at each probe.
@@ -292,7 +292,7 @@ class LowNArray(ModuleBase):
 
     @chex.dataclass
     class Inputs:
-        # Define the, possibly time dependent, parameters that will be passed to the module.
+        # Define the, possibly time dependent, inputs that will be passed to the module.
         tearing_out: Tearing.Output  # The output of the Tearing module.
         modes: list[
             tuple[int, int]
@@ -320,7 +320,7 @@ class LowNArray(ModuleBase):
 
         Args:
             state (State): The state of the Low-N array module. Not used in this module.
-            inputs (Inputs): The parameters of the Low-N array module. Includes the output of the Tearing module and the tearing modes to reconstruct.
+            inputs (Inputs): The inputs of the Low-N array module. Includes the output of the Tearing module and the tearing modes to reconstruct.
 
         Returns:
             Output: The output of the Low-N array module. Includes the reconstructed magnitudes of the tearing modes, the filtered signals for each probe, and the differenced signals for each connection.

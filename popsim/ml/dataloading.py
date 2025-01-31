@@ -138,7 +138,7 @@ def make_standard_dataloaders(
                 time_coord=time_coord,
                 episode_coord=episode_coord,
                 state_init_vars=state_init_vars,
-                param_vars=input_vars,
+                input_vars=input_vars,
                 target_vars=target_vars,
                 extra_vars=extra_vars,
                 segment_length=segment_length,
@@ -191,7 +191,7 @@ def make_time_indep_dataloader(
     train_meta = TrainingMetadata(
         sample_coord=DEFAULT_SAMPLE_DIM,
         sample_dim=DEFAULT_SAMPLE_DIM,
-        param_vars=input_vars,
+        input_vars=input_vars,
         target_vars=target_vars,
         episode_coord=episode_coord,
         episode_dim=episode_var_dim,
@@ -221,7 +221,7 @@ def make_dataloader(
     time_coord: str,
     episode_coord: str,
     state_init_vars: list[str],
-    param_vars: list[str],
+    input_vars: list[str],
     target_vars: list[str],
     extra_vars: typing.Optional[list[str]] = None,
     segment_length: typing.Optional[int] = None,
@@ -239,7 +239,7 @@ def make_dataloader(
         time_coord (str): Name of the time coordinate variable.
         episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
-        param_vars (list[str]): Names of the variables to be fed into the "Inputs" structure of the module.
+        input_vars (list[str]): Names of the variables to be fed into the "Inputs" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
         extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         segment_length (typing.Optional[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment. Defaults to None.
@@ -257,7 +257,7 @@ def make_dataloader(
     if segment_length is None and segment_overlap != 0:
         raise ValueError("segment_overlap should be 0 when segment_length is None.")
 
-    input_vars = state_init_vars + param_vars
+    input_vars = state_init_vars + input_vars
     ds = ds[input_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
@@ -300,7 +300,7 @@ def make_dataloader(
     train_meta = TrainingMetadata(
         sample_coord=DEFAULT_SAMPLE_DIM,
         sample_dim=DEFAULT_SAMPLE_DIM,
-        param_vars=param_vars,
+        input_vars=input_vars,
         target_vars=target_vars,
         episode_coord=episode_coord,
         episode_dim=episode_var_dim,

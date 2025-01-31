@@ -21,7 +21,7 @@ class TrainingMetadata:
 
     sample_coord: str
     sample_dim: str
-    param_vars: list[str]
+    input_vars: list[str]
     target_vars: list[str]
     episode_coord: str
     episode_dim: str

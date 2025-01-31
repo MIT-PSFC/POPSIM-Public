@@ -39,7 +39,7 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
         mode_phase={mode: 0.0 for mode in simulated_modes},
     )
 
-    # Define the tearing parameters.
+    # Define the tearing inputs.
     rot_dur = 0.5
     locking_dur = 0.2
     trigger_time = 0.1

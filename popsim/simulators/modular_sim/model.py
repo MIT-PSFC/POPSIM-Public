@@ -33,7 +33,7 @@ class ModularModel(ModuleBase):
     @chex.dataclass
     class Inputs:
         """
-        Dynamic parameters for the ModularSim model.
+        Dynamic inputs for the ModularSim model.
         """
 
         confinement_time_scalar: float  # [-]

@@ -1,4 +1,4 @@
-import popsim.param_utils as param_utils
+import popsim.input_utils as input_utils
 from popsim.modules.tearing import (
     Tearing,
     ErrorFieldLocking,
@@ -154,7 +154,7 @@ def test_calculate_total_overlap():
 
 
 def test_calculate_locking_threshold():
-    # Ensure the locking threshold function can be called with arbitrary parameters and terms
+    # Ensure the locking threshold function can be called with arbitrary inputs and terms
     scaling_law_inputs = {"a": 2, "b": 1, "c": 3}
     scaling_law_terms = {"a": [2, .1], "b": [3, .2], "c": [4, .2]}
 
@@ -164,7 +164,7 @@ def test_calculate_locking_threshold():
 
     assert np.isclose(computed_result, expected_result)
 
-    # Ensure that if there is a term that isn't one of the parameters, an error is raised
+    # Ensure that if there is a term that isn't one of the inputs, an error is raised
     scaling_law_terms = {"a": [2, .1], "d": [3, .2]}
     with pytest.raises(ValueError):
         calculate_locking_threshold(scaling_law_inputs, scaling_law_terms)

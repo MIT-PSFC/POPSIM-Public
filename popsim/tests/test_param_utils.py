@@ -8,9 +8,9 @@ import numpy as np
 import popsim.enums as penums
 import popsim.interp as pinterp
 from popsim.simulate import make_time_base, SimInput
-from popsim.param_utils import (
-    build_param_paths,
-    param_specs_to_paths
+from popsim.input_utils import (
+    build_input_paths,
+    input_specs_to_paths
 )
 
 
@@ -23,7 +23,7 @@ class SimpleInputs:
 
 # Note: cubic case currently breaks as extrapolation of the time dictionary is not handeled as expected.
 @pytest.mark.parametrize("interp_type", [pinterp.InterpType.LINEAR])
-def test_build_param_paths(interp_type):
+def test_build_input_paths(interp_type):
     @chex.dataclass
     class Inputs:
         a: float
@@ -43,7 +43,7 @@ def test_build_param_paths(interp_type):
     #
     # Should return interps that are constant. Spot check at start and end.
     #
-    new_inputs = build_param_paths(inputs, time_base, interp_type)
+    new_inputs = build_input_paths(inputs, time_base, interp_type)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs, time_base[0]), inputs)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs, time_base[-1]), inputs)
 
@@ -65,7 +65,7 @@ def test_build_param_paths(interp_type):
         },
     }
     inputs.imps = time_dep_imps
-    new_inputs2 = build_param_paths(inputs, time_base, interp_type)
+    new_inputs2 = build_input_paths(inputs, time_base, interp_type)
     interped_imps = pinterp.interp_time_dic(time_dep_imps, interp_type)
     expected_inputs_begin = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[0.0])
     expected_inputs_t25 = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[2.5])
@@ -81,7 +81,7 @@ def test_build_param_paths(interp_type):
         penums.Impurity.Tungsten: {0.0: 4.0, 1.0: 5.0, 2.5: 6.0},
         penums.Impurity.Neon: 5.0,
     }
-    new_inputs3 = build_param_paths(inputs, time_base, interp_type)
+    new_inputs3 = build_input_paths(inputs, time_base, interp_type)
     expected_inputs3_begin = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0})
     expected_inputs_3_t25 = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 6.0, penums.Impurity.Neon: 5.0})
     chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs3, 0.0), expected_inputs3_begin)
@@ -104,7 +104,7 @@ def test_build_param_paths(interp_type):
             penums.Impurity.Neon: 5.0,
         },
     )
-    built_inputs = build_param_paths(time_dep_inputs, time_base, interp_type)
+    built_inputs = build_input_paths(time_dep_inputs, time_base, interp_type)
 
     b_at_zero = pinterp.resolve_paths(built_inputs.nested_b, 0.0)
     b_at_point_five = pinterp.resolve_paths(built_inputs.nested_b, 0.5)
@@ -132,7 +132,7 @@ def test_build_param_paths(interp_type):
             penums.Impurity.Neon: 5.0,
         },
     )
-    new = build_param_paths(inputs, time_base, interp_type)
+    new = build_input_paths(inputs, time_base, interp_type)
 
     expected_t0 = dataclasses.replace(inputs, a=0.0)
     expected_t15 = dataclasses.replace(inputs, a=1.5)
@@ -141,7 +141,7 @@ def test_build_param_paths(interp_type):
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 1.5), expected_t15)
     chex.assert_trees_all_equal(pinterp.resolve_paths(new, 8.12), expected_t812)
 
-def test_param_specs_to_paths():
+def test_input_specs_to_paths():
     #
     # If the time bases are not the same size, raise an error.
     #
@@ -153,10 +153,10 @@ def test_param_specs_to_paths():
         SimInput(time=time_base1, initial_state=None, inputs=None),
     ]
     with pytest.raises(ValueError):
-        param_specs_to_paths(sim_inputs)
+        input_specs_to_paths(sim_inputs)
 
     # 
-    # Check that if the time bases are the same size but different values, "param_specs_to_paths" works.
+    # Check that if the time bases are the same size but different values, "input_specs_to_paths" works.
     #
     time_base0 = make_time_base(0.0, 10.0, 0.1)
     time_base1 = make_time_base(0.0, 1.0, 0.01)
@@ -164,7 +164,7 @@ def test_param_specs_to_paths():
         SimInput(time=time_base0, initial_state=None, inputs=None),
         SimInput(time=time_base1, initial_state=None, inputs=None),
     ]
-    assert len(param_specs_to_paths(sim_inputs)) == 2
+    assert len(input_specs_to_paths(sim_inputs)) == 2
 
     #
     # Check that if a non-monotonic time base is provided, an error is raised.
@@ -172,7 +172,7 @@ def test_param_specs_to_paths():
     time_base =np.array([0.0, 1.0, 0.5])
     sim_inputs = [SimInput(time=time_base, initial_state=None, inputs={"a": {0.0: 0.1, 1.0: 0.2, 0.5: 0.3}})]
     with pytest.raises(ValueError):
-        param_specs_to_paths(sim_inputs)
+        input_specs_to_paths(sim_inputs)
 
     #
     # Test dictionary resolution works.
@@ -180,7 +180,7 @@ def test_param_specs_to_paths():
     simple_inputs = SimpleInputs(a=1.0, b=2.0, c={0.0: 3.0, 1.0: 4.0, 2.0: -10.0})
     time_base = make_time_base(0.0, 2.0, 0.01)
     sim_input = SimInput(time=time_base, initial_state=None, inputs=simple_inputs)
-    sim_input = param_specs_to_paths([sim_input])[0]
+    sim_input = input_specs_to_paths([sim_input])[0]
     sim_input_time_0 = pinterp.resolve_paths(sim_input, 0.0)
     sim_input_time_1 = pinterp.resolve_paths(sim_input, 1.0)
     sim_input_time_2 = pinterp.resolve_paths(sim_input, 2.0)
@@ -190,12 +190,12 @@ def test_param_specs_to_paths():
 
 
     #
-    # Test that we can provide an interpolation for a parameter.
+    # Test that we can provide an interpolation for an input.
     #
 
     simple_inputs = SimpleInputs(a=1.0, b=2.0, c=pinterp.interp(time_base, 10.0 * time_base))
     sim_input = SimInput(time=time_base, initial_state=None, inputs=simple_inputs)
-    sim_input = param_specs_to_paths([sim_input])[0]
+    sim_input = input_specs_to_paths([sim_input])[0]
     sim_input_time_0 = pinterp.resolve_paths(sim_input, 0.0)
     sim_input_time_1 = pinterp.resolve_paths(sim_input, 1.0)
     sim_input_time_2 = pinterp.resolve_paths(sim_input, 2.0)

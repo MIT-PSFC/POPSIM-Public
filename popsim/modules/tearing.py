@@ -189,7 +189,7 @@ class Tearing(ModuleBase):
 
     @chex.dataclass
     class Inputs:
-        # Define the, possibly time dependent, parameters that will be passed to the module.
+        # Define the, possibly time dependent, inputs that will be passed to the module.
         rot_dur: float  # Time from trigger to when the mode begins to slow down [s]
         locking_dur: float  # Time from when the mode begins to slow down to when it locks [s]
         disruption_phase: DisruptionPhase
@@ -462,7 +462,7 @@ def calculate_locking_threshold(scaling_law_inputs: dict[str, float], scaling_la
     Calculate the locking threshold based on an arbitrary scaling law.
 
     Args:
-        scaling_law_inputs (dict[str, float]): The parameters for the scaling law.
+        scaling_law_inputs (dict[str, float]): The input values of each parameter in the scaling law.
         scaling_law_terms (dict[str, list[float]]): The terms for the scaling law, where the first element is the power of the parameter and the second is the error.
 
     Returns:

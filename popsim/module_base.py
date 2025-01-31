@@ -30,10 +30,10 @@ class ModuleBase(ABC):
         signature = inspect.signature(call_method)
 
         # Define required parameters
-        required_inputs = ("state", "inputs")
+        required_params = ("state", "inputs")
 
         # Check if all required parameters are in the signature
-        for param_name in required_inputs:
+        for param_name in required_params:
             if param_name not in signature.parameters:
                 raise TypeError(f"__call__ method in {self.__class__.__name__} must have a '{param_name}' parameter")
 

@@ -93,7 +93,7 @@ def multi_species_derivs(state: Density.State, inputs: Density.Inputs) -> Densit
 
     Args:
         state (State): density state of the plasma.
-        inputs (Inputs): external parameters.
+        inputs (Inputs): external inputs.
 
     Returns:
         State: time derivative of the density state of the plasma.

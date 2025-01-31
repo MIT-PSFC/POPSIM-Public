@@ -24,7 +24,7 @@ def generate_sim_and_checks(only_return_final: bool = True):
     checks = {
         "P_fusion_MW": (out_aux["P_fusion_MW"], Sparc2020TestData.Pfusion, 20.0),
         "P_ohmic_MW": (out_aux["P_ohmic_MW"], Sparc2020TestData.Pohm, 40.0),
-        "P_aux_MW": (out_aux["inputs"]["P_aux_MW"], Sparc2020TestData.Paux, 1e-3), # Should be exact because it's a parameter.
+        "P_aux_MW": (out_aux["inputs"]["P_aux_MW"], Sparc2020TestData.Paux, 1e-3), # Should be exact because it's an input.
         "beta_t": (out_aux["beta_t"], Sparc2020TestData.beta, 20.0),
         "tau_E": (out_aux["tau_E"], Sparc2020TestData.tauE, 10.0),
         "P_rad_MW": (out_aux["P_rad_MW"], Sparc2020TestData.Prad, 15.0),

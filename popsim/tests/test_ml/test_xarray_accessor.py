@@ -13,7 +13,7 @@ def test_assign_training_metadata(cmod_test_dataset):
     train_meta = TrainingMetadata(
         sample_coord="shot",
         sample_dim="shot",
-        param_vars=data_var_names[:2],
+        input_vars=data_var_names[:2],
         target_vars=data_var_names[2:4],
         episode_coord="shot",
         episode_dim="shot",
@@ -36,7 +36,7 @@ def test_assign_training_metadata(cmod_test_dataset):
 
 @pytest.mark.parametrize("split_fracs", [[0.7, 0.15, 0.15], [0.6, 0.4]])
 def test_make_standard_dataloader(reduced_cmod_test_dataset, split_fracs):
-    ds, state_init_vars, param_vars, target_vars = reduced_cmod_test_dataset
+    ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
     
     # Check the time independent case.
     dls = ds.popsim_ml.make_dataloaders(
@@ -60,7 +60,7 @@ def test_make_standard_dataloader(reduced_cmod_test_dataset, split_fracs):
     dls = ds.popsim_ml.make_dataloaders(
         time_coord="time",
         episode_coord="shot",
-        input_vars=param_vars,
+        input_vars=input_vars,
         target_vars=target_vars,
         split_fracs=split_fracs,
         key=42,

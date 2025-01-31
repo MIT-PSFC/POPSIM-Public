@@ -35,7 +35,7 @@ class BasicLorenz(ModuleBase):
 
     @chex.dataclass
     class Inputs:
-        # Define the (possibly time-dependent) parameters for the module.
+        # Define the (possibly time-dependent) inputs for the module.
         rho: float
         sigma: float
         beta: float

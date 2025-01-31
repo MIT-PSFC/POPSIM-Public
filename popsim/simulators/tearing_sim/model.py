@@ -36,7 +36,7 @@ class TearingSim(ModuleBase):
 
     @chex.dataclass
     class Inputs:
-        # Define the, possibly time dependent, parameters that will be passed to the module.
+        # Define the, possibly time dependent, inputs that will be passed to the module.
         tearing_inputs: Tearing.Inputs
 
     config: Config
@@ -48,7 +48,7 @@ class TearingSim(ModuleBase):
         # Compute the results of the Tearing module.
         tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, inputs.tearing_inputs)
 
-        # Build the parameters for the diagnostic modules.
+        # Build the inputs for the diagnostic modules.
         lown_array_inputs = LowNArray.Inputs(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
         b_field_poloidal_probes_inputs = BFieldPoloidalProbes.Inputs(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
 

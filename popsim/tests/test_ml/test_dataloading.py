@@ -39,7 +39,7 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length = N
 @pytest.mark.parametrize("batch_size", [None, 1, 64, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("shuffle", [True, False])
 def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size, shuffle):
-    ds, state_init_vars, param_vars, target_vars = reduced_cmod_test_dataset
+    ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
 
     # expected_n_samps were determined by manually checking the dataset.
     segment_length, segment_overlap, expected_n_samps = segmenting_case["seg_length"], segmenting_case["seg_overlap"], segmenting_case["expected_n_samps"]
@@ -48,7 +48,7 @@ def test_make_dataloader(reduced_cmod_test_dataset, segmenting_case, batch_size,
         time_coord="time",
         episode_coord="shot",
         state_init_vars=state_init_vars,
-        param_vars=param_vars,
+        input_vars=input_vars,
         target_vars=target_vars,
         segment_length=segment_length,
         segment_overlap=segment_overlap,

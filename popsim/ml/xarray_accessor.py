@@ -114,7 +114,7 @@ class PopsimMLAccessor:
         """Prepare inputs and targets for training."""
 
         ds = self.ds
-        inputs = ds_to_dict_jnp(ds[self.training_metadata.param_vars])
+        inputs = ds_to_dict_jnp(ds[self.training_metadata.input_vars])
         targets = ds_to_dict_jnp(ds[self.training_metadata.target_vars])
 
         if not self.training_metadata.is_time_dependent:

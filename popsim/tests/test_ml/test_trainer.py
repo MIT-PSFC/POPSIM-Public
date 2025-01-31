@@ -83,7 +83,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
             time_coord="time",
             episode_coord="simulation",
             state_init_vars=["y0", "y1"],
-            param_vars=[],
+            input_vars=[],
             target_vars=["y0", "y1"],
             segment_length=None
         )
@@ -95,7 +95,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         time_coord="time",
         episode_coord="simulation",
         state_init_vars=["y0", "y1"],
-        param_vars=[],
+        input_vars=[],
         target_vars=["y0", "y1"],
         segment_length=train_seg_length
     )

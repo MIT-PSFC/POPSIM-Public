@@ -21,7 +21,7 @@ PathSpec = dict[Float[ArrayLike, ""], PyTree[ArrayLike]]
 PathOrPathSpec = diffrax.AbstractPath | PathSpec
 
 # A constant or a time dependent value.
-# This type is the user-facing API for specifying parameters.
+# This type is the user-facing API for specifying inputs.
 ConstantOrPathSpec = typing.Any | PathOrPathSpec
 
 # Once the user-facing API is parsed, inputs take the form of a PyTree of ConstantOrPath.

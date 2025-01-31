@@ -40,7 +40,7 @@ class CometMirror(ModuleBase):
     @chex.dataclass
     class Inputs:
         """
-        Dynamic parameters for the CometMirror model.
+        Dynamic inputs for the CometMirror model.
         """
 
         magnetic_field_on_axis: float  # [T]
