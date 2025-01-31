@@ -21,11 +21,11 @@ def test_sim_and_clip():
     input_powers = jnp.array([15.0, 15.0, 15.0, 15.0, 15.0, 0.0, 0.0])
     input_powers_traj = diffrax.LinearInterpolation(ts=times, ys=input_powers)
 
-    params = HmodeDynamics.Params(transition_characteristic_time=0.1, P_tau_MW=conducted_powers_traj, P_input_MW=input_powers_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
+    inputs = HmodeDynamics.Inputs(transition_characteristic_time=0.1, P_tau_MW=conducted_powers_traj, P_input_MW=input_powers_traj, hl_threshold_MW=hl_threshold_MW, lh_threshold_MW=lh_threshold_MW)
 
     hmode_module = HmodeDynamics(config=HmodeDynamics.Config())
 
-    sol = simulate(hmode_module, SimInput(time=times, initial_state=state, params=params), return_xarray=False, stepper_type=StepperType.DIFFRAX)
+    sol = simulate(hmode_module, SimInput(time=times, initial_state=state, inputs=inputs), return_xarray=False, stepper_type=StepperType.DIFFRAX)
 
     in_hmodes = sol.ys['state'].in_hmode
     

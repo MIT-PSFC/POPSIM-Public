@@ -27,7 +27,7 @@ class ContinuousTimeModule(ModuleBase):
         y: float
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         z: float = 0.0
 
     config: Config
@@ -35,7 +35,7 @@ class ContinuousTimeModule(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         state_dot = ContinuousTimeModule.State(x1=-state.x1, x2=-1.0 * state.x2)
         out = ContinuousTimeModule.Output(y=xr.apply_ufunc(jnp.abs, state.x1))
         return state_dot, out
@@ -51,8 +51,8 @@ def pure_discrete_time_module():
     module = DiscreteTimeExample(config=DiscreteTimeExample.Config(disruptivity_threshold=0.9))
     time_base = simulate.make_time_base(0.0, 1.0, 1e-3)
     initial_state = DiscreteTimeExample.State(disrupted_state=ExampleDisruptedState.NOT_DISRUPTED)
-    params = DiscreteTimeExample.Params(disruptivity={0.0: 0.1, 0.5: 1.0, 0.75: 0.0})  # Time-dependent disruptivity.
-    return module, time_base, initial_state, params
+    inputs = DiscreteTimeExample.Inputs(disruptivity={0.0: 0.1, 0.5: 1.0, 0.75: 0.0})  # Time-dependent disruptivity.
+    return module, time_base, initial_state, inputs
 
 @pytest.fixture
 def hybrid_time_module():
@@ -60,8 +60,8 @@ def hybrid_time_module():
     time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
     initial_state = HybridExample.State(y=0.0, sign=1)
     final_lim_mag = 0.01
-    params = HybridExample.Params(speed=1.0, ylims=({0.0: -1.0, 10.0: -final_lim_mag}, {0.0: 1.0, 10.0: final_lim_mag}))
-    return module, time_base, initial_state, params
+    inputs = HybridExample.Inputs(speed=1.0, ylims=({0.0: -1.0, 10.0: -final_lim_mag}, {0.0: 1.0, 10.0: final_lim_mag}))
+    return module, time_base, initial_state, inputs
 
 @pytest.fixture
 def xarray_partial_state():
@@ -78,9 +78,9 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
 
     if multi_sim:
-        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0)), SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=1.0))]
+        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=0.0)), SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=1.0))]
     else:
-        sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0))
+        sim_inputs = SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=0.0))
 
     sol = simulate.simulate(module, sim_inputs, return_xarray=return_xarray, stepper_type=stepper_type)
 
@@ -109,9 +109,9 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_type, multi_sim):
-    module, time_base, initial_state, params = pure_discrete_time_module
+    module, time_base, initial_state, inputs = pure_discrete_time_module
 
-    sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=params)
+    sim_inputs = SimInput(time=time_base, initial_state=initial_state, inputs=inputs)
     if multi_sim:
         sim_inputs = [sim_inputs, sim_inputs]
 
@@ -142,8 +142,8 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
 @pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type, multi_sim):
-    module, time_base, initial_state, params = hybrid_time_module
-    sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=params)
+    module, time_base, initial_state, inputs = hybrid_time_module
+    sim_inputs = SimInput(time=time_base, initial_state=initial_state, inputs=inputs)
     if multi_sim:
         sim_inputs = [sim_inputs, sim_inputs]
 
@@ -165,7 +165,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
             raise ValueError("Stepper type not recognized.")
     
     pad = 0.01
-    assert (sol["state.y"] <= sol["params.ylims.1"] + pad).all()
+    assert (sol["state.y"] <= sol["inputs.ylims.1"] + pad).all()
 
     # If multi_sim, check that there is a simulation dimension.
     if multi_sim:
@@ -177,9 +177,9 @@ def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
     module, initial_state = xarray_partial_state
     time_base = simulate.make_time_base(0.0, 10.0, 1e-3)
     if multi_sim:
-        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0)), SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=1.0))]
+        sim_inputs = [SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=0.0)), SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=1.0))]
     else:
-        sim_inputs = SimInput(time=time_base, initial_state=initial_state, params=ContinuousTimeModule.Params(z=0.0))
+        sim_inputs = SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=0.0))
 
     sol = simulate.simulate(module, sim_inputs, return_xarray=True, stepper_type=stepper_type)
 
@@ -203,7 +203,7 @@ def test_disable_record_state():
             big_array: Array = discrete_time_field()
 
         @chex.dataclass
-        class Params:
+        class Inputs:
             pass
 
         @chex.dataclass
@@ -211,7 +211,7 @@ def test_disable_record_state():
             out: float
 
         def __call__(
-            self, state: "MemoryHogExample.State", params: "MemoryHogExample.Params"
+            self, state: "MemoryHogExample.State", inputs: "MemoryHogExample.Inputs"
         ) -> tuple["MemoryHogExample.State", "MemoryHogExample.Output"]:
             state_out = MemoryHogExample.State(big_array=state.big_array)
             out = MemoryHogExample.Output(out=state.big_array[0])
@@ -226,4 +226,4 @@ def test_disable_record_state():
 
     module = MemoryHogExample()
 
-    out = simulate.simulate(module, SimInput(time=ts, initial_state=state, params=MemoryHogExample.Params()), record_state=False)
+    out = simulate.simulate(module, SimInput(time=ts, initial_state=state, inputs=MemoryHogExample.Inputs()), record_state=False)

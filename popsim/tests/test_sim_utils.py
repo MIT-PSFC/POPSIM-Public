@@ -17,15 +17,15 @@ def test_generate_cases():
         x: float
 
     @chex.dataclass
-    class ExampleParams:
+    class ExampleInputs:
         p0: float
         p1: dict[str, float]
 
     time_base = make_time_base(0.0, 1.0, 0.01)
     initial_state = ExampleState(data=Data(a=1, b=2, c=3), x=0.0)
-    params = ExampleParams(p0=1.0, p1={"a": 3.0, "b": 4.0})
+    inputs = ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0})
     
-    sim_input = SimInput(time=time_base, initial_state=initial_state, params=params)
+    sim_input = SimInput(time=time_base, initial_state=initial_state, inputs=inputs)
 
     #
     # Check the identity case.
@@ -39,35 +39,35 @@ def test_generate_cases():
     #
     initial_state_multi = ExampleState(data=MultiCases(cases=[Data(a=1, b=2, c=3), Data(a=-1, b=-2, c=-3)]), x=0.0)
 
-    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, params=params)
+    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=params)
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=params)
+    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs)
+    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs)
 
     #
-    # Try using MultiCases for both varying state and params.
+    # Try using MultiCases for both varying state and inputs.
     #
-    params_multi = ExampleParams(p0=MultiCases(cases=[1.0, 2.0]), p1=MultiCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}]))
-    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, params=params_multi)
+    inputs_multi = ExampleInputs(p0=MultiCases(cases=[1.0, 2.0]), p1=MultiCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}]))
+    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs_multi)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=ExampleParams(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=ExampleParams(p0=2.0, p1={"a": -3.0, "b": -4.0}))
+    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": -3.0, "b": -4.0}))
 
     #
     # Check that an error is raised if MultiCases don't have the same length.
     #
-    params_multi = ExampleParams(p0=MultiCases(cases=[1.0, 2.0, 3.0]), p1=MultiCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}, {"a": 3.0, "b": 4.0}]))
-    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, params=params_multi)
+    inputs_multi = ExampleInputs(p0=MultiCases(cases=[1.0, 2.0, 3.0]), p1=MultiCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}, {"a": 3.0, "b": 4.0}]))
+    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs_multi)
     with pytest.raises(ValueError):
         cases = sim_input.generate_sim_cases()
 
     #
     # Check that an error is raised if both MultiCases and CombinatorialCases are present. 
     #
-    params_multi = ExampleParams(p0=MultiCases(cases=[1.0, 2.0]), p1=CombinatorialCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}]))
-    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, params=params_multi)
+    inputs_multi = ExampleInputs(p0=MultiCases(cases=[1.0, 2.0]), p1=CombinatorialCases(cases=[{"a": 3.0, "b": 4.0}, {"a": -3.0, "b": -4.0}]))
+    sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs_multi)
     with pytest.raises(ValueError):
         cases = sim_input.generate_sim_cases()
 
@@ -76,27 +76,27 @@ def test_generate_cases():
     # Try using CombintorialCases for a single subtree.
     #
     initial_state_comb = ExampleState(data=CombinatorialCases(cases=[Data(a=1, b=2, c=3), Data(a=-1, b=-2, c=-3)]), x=0.0)
-    sim_input = SimInput(time=time_base, initial_state=initial_state_comb, params=params)
+    sim_input = SimInput(time=time_base, initial_state=initial_state_comb, inputs=inputs)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=params)
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=params)
+    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs)
+    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs)
 
 
     #
     # Try using CombinatorialCases with one parameter having 2 cases and the other having 3 cases. Expect 6 cases.
     #
     initial_state_comb = ExampleState(data=CombinatorialCases(cases=[Data(a=1, b=2, c=3), Data(a=-1, b=-2, c=-3)]), x=0.0)
-    params_comb = ExampleParams(p0=CombinatorialCases(cases=[1.0, 2.0, 3.0]), p1={"a": 3.0, "b": 4.0})
-    sim_input = SimInput(time=time_base, initial_state=initial_state_comb, params=params_comb)
+    inputs_comb = ExampleInputs(p0=CombinatorialCases(cases=[1.0, 2.0, 3.0]), p1={"a": 3.0, "b": 4.0})
+    sim_input = SimInput(time=time_base, initial_state=initial_state_comb, inputs=inputs_comb)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 6
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=ExampleParams(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=ExampleParams(p0=2.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[2] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), params=ExampleParams(p0=3.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[3] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=ExampleParams(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[4] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=ExampleParams(p0=2.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[5] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), params=ExampleParams(p0=3.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[2] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[3] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[4] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0}))
+    assert cases[5] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0}))
 
 def test_static_sampler():
     def sample_fn(key):
@@ -125,20 +125,20 @@ def test_sample_sim_input():
         "not_random": 1.0,
     }
 
-    sim_input = SimInput(time=np.array([0.0, 1.0]), initial_state=tree, params=tree)
+    sim_input = SimInput(time=np.array([0.0, 1.0]), initial_state=tree, inputs=tree)
 
     samples = sim_input.sample(jax.random.PRNGKey(0), 3) # Sample 3 times.
 
     # Check not_random is the same in all samples.
     assert all([sample.initial_state["not_random"] == 1.0 for sample in samples])
-    assert all([sample.params["not_random"] == 1.0 for sample in samples])
+    assert all([sample.inputs["not_random"] == 1.0 for sample in samples])
 
     # Check that random is different in all samples.
     randoms1 = [sample.initial_state["random"] for sample in samples]
     assert jnp.not_equal(randoms1[0], randoms1[1]).all()
     assert jnp.not_equal(randoms1[0], randoms1[2]).all()
     assert jnp.not_equal(randoms1[1], randoms1[2]).all()
-    randoms2 = [sample.params["random"] for sample in samples]
+    randoms2 = [sample.inputs["random"] for sample in samples]
     assert jnp.not_equal(randoms2[0], randoms2[1]).all()
     assert jnp.not_equal(randoms2[0], randoms2[2]).all()
     assert jnp.not_equal(randoms2[1], randoms2[2]).all()

@@ -96,18 +96,18 @@ def add_hlines(plot: hv.Element, var: Union[str, Sequence[str]], hlines: dict[st
     return plot
 
 
-def visualize_params(
+def visualize_inputs(
     pytrees: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
 ) -> pn.panel:
-    """Visualize the params of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
+    """Visualize the inputs of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 
     Args:
-        pytrees (typing.Union[PyTree, typing.Sequence[PyTree]]): params tree.
+        pytrees (typing.Union[PyTree, typing.Sequence[PyTree]]): inputs tree.
         time_base (np.ndarray): Time base for the simulation.
         interp_type (InterpType): Interpolation type.
 
     Returns:
-        pn.panel: panel showing the params as a time trace.
+        pn.panel: panel showing the inputs as a time trace.
     """
     if not isinstance(pytrees, Sequence):
         pytrees = [pytrees]

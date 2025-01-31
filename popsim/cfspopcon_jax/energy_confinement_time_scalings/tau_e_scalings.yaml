@@ -23,7 +23,7 @@ IModey2:
     documentation: "Walk, J. R., Pedestal structure and stability in high-performance plasmas on Alcator C-Mod, https://dspace.mit.edu/handle/1721.1/95524, equation 5.2"
     notes: "Coefficient C adjusted to account for ne in 1e19m^-3"
     regime: "I-Mode"
-  params:
+  inputs:
     C: 0.01346
     a_A: 0.0
     a_B: 0.768
@@ -42,7 +42,7 @@ ITER89P:
     documentation: "From Yushmanov NF 1990, ref. [1] in tau_e_scalings.yaml"
     notes: "For L-mode. C is corrected for average_electron_density convention. N.b. The different factor of a_R is because we use inverse_aspect_ratio=a/R instead of a. R^1.2 a^0.3 = R^1.5 inverse_aspect_ratio^0.3."
     regime: "L-Mode"
-  params:
+  inputs:
     C: 0.03812775526676551
     a_A: 0.5
     a_B: 0.2
@@ -61,7 +61,7 @@ ITER89P_ka:
     documentation: "From Yushmanov NF 1990, ref. [1] in tau_e_scalings.yaml"
     notes: "For L-mode. C is corrected for average_electron_density convention. Using kappa_A instead of separatrix_elongation, which is likely more accurate for double-nulls. N.b. The different factor of a_R is because we use inverse_aspect_ratio=a/R instead of a. R^1.2 a^0.3 = R^1.5 inverse_aspect_ratio^0.3."
     regime: "L-Mode"
-  params:
+  inputs:
     C: 0.03812775526676551
     a_A: 0.5
     a_B: 0.2
@@ -80,7 +80,7 @@ ITER97L:
     documentation: "From Kaye NF 1997, ref. [7] in tau_e_scalings.yaml"
     notes: ""
     regime: "L-Mode"
-  params:
+  inputs:
     C: 0.023
     a_I: 0.96
     a_B: 0.03
@@ -99,7 +99,7 @@ ITER98y2:
     documentation: "ITER98y2 scaling , ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.0562
     a_A: 0.19
     a_B: 0.15
@@ -118,7 +118,7 @@ ITERL96Pth:
     documentation: "ITERL96P(th) scaling, ref. [4] in tau_e_scalings.yaml"
     notes: ""
     regime: "L-Mode"
-  params:
+  inputs:
     C: 0.023
     a_A: 0.20
     a_B: 0.03
@@ -137,7 +137,7 @@ ITPA_2018_STD5_GLS:
     documentation: "ITPA 2018 STD5-GLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.042
     a_A: 0.47
     a_B: 0.068
@@ -156,7 +156,7 @@ ITPA_2018_STD5_OLS:
     documentation: "ITPA 2018 STD5-OLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.049
     a_A: 0.25
     a_B: 0.085
@@ -175,7 +175,7 @@ ITPA_2018_STD5_SEL1_GLS:
     documentation: "ITPA 2018 STD5-SEL1-GLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.023
     a_A: 0.33
     a_B: -0.018
@@ -194,7 +194,7 @@ ITPA_2018_STD5_SEL1_OLS:
     documentation: "ITPA 2018 STD5-SEL1-OLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.045
     a_A: 0.24
     a_B: -0.1
@@ -213,7 +213,7 @@ ITPA_2018_STD5_SEL1_WLS:
     documentation: "ITPA 2018 STD5-SEL1-WLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.03
     a_A: 0.094
     a_B: -0.069
@@ -232,7 +232,7 @@ ITPA_2018_STD5_WLS:
     documentation: "ITPA 2018 STD5-WLS (G. Verdoolaege et al, EX_P7- 1), ref. [2] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.04
     a_A: 0.25
     a_B: 0.11
@@ -251,7 +251,7 @@ ITPA20_IL_HighZ:
     documentation: "ITER H20, DB5.2.3, High Z walls only, ref. [3] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.189
     a_A: 0.312
     a_B: -0.356
@@ -270,7 +270,7 @@ ITPA20_IL:
     documentation: "ITER H20, DB5.2.3, ITER-like discharges, ref. [3] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.067
     a_A: 0.3
     a_B: -0.13
@@ -289,7 +289,7 @@ ITPA20_STD5:
     documentation: "ITER H20, DB5.2.3, STD5 discharges, ref. [3] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-Mode"
-  params:
+  inputs:
     C: 0.053
     a_A: 0.2
     a_B: 0.22
@@ -308,7 +308,7 @@ LOC:
     documentation: "Linear Ohmic Confinement, from page 2 of ref. [6] in tau_e_scalings.yaml"
     notes: ""
     regime: "LOC"
-  params:
+  inputs:
     C: 0.0070
     a_n: 1.0
     a_q: 1.0
@@ -327,7 +327,7 @@ H_DS03:
     documentation: "Electrostatic, GyroBohm-like confinement scaling, eqn 21 from ref. [5] in tau_e_scalings.yaml"
     notes: ""
     regime: "H-mode"
-  params:
+  inputs:
     C: 0.028
     a_I: 0.83
     a_B: 0.07

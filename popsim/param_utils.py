@@ -11,9 +11,9 @@ from popsim.sim_utils import SimInput
 
 
 def build_param_paths(
-    params: ptypes.ParamSpec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
+    inputs: ptypes.Inputspec, time_base: Array, interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR
 ) -> PyTree[diffrax.AbstractPath]:
-    """Given a user-specified params specification that is a PyTree of "ConstantOrPathSpec", generate
+    """Given a user-specified inputs specification that is a PyTree of "ConstantOrPathSpec", generate
     a new PyTree of "AbstractPath" on the given time_base. Leaves are handeled as follows:
 
         1) If the leaf is a dictionary with float keys, it is assumed to be a PathSpec and is interpolated onto "time_base".
@@ -22,10 +22,10 @@ def build_param_paths(
 
     Why interpolate everything? This is done to ensure the inputs to jax.jitted functions are all the same shape across
     calls to prevent re-compiling (which is the main computational cost right now). This way, if the user switches from
-    specifying a params as a constant to trajectory, the function will not need to be re-compiled.
+    specifying a inputs as a constant to trajectory, the function will not need to be re-compiled.
 
     Args:
-        params (ptypes.ParamSpec): A user-specified param specification.
+        inputs (ptypes.Inputspec): A user-specified param specification.
         interp_type (pinterp.InterpType): The interpolation type. Defaults to pinterp.InterpType.LINEAR.
         time_base (Array): The time base to interpolate the TrajectorySpecs to.
 
@@ -82,21 +82,21 @@ def build_param_paths(
             vals = jnp.array([x for _ in time_base])
             return pinterp.interp(time_base, vals, interp_type=interp_type)
 
-    return jax.tree.map(interp_onto_timebase, params, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
+    return jax.tree.map(interp_onto_timebase, inputs, is_leaf=lambda x: is_path_spec(x) or isinstance(x, diffrax.AbstractPath))
 
 
 def param_specs_to_paths(
     sim_inputs: typing.Sequence[SimInput],
     interp_type: pinterp.InterpType = pinterp.InterpType.LINEAR,
 ) -> typing.Sequence[SimInput]:
-    """Given a sequence of SimInputs, where the params might be user-specified ParamSpecs, resolve the ParamSpecs to AbstractPaths.
+    """Given a sequence of SimInputs, where the inputs might be user-specified Inputspecs, resolve the Inputspecs to AbstractPaths.
 
     Args:
         sim_inputs (typing.Sequence[SimInput]): _description_
         interp_type (pinterp.InterpType, optional): _description_. Defaults to pinterp.InterpType.LINEAR.
 
     Returns:
-        typing.Sequence[SimInput]: a sequence of SimInputs where the params have been resolved to AbstractPaths.
+        typing.Sequence[SimInput]: a sequence of SimInputs where the inputs have been resolved to AbstractPaths.
     """
 
     # Check that the time base is the same size for all SimInputs.
@@ -110,7 +110,7 @@ def param_specs_to_paths(
             raise ValueError("Time base must be monotonic.")
 
     def resolve_param_spec(sim_input):
-        resolved_params = build_param_paths(sim_input.params, sim_input.time, interp_type)
-        return SimInput(time=sim_input.time, initial_state=sim_input.initial_state, params=resolved_params)
+        resolved_inputs = build_param_paths(sim_input.inputs, sim_input.time, interp_type)
+        return SimInput(time=sim_input.time, initial_state=sim_input.initial_state, inputs=resolved_inputs)
 
     return [resolve_param_spec(sim_input) for sim_input in sim_inputs]

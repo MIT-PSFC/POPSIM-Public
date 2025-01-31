@@ -46,7 +46,7 @@ def run_tearing_test_sim():
     lock_time = trigger_time + rot_dur + locking_dur
     cq_time = disrupt_time + dur_tq_to_spike
     
-    params = Tearing.Params(
+    inputs = Tearing.Inputs(
         rot_dur=rot_dur,  # s
         locking_dur=locking_dur,  # s
         disruption_phase=generate_disruption_phase_trajectory(
@@ -59,7 +59,7 @@ def run_tearing_test_sim():
 
     tearing_module = Tearing(config=config)
 
-    sol_xarray = simulate(tearing_module, SimInput(time=time_base, initial_state=initial_state, params=params), return_xarray=True)
+    sol_xarray = simulate(tearing_module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), return_xarray=True)
     aux_data = locals()
     return sol_xarray, aux_data
 
@@ -129,9 +129,9 @@ def test_calculate_total_overlap():
         efc_efficiency=0.5,
     )
 
-    sample_params = ErrorFieldLocking.Params(
+    sample_inputs = ErrorFieldLocking.Inputs(
         scaling_law_terms = {},
-        scaling_law_params={},
+        scaling_law_inputs={},
         active_circuit_currents={"pf1": 3, "pf2": 4},
         active_circuit_overlaps={"pf1": 0.5, "pf2": 0.7},
         rational_surface_exists=1,
@@ -141,7 +141,7 @@ def test_calculate_total_overlap():
 
     _, out = sample_module(
         state = ErrorFieldLocking.State(tearing_phase=TearingPhase.NONE),
-        params=sample_params
+        inputs=sample_inputs
     )
     calculated_total = out["total_overlap"]
 
@@ -155,10 +155,10 @@ def test_calculate_total_overlap():
 
 def test_calculate_locking_threshold():
     # Ensure the locking threshold function can be called with arbitrary parameters and terms
-    scaling_law_params = {"a": 2, "b": 1, "c": 3}
+    scaling_law_inputs = {"a": 2, "b": 1, "c": 3}
     scaling_law_terms = {"a": [2, .1], "b": [3, .2], "c": [4, .2]}
 
-    computed_result = calculate_locking_threshold(scaling_law_params, scaling_law_terms)
+    computed_result = calculate_locking_threshold(scaling_law_inputs, scaling_law_terms)
 
     expected_result = (2 ** 2) * (1 ** 3) * (3 ** 4)
 
@@ -167,7 +167,7 @@ def test_calculate_locking_threshold():
     # Ensure that if there is a term that isn't one of the parameters, an error is raised
     scaling_law_terms = {"a": [2, .1], "d": [3, .2]}
     with pytest.raises(ValueError):
-        calculate_locking_threshold(scaling_law_params, scaling_law_terms)
+        calculate_locking_threshold(scaling_law_inputs, scaling_law_terms)
 
 
 @pytest.mark.parametrize("overlap, threshold, present_phase, expected_phase",

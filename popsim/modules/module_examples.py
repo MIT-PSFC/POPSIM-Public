@@ -34,7 +34,7 @@ class BasicLorenz(ModuleBase):
         distance_from_origin: float  # L2 norm of the state
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # Define the (possibly time-dependent) parameters for the module.
         rho: float
         sigma: float
@@ -45,7 +45,7 @@ class BasicLorenz(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         def val_in_limits(val, lims):
             # Function to check a single variable is within the limits
             return jnp.logical_and(val > lims[0], val < lims[1])
@@ -62,9 +62,9 @@ class BasicLorenz(ModuleBase):
         )
 
         # Lorenz equations.
-        x_dot = params.rho * (state.y - state.x)
-        y_dot = state.x * (params.sigma - state.z) - state.y
-        z_dot = state.x * state.y - params.beta * state.z
+        x_dot = inputs.rho * (state.y - state.x)
+        y_dot = state.x * (inputs.sigma - state.z) - state.y
+        z_dot = state.x * state.y - inputs.beta * state.z
 
         # If the state is out of limits, set the derivatives to zero.
         state_dot = BasicLorenz.State(
@@ -94,7 +94,7 @@ class DiscreteTimeExample(ModuleBase):
         disrupted_state: ExampleDisruptedState = discrete_time_field(default=ExampleDisruptedState.NOT_DISRUPTED)
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         disruptivity: float
 
     @chex.dataclass
@@ -107,11 +107,11 @@ class DiscreteTimeExample(ModuleBase):
         self.config = config
 
     def __call__(
-        self, state: "DiscreteTimeExample.State", params: "DiscreteTimeExample.Params"
+        self, state: "DiscreteTimeExample.State", inputs: "DiscreteTimeExample.Inputs"
     ) -> tuple["DiscreteTimeExample.State", "DiscreteTimeExample.Output"]:
         # If the disruptivity is above the threshold, set the state to DISRUPTED.
         # If the state is already DISRUPTED, keep it that way, regardless of the disruptivity.
-        disruptivity_above_threshold = params.disruptivity > self.config.disruptivity_threshold
+        disruptivity_above_threshold = inputs.disruptivity > self.config.disruptivity_threshold
         next_state = jnp.where(
             jnp.logical_or(disruptivity_above_threshold, state.disrupted_state == ExampleDisruptedState.DISRUPTED),
             ExampleDisruptedState.DISRUPTED,
@@ -136,7 +136,7 @@ class HybridExample(ModuleBase):
         sign: int = discrete_time_field()  # Discrete-time state variable for the sign of the time derivative.
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         speed: float
         ylims: tuple[float, float]
 
@@ -145,13 +145,13 @@ class HybridExample(ModuleBase):
         pass
 
     def __call__(
-        self, state: "HybridExample.State", params: "HybridExample.Params"
+        self, state: "HybridExample.State", inputs: "HybridExample.Inputs"
     ) -> tuple["HybridExample.State", "HybridExample.Output"]:
         # If the state is at the upper limit, set the sign to -1.
         # If the state is at the lower limit, set the sign to 1.
         # Otherwise, keep the sign the same.
-        at_upper_lim = state.y >= params.ylims[1]
-        at_lower_lim = state.y <= params.ylims[0]
+        at_upper_lim = state.y >= inputs.ylims[1]
+        at_lower_lim = state.y <= inputs.ylims[0]
 
         conditions_and_choices = [
             (at_upper_lim, -1),
@@ -163,7 +163,7 @@ class HybridExample(ModuleBase):
         # NOTE: the output is no longer purely a "state_dot" or the state at the next time step, but rather a mix.
         # The continuous part of the state is still a time derivative, but the discrete part is the state value at
         # the next time step of the simulation.
-        ydot = params.speed * state.sign
+        ydot = inputs.speed * state.sign
         state_out = HybridExample.State(
             y=ydot,
             sign=next_sign,

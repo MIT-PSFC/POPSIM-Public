@@ -26,7 +26,7 @@ class ExampleTemplate(ModuleBase):
         pass
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # Define the, possibly time dependent, parameters that will be passed to the module.
         pass
 
@@ -35,7 +35,7 @@ class ExampleTemplate(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         # Make a state_dot.
         state_dot = ExampleTemplate.State()
         # Make an output.

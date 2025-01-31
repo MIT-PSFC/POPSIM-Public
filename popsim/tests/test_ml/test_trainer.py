@@ -27,7 +27,7 @@ class NeuralODE(ModuleBase):
         state: dict[str, float]
     
     @chex.dataclass
-    class Params:
+    class Inputs:
         pass
 
     @chex.dataclass
@@ -39,7 +39,7 @@ class NeuralODE(ModuleBase):
     def __init__(self, config):
         self.config = config
     
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         state_flat = jnp.asarray(jax.tree.leaves(state.state))
         state_dot_flat = self.config.nn(state_flat)
         state_dot = NeuralODE.State(state=dict(zip(state.state.keys(), state_dot_flat)))
@@ -53,8 +53,8 @@ class NeuralODEEnv(ModuleTrainingEnv):
         return NeuralODE.State(state={"y0": data["y0"], "y1": data["y1"]})
     
     @staticmethod
-    def create_params(data):
-        return NeuralODE.Params()
+    def create_inputs(data):
+        return NeuralODE.Inputs()
     
     def get_trainable(self):
         return self.module.config.nn

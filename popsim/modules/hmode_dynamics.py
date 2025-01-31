@@ -32,7 +32,7 @@ class HmodeDynamics(ModuleBase):
             return jnp.bool_(self.hmode >= CRITICAL_THRESHOLD)
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         transition_characteristic_time: chex.Numeric  # amount of time for a L->H or H->L transition to occur [s].
         P_tau_MW: chex.Numeric  # Power conducted to the scrape-off layer [MW]
         P_input_MW: chex.Numeric  # Power input to the plasma [MW]
@@ -44,12 +44,12 @@ class HmodeDynamics(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         """Compute the time derivative of the H-mode state.
 
         Args:
             state (State): current state.
-            params (Params): input parameters.
+            inputs (Inputs): input parameters.
 
         Returns:
             State: time derivative of the H-mode state.
@@ -57,25 +57,25 @@ class HmodeDynamics(ModuleBase):
 
         # If we are in H-mode, the relevant threshold is the one for H->L transition.
         # If we are in L-mode, the relevant threshold is the one for L->H transition.
-        threshold = jnp.where(state.in_hmode, params.hl_threshold_MW, params.lh_threshold_MW)
+        threshold = jnp.where(state.in_hmode, inputs.hl_threshold_MW, inputs.lh_threshold_MW)
 
         # Trigger L->H if both conducted power and input power are above the threshold.
         # I originally just had a conducted power condition, but in H->L back transitions
         # the conducted power shoots up for a while, which causes a trigger back to H mode which doesn't make sense.
-        trigger_l_to_h = jnp.logical_and(params.P_tau_MW >= threshold, params.P_input_MW >= threshold)
+        trigger_l_to_h = jnp.logical_and(inputs.P_tau_MW >= threshold, inputs.P_input_MW >= threshold)
         hmode_pass = jnp.where(trigger_l_to_h, 1.0, 0.0)
 
-        hmode_dot = (hmode_pass - state.hmode) / params.transition_characteristic_time
+        hmode_dot = (hmode_pass - state.hmode) / inputs.transition_characteristic_time
         return HmodeDynamics.State(hmode=hmode_dot), HmodeDynamics.Output()
 
 
 # TODO: This is only here to keep cometmirror working for now
-def dynamics(state: HmodeDynamics.State, params: HmodeDynamics.Params) -> HmodeDynamics.State:
+def dynamics(state: HmodeDynamics.State, inputs: HmodeDynamics.Inputs) -> HmodeDynamics.State:
     """Compute the time derivative of the H-mode state.
 
     Args:
         state (State): current state.
-        params (Params): input parameters.
+        inputs (Inputs): input parameters.
 
     Returns:
         State: time derivative of the H-mode state.
@@ -83,13 +83,13 @@ def dynamics(state: HmodeDynamics.State, params: HmodeDynamics.Params) -> HmodeD
 
     # If we are in H-mode, the relevant threshold is the one for H->L transition.
     # If we are in L-mode, the relevant threshold is the one for L->H transition.
-    threshold = jnp.where(state.in_hmode, params.hl_threshold_MW, params.lh_threshold_MW)
+    threshold = jnp.where(state.in_hmode, inputs.hl_threshold_MW, inputs.lh_threshold_MW)
 
     # Trigger L->H if both conducted power and input power are above the threshold.
     # I originally just had a conducted power condition, but in H->L back transitions
     # the conducted power shoots up for a while, which causes a trigger back to H mode which doesn't make sense.
-    trigger_l_to_h = jnp.logical_and(params.P_tau_MW >= threshold, params.P_input_MW >= threshold)
+    trigger_l_to_h = jnp.logical_and(inputs.P_tau_MW >= threshold, inputs.P_input_MW >= threshold)
     hmode_pass = jnp.where(trigger_l_to_h, 1.0, 0.0)
 
-    hmode_dot = (hmode_pass - state.hmode) / params.transition_characteristic_time
+    hmode_dot = (hmode_pass - state.hmode) / inputs.transition_characteristic_time
     return HmodeDynamics.State(hmode=hmode_dot)

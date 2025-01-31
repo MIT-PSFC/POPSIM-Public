@@ -10,15 +10,15 @@ def test_dynamics():
     # Set initial state
     state = IcrhZone.State()
 
-    # Set params
-    params = IcrhZone.Params(
+    # Set inputs
+    inputs = IcrhZone.Inputs(
         frequency_command=120,
         power_command=2e6,
     )
 
     icrh_zone_module = IcrhZone(config=IcrhZone.Config())
     
-    icrh_zone_dot, icrh_zone_output = icrh_zone_module(state, params)
+    icrh_zone_dot, icrh_zone_output = icrh_zone_module(state, inputs)
 
     assert icrh_zone_output.reflected_power == 0.2e6
     assert icrh_zone_output.transmitted_power == 1.8e6

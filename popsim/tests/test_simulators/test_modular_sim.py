@@ -21,13 +21,13 @@ def test_modular_sim():
 
     model = msm.ModularModel(config=config)
 
-    # Set params
+    # Set inputs
     particle_confinement_scalars = {
         k: 3.0 if k in species_container.fuel_species else 10.0
         for k in species_container.species
     }
 
-    params = ModularModel.Params(
+    inputs = ModularModel.Inputs(
         confinement_time_scalar=1.0,
         confinement_time=1.0,
         P_aux_MW=1.0,
@@ -57,4 +57,4 @@ def test_modular_sim():
 
     # Simulate the model
     ts = jnp.linspace(0, 1.0, 10)
-    sol = simulate(model, SimInput(time=ts, initial_state=state,params=params), return_xarray=True)
+    sol = simulate(model, SimInput(time=ts, initial_state=state,inputs=inputs), return_xarray=True)

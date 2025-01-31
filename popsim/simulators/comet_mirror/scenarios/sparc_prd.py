@@ -59,7 +59,7 @@ def build_comet_mirror_config():
     fueling19[FuelSpecies.Deuterium] = additional_assumptions["deuterium_fueling19"]
     fueling19[FuelSpecies.Tritium] = additional_assumptions["tritium_fueling19"]
 
-    params = CometMirror.Params(
+    inputs = CometMirror.Inputs(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],
         plasma_current=input_parameters["plasma_current"],
         fraction_of_external_power_coupled=input_parameters["fraction_of_external_power_coupled"],
@@ -83,4 +83,4 @@ def build_comet_mirror_config():
         hmode_state=hmode.HmodeDynamics.State(hmode=1.0),
     )
 
-    return model, state, params
+    return model, state, inputs

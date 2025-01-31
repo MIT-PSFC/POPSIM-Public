@@ -35,31 +35,31 @@ class TearingSim(ModuleBase):
         rtnewspec_mirror_out: RTNewSpecMirror.Output
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # Define the, possibly time dependent, parameters that will be passed to the module.
-        tearing_params: Tearing.Params
+        tearing_inputs: Tearing.Inputs
 
     config: Config
 
     def __init__(self, config: Config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         # Compute the results of the Tearing module.
-        tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, params.tearing_params)
+        tearing_state_dot, tearing_out = self.config.tearing_module(state.tearing_state, inputs.tearing_inputs)
 
         # Build the parameters for the diagnostic modules.
-        lown_array_params = LowNArray.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
-        b_field_poloidal_probes_params = BFieldPoloidalProbes.Params(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
+        lown_array_inputs = LowNArray.Inputs(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
+        b_field_poloidal_probes_inputs = BFieldPoloidalProbes.Inputs(tearing_out=tearing_out, modes=self.config.tearing_module.config.modes)
 
-        lown_array_out = self.config.lown_array_module(None, lown_array_params)
-        b_field_poloidal_probes_out = self.config.b_field_poloidal_probes_module(None, b_field_poloidal_probes_params)
+        lown_array_out = self.config.lown_array_module(None, lown_array_inputs)
+        b_field_poloidal_probes_out = self.config.b_field_poloidal_probes_module(None, b_field_poloidal_probes_inputs)
 
-        rtnewspec_params = RTNewSpecMirror.Params(
+        rtnewspec_inputs = RTNewSpecMirror.Inputs(
             probe1_signal=b_field_poloidal_probes_out.Bp[self.config.rtnewspec_mirror_module.config.probe1_id],
             probe2_signal=b_field_poloidal_probes_out.Bp[self.config.rtnewspec_mirror_module.config.probe2_id],
         )
-        rtnewspec_mirror_state, rtnewspec_mirror_out = self.config.rtnewspec_mirror_module(state.rtnewspec_mirror_state, rtnewspec_params)
+        rtnewspec_mirror_state, rtnewspec_mirror_out = self.config.rtnewspec_mirror_module(state.rtnewspec_mirror_state, rtnewspec_inputs)
 
         # Make a state_dot.
         state = TearingSim.State(tearing_state=tearing_state_dot, rtnewspec_mirror_state=rtnewspec_mirror_state)

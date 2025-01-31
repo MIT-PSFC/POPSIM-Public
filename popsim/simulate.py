@@ -75,9 +75,9 @@ def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput],
         )
 
 
-def generate_save_output(state: PyTree, params: PyTree, output: PyTree, record_state: bool = True) -> PyTree:
+def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_state: bool = True) -> PyTree:
     """Generate the output data for a simulation."""
-    out = {"output": output, "params": params}
+    out = {"output": output, "inputs": inputs}
     if record_state:
         out["state"] = state
 
@@ -100,7 +100,7 @@ def simulate(
     Args:
         module (ModuleBase): the dynamics module to simulate.
         sim_inputs (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
-        interp_type (InterpType, optional): interpolation method for params over time.
+        interp_type (InterpType, optional): interpolation method for inputs over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
         stepper_type (StepperType, optional): stepper type to use. Defaults to StepperType.SIMPLE_EULER.
         record_state (bool, optional): whether to record the state at each time step. Defaults to True.
@@ -166,18 +166,18 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
-    def module_f(t, y, params, return_aux=False):
-        params_resolved = resolve_paths(params, t)
-        state_dot, out = module(y, params_resolved)
+    def module_f(t, y, inputs, return_aux=False):
+        inputs_resolved = resolve_paths(inputs, t)
+        state_dot, out = module(y, inputs_resolved)
         if return_aux:
-            return out, params_resolved
+            return out, inputs_resolved
         else:
             return state_dot
 
     # Function to save auxiliary information.
     def saveat_fn(t, y, args):
-        output, params_resolved = module_f(t, y, args, return_aux=True)
-        out = generate_save_output(y, params_resolved, output, record_state=record_state)
+        output, inputs_resolved = module_f(t, y, args, return_aux=True)
+        out = generate_save_output(y, inputs_resolved, output, record_state=record_state)
         return out
 
     # Get the minimum time step that is greater than zero.
@@ -190,7 +190,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: boo
         t1=sim_input.time[-1],
         dt0=dt0,
         y0=sim_input.initial_state,
-        args=sim_input.params,
+        args=sim_input.inputs,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=config["DIFFRAX_MAX_STEPS"],
     )
@@ -210,8 +210,8 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state
 
     def _euler_step(carry, t):
         state = carry
-        params_resolved = resolve_paths(sim_input.params, t)
-        state_out, out = module(state, params_resolved)
+        inputs_resolved = resolve_paths(sim_input.inputs, t)
+        state_out, out = module(state, inputs_resolved)
 
         # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
         # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
@@ -227,7 +227,7 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state
         state_next = eqx.combine(discrete_state_next, continuous_state_next)
 
         # Generate the output data.
-        output_data = generate_save_output(state, params_resolved, out, record_state=record_state)
+        output_data = generate_save_output(state, inputs_resolved, out, record_state=record_state)
 
         return state_next, output_data
 

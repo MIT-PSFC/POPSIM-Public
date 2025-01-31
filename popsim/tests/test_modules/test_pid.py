@@ -10,10 +10,10 @@ def test_pid_controller():
 
     # Create initial state with empty error history
     initial_state = PIDController.State(integrated_error=0.0, previous_error=0.0)
-    params = PIDController.Params(setpoint=5.0, measurement=0.0)
+    inputs = PIDController.Inputs(setpoint=5.0, measurement=0.0)
 
     # Run the PID controller once.
-    state_out, output = pid(initial_state, params)
+    state_out, output = pid(initial_state, inputs)
 
     assert isinstance(state_out, PIDController.State)
     assert isinstance(output, PIDController.Output)
@@ -23,15 +23,15 @@ def test_pid_controller():
     assert jnp.isclose(output.control, expected_control, atol=1e-6)
 
     # Test output limiting
-    params_max = PIDController.Params(setpoint=100.0, measurement=0.0)
-    _, output_max = pid(initial_state, params_max)
+    inputs_max = PIDController.Inputs(setpoint=100.0, measurement=0.0)
+    _, output_max = pid(initial_state, inputs_max)
     assert output_max.control == config.output_max
 
-    params_min = PIDController.Params(setpoint=-100.0, measurement=0.0)
-    _, output_min = pid(initial_state, params_min)
+    inputs_min = PIDController.Inputs(setpoint=-100.0, measurement=0.0)
+    _, output_min = pid(initial_state, inputs_min)
     assert output_min.control == config.output_min
 
     # Test that we can run "simulate" with time varying setpoint and measurement.
     ts = 0.1 * jnp.arange(100)
-    params = PIDController.Params(setpoint=interp(ts, jnp.sin(ts)), measurement=interp(ts, jnp.cos(ts)))
-    ds = simulate(pid, SimInput(time=ts, initial_state=initial_state, params=params), return_xarray=True)
+    inputs = PIDController.Inputs(setpoint=interp(ts, jnp.sin(ts)), measurement=interp(ts, jnp.cos(ts)))
+    ds = simulate(pid, SimInput(time=ts, initial_state=initial_state, inputs=inputs), return_xarray=True)

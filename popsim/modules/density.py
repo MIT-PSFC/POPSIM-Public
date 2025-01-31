@@ -47,7 +47,7 @@ class Density(ModuleBase):
             return list(self.vol_avg_ion.keys())
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         sources_and_sinks: dict[Species, PyTree[float]]  # PyTree of net particle fluxes from various sources and sinks 1e19/s
         species_confinement_time: dict[Species, float]  # species confinement time in seconds
         volume_dot: float  # m^3/s
@@ -58,8 +58,8 @@ class Density(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        return multi_species_derivs(state, params), Density.Output()
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        return multi_species_derivs(state, inputs), Density.Output()
 
 
 def single_species_derivs(
@@ -88,12 +88,12 @@ def single_species_derivs(
     return n_dot
 
 
-def multi_species_derivs(state: Density.State, params: Density.Params) -> Density.State:
+def multi_species_derivs(state: Density.State, inputs: Density.Inputs) -> Density.State:
     """Compute the time derivative of the volume-averaged ion densities for all species.
 
     Args:
         state (State): density state of the plasma.
-        params (Params): external parameters.
+        inputs (Inputs): external parameters.
 
     Returns:
         State: time derivative of the density state of the plasma.
@@ -102,10 +102,10 @@ def multi_species_derivs(state: Density.State, params: Density.Params) -> Densit
     def calc_single_species(species: Species) -> float:
         state_dot = single_species_derivs(
             state.vol_avg_ion[species],
-            sources_and_sinks=params.sources_and_sinks[species],
-            species_confinement_time=params.species_confinement_time[species],
-            volume_dot=params.volume_dot,
-            volume=params.volume,
+            sources_and_sinks=inputs.sources_and_sinks[species],
+            species_confinement_time=inputs.species_confinement_time[species],
+            volume_dot=inputs.volume_dot,
+            volume=inputs.volume,
         )
         return state_dot
 

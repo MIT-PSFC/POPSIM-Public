@@ -60,7 +60,7 @@ def calc_SOL_momentum_loss_fraction(key: MomentumLossFunction, target_electron_t
 
 
 def get_SOL_momentum_loss_function(key: MomentumLossFunction):
-    params = {
+    inputs = {
         MomentumLossFunction.KotovReiter: np.array([1.0, 0.8, 2.1]),
         MomentumLossFunction.Sang: np.array([1.3, 1.8, 1.6]),
         MomentumLossFunction.Jarvinen: np.array([1.7, 2.2, 1.2]),
@@ -69,8 +69,8 @@ def get_SOL_momentum_loss_function(key: MomentumLossFunction):
         MomentumLossFunction.PerezL: np.array([1.1, 3.0, 0.9]),
     }
 
-    return params[key]
+    return inputs[key]
 
 
-def calc_SOL_momentum_loss_function_array(params: NDArray[float64], target_electron_temp):
-    return _calc_SOL_momentum_loss_fraction(params[0], params[1], params[2], target_electron_temp)
+def calc_SOL_momentum_loss_function_array(inputs: NDArray[float64], target_electron_temp):
+    return _calc_SOL_momentum_loss_fraction(inputs[0], inputs[1], inputs[2], target_electron_temp)

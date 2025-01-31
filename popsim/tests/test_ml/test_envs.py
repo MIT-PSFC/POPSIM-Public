@@ -12,7 +12,7 @@ def test_eval_env_specification():
         def create_state(self, input_dict):
             pass
 
-        def create_params(self, input_dict):
+        def create_inputs(self, input_dict):
             pass
         
 
@@ -29,7 +29,7 @@ def test_eval_env_specification():
         def create_state(self, input_dict):
             pass
 
-        def create_params(self, input_dict):
+        def create_inputs(self, input_dict):
             pass
     
     with pytest.raises(ValueError):
@@ -61,7 +61,7 @@ def test_train_env_specification():
         def create_state(self, input_dict):
             pass
 
-        def create_params(self, input_dict):
+        def create_inputs(self, input_dict):
             pass
         
         def get_trainable(self):
@@ -80,7 +80,7 @@ def test_train_env_specification():
         def create_state(self, input_dict):
             pass
 
-        def create_params(self, input_dict):
+        def create_inputs(self, input_dict):
             pass
         
     

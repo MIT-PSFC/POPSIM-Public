@@ -17,8 +17,8 @@ def test_dynamics():
         pipe_flow_rate=1.0,
     )
 
-    # Set params
-    params = FinjInjector.Params(
+    # Set inputs
+    inputs = FinjInjector.Inputs(
         flow_rate_command = 3.0, # [Pa m^3/s]
         valve_flow_rate_tau = valve_flow_rate_tau, # [s]
         pipe_flow_rate_tau = pipe_flow_rate_tau # [s]
@@ -26,7 +26,7 @@ def test_dynamics():
 
     finj_injector_module = FinjInjector(config=FinjInjector.Config())
 
-    finj_injector_dot, finj_injector_output = finj_injector_module(state, params)
+    finj_injector_dot, finj_injector_output = finj_injector_module(state, inputs)
 
     assert finj_injector_output.valve_flow_rate == 2.0
     assert finj_injector_dot.valve_flow_rate == 1.0/2.0

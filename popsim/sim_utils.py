@@ -16,7 +16,7 @@ from popsim.types import StaticSamplerFn
 class SimInput:
     time: Array
     initial_state: PyTree
-    params: PyTree
+    inputs: PyTree
 
     def generate_sim_cases(self) -> list["SimInput"]:
         """See `generate_cases` for more information.

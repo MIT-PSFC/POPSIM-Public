@@ -17,12 +17,12 @@ class SignalRMS(ModuleBase):
         rms: float
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         signal: float
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         # Add the new signal to the window at the current index and update the index.
-        sig1d = jnp.atleast_1d(params.signal)
+        sig1d = jnp.atleast_1d(inputs.signal)
         new_window = jnp.concatenate((sig1d, state.window[:-1]))
 
         rms = jnp.sqrt(jnp.mean(new_window**2))

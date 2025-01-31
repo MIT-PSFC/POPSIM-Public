@@ -20,9 +20,9 @@ class PopsimGUI(param.Parameterized):
         simulation_dim: typing.Optional[str] = None,
         max_sims_for_legend: int = 5,
         search_option_limit: int = 10,
-        **params,
+        **inputs,
     ):
-        super().__init__(**params)
+        super().__init__(**inputs)
         self.ds = ds
         self.time_dim = time_dim
         self.rho_dim = rho_dim

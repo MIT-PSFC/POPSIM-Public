@@ -31,7 +31,7 @@ class ModularModel(ModuleBase):
         finj_state: dict[Species, FinjInjector.State]
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         """
         Dynamic parameters for the ModularSim model.
         """
@@ -78,43 +78,43 @@ class ModularModel(ModuleBase):
         self.power_balance_module = PowerBalance(config=self.config.power_balance)
         self.density_module = Density(config=self.config.density)
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        icrh_zone_params = IcrhZone.Params(
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        icrh_zone_inputs = IcrhZone.Inputs(
             frequency_command=120,
-            power_command=params.P_aux_MW,
+            power_command=inputs.P_aux_MW,
         )
-        icrh_zone_dot, icrh_zone_output = self.icrh_zone_module(state.icrh_zone_state, icrh_zone_params)
+        icrh_zone_dot, icrh_zone_output = self.icrh_zone_module(state.icrh_zone_state, icrh_zone_inputs)
 
         finj_injector_output = {}
         finj_injector_dot = {}
-        for k, v in params.fueling19.items():
-            finj_injector_params = FinjInjector.Params(
+        for k, v in inputs.fueling19.items():
+            finj_injector_inputs = FinjInjector.Inputs(
                 flow_rate_command=v,  # [Pa m^3/s]
-                valve_flow_rate_tau=params.valve_flow_rate_tau,  # [s]
-                pipe_flow_rate_tau=params.pipe_flow_rate_tau,  # [s]
+                valve_flow_rate_tau=inputs.valve_flow_rate_tau,  # [s]
+                pipe_flow_rate_tau=inputs.pipe_flow_rate_tau,  # [s]
             )
 
-            finj_injector_dot[k], finj_injector_output[k] = self.finj_injector_modules[k](state.finj_state[k], finj_injector_params)
+            finj_injector_dot[k], finj_injector_output[k] = self.finj_injector_modules[k](state.finj_state[k], finj_injector_inputs)
 
-        power_balance_params = PowerBalance.Params(
+        power_balance_inputs = PowerBalance.Inputs(
             P_aux=icrh_zone_output.transmitted_power,  # Auxilliary power [MW]
-            confinement_time=params.confinement_time,  # energy confinement time in seconds
+            confinement_time=inputs.confinement_time,  # energy confinement time in seconds
         )
 
-        power_balance_dot, power_balance_output = self.power_balance_module(state.power_balance_state, power_balance_params)
+        power_balance_dot, power_balance_output = self.power_balance_module(state.power_balance_state, power_balance_inputs)
 
         sources_and_sinks = {k: {} for k in self.config.species.species}
-        for k in params.fueling19.keys():
+        for k in inputs.fueling19.keys():
             sources_and_sinks[k]["fueling19"] = finj_injector_output[k]["valve_flow_rate_n_per_s"] * 1e-19
 
-        density_params = Density.Params(
+        density_inputs = Density.Inputs(
             sources_and_sinks=sources_and_sinks,
-            species_confinement_time=jax.tree.map(lambda k: k * params.confinement_time, params.particle_confinement_scalar),
-            volume_dot=params.volume_dot,  # TODO(allenw): add with time-varying geometry.
-            volume=params.volume,  # params.geometry.plasma_volume,
+            species_confinement_time=jax.tree.map(lambda k: k * inputs.confinement_time, inputs.particle_confinement_scalar),
+            volume_dot=inputs.volume_dot,  # TODO(allenw): add with time-varying geometry.
+            volume=inputs.volume,  # inputs.geometry.plasma_volume,
         )
 
-        density_dot, density_out = self.density_module(state.density_state, density_params)
+        density_dot, density_out = self.density_module(state.density_state, density_inputs)
 
         state_dot = ModularModel.State(  # NOTE: The generator would build this
             power_balance_state=power_balance_dot,

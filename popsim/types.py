@@ -24,11 +24,11 @@ PathOrPathSpec = diffrax.AbstractPath | PathSpec
 # This type is the user-facing API for specifying parameters.
 ConstantOrPathSpec = typing.Any | PathOrPathSpec
 
-# Once the user-facing API is parsed, params take the form of a PyTree of ConstantOrPath.
+# Once the user-facing API is parsed, inputs take the form of a PyTree of ConstantOrPath.
 ConstantOrPath = typing.Any | diffrax.AbstractPath
 
-# A user-specification for a params tree.
-ParamSpec = PyTree[ConstantOrPathSpec]
+# A user-specification for a inputs tree.
+Inputspec = PyTree[ConstantOrPathSpec]
 
 # Type alias for a Jax PyTree key.
 PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]

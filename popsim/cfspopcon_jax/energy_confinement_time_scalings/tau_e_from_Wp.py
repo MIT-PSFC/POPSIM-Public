@@ -11,7 +11,7 @@ with open(Path(__file__).parent / "tau_e_scalings.yaml") as f:
 
 
 def get_calc_tau_e_and_P_in_from_scaling(scaling: ConfinementScaling):
-    scaling_data = TAU_E_SCALINGS[scaling.name]["params"]
+    scaling_data = TAU_E_SCALINGS[scaling.name]["inputs"]
 
     def fn(
         confinement_time_scalar: float,

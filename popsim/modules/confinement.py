@@ -18,7 +18,7 @@ read_confinement_scalings()
 @chex.dataclass
 class Confinement:
     @chex.dataclass
-    class Params:
+    class Inputs:
         magnetic_field_on_axis: float  # [T]
         plasma_current: float  # [A]
         stored_energy: float  # [MJ]
@@ -66,35 +66,35 @@ class Confinement:
         self.lmode_tau_e_and_P = tau_e_from_Wp.get_calc_tau_e_and_P_in_from_scaling(scaling=self.config.lmode_scaling)
         self.hmode_dynamics = HmodeDynamics(config=HmodeDynamics.Config())
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         lh_threshold_MW = calc_LH_transition_threshold_power(
-            plasma_current=1e-6 * params.plasma_current,
-            magnetic_field_on_axis=params.magnetic_field_on_axis,
-            minor_radius=params.geometry.minor_radius,
-            major_radius=params.geometry.major_radius,
-            surface_area=params.geometry.surface_area,
-            fuel_average_mass_number=params.fuel_average_mass_number,
-            average_electron_density=params.average_electron_density_19,
+            plasma_current=1e-6 * inputs.plasma_current,
+            magnetic_field_on_axis=inputs.magnetic_field_on_axis,
+            minor_radius=inputs.geometry.minor_radius,
+            major_radius=inputs.geometry.major_radius,
+            surface_area=inputs.geometry.surface_area,
+            fuel_average_mass_number=inputs.fuel_average_mass_number,
+            average_electron_density=inputs.average_electron_density_19,
         )
 
-        hmode_params = HmodeDynamics.Params(
-            transition_characteristic_time=params.hmode_transition_characteristic_time,
-            P_tau_MW=jnp.abs(params.P_tau_MW),
-            P_input_MW=jnp.abs(params.P_input_MW),
+        hmode_inputs = HmodeDynamics.Inputs(
+            transition_characteristic_time=inputs.hmode_transition_characteristic_time,
+            P_tau_MW=jnp.abs(inputs.P_tau_MW),
+            P_input_MW=jnp.abs(inputs.P_input_MW),
             lh_threshold_MW=lh_threshold_MW,
-            hl_threshold_MW=params.hl_threshold_scalar
+            hl_threshold_MW=inputs.hl_threshold_scalar
             * lh_threshold_MW,  # Assume the h->l transition is some fraction of the l->h transition.
         )
 
-        hmode_dot, hmode_out = self.hmode_dynamics(state.hmode_state, hmode_params)
+        hmode_dot, hmode_out = self.hmode_dynamics(state.hmode_state, hmode_inputs)
 
         in_hmode = state.hmode_state.in_hmode
         tau_E, P_tau_MW = jnp.where(
             in_hmode,
-            calc_with_scaling_law_fun(self.hmode_tau_e_and_P, state, params),
-            calc_with_scaling_law_fun(self.lmode_tau_e_and_P, state, params),
+            calc_with_scaling_law_fun(self.hmode_tau_e_and_P, state, inputs),
+            calc_with_scaling_law_fun(self.lmode_tau_e_and_P, state, inputs),
         )
-        species_confinement_time = jax.tree.map(lambda k: k * tau_E, params.particle_confinement_scalar)
+        species_confinement_time = jax.tree.map(lambda k: k * tau_E, inputs.particle_confinement_scalar)
 
         return Confinement.State(hmode_state=hmode_dot), Confinement.Output(
             tau_E=tau_E, species_confinement_time=species_confinement_time, in_hmode=in_hmode
@@ -105,23 +105,23 @@ class Confinement:
 
 
 def calc_with_scaling_law_fun(
-    scaling_law_fun, state: Confinement.State, params: Confinement.Params
+    scaling_law_fun, state: Confinement.State, inputs: Confinement.Inputs
 ):  # TODO: Just use scaling directly (w/ power as input)
     tau_E, P_tau_MW = scaling_law_fun(
-        confinement_time_scalar=params.confinement_time_scalar,
+        confinement_time_scalar=inputs.confinement_time_scalar,
         # Convert to MA.
-        plasma_current=1e-6 * params.plasma_current,
-        magnetic_field_on_axis=params.magnetic_field_on_axis,
-        average_electron_density=params.average_electron_density_19,
-        major_radius=params.geometry.major_radius,
-        areal_elongation=params.geometry.areal_elongation,
-        separatrix_elongation=params.geometry.separatrix_elongation,
-        inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
-        fuel_average_mass_number=params.fuel_average_mass_number,
-        triangularity_psi95=params.geometry.triangularity_psi95,
-        separatrix_triangularity=params.geometry.separatrix_triangularity,
+        plasma_current=1e-6 * inputs.plasma_current,
+        magnetic_field_on_axis=inputs.magnetic_field_on_axis,
+        average_electron_density=inputs.average_electron_density_19,
+        major_radius=inputs.geometry.major_radius,
+        areal_elongation=inputs.geometry.areal_elongation,
+        separatrix_elongation=inputs.geometry.separatrix_elongation,
+        inverse_aspect_ratio=inputs.geometry.inverse_aspect_ratio,
+        fuel_average_mass_number=inputs.fuel_average_mass_number,
+        triangularity_psi95=inputs.geometry.triangularity_psi95,
+        separatrix_triangularity=inputs.geometry.separatrix_triangularity,
         # Convert to MJ.
-        plasma_stored_energy=params.stored_energy,
-        q_star=params.q_star,
+        plasma_stored_energy=inputs.stored_energy,
+        q_star=inputs.q_star,
     )
     return jnp.array([tau_E, P_tau_MW])

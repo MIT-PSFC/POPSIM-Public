@@ -15,15 +15,15 @@ def test_dynamics():
         stored_energy=1.0,
     )
 
-    # Set params
+    # Set inputs
 
-    params = PowerBalance.Params(
+    inputs = PowerBalance.Inputs(
         P_aux=1.0,  # Auxillary heating power [MW]
         confinement_time=tau_E,  # energy confinement time in seconds
     )
 
     power_balance_module = PowerBalance(config=PowerBalance.Config())
 
-    power_balance_dot, power_balance_output = power_balance_module(state, params)
+    power_balance_dot, power_balance_output = power_balance_module(state, inputs)
 
     assert power_balance_dot.stored_energy == 0.0

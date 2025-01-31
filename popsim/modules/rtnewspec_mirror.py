@@ -51,7 +51,7 @@ class RTNewSpecMirror(ModuleBase):
         rms: dict[int, float]  # Mode number to RMS value
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # The most recent measured signal from the probes
         probe1_signal: float
         probe2_signal: float
@@ -61,11 +61,11 @@ class RTNewSpecMirror(ModuleBase):
     def __init__(self, config: Config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         probe1_shifted_window = jnp.roll(state.probe1_data, shift=1)
         probe2_shifted_window = jnp.roll(state.probe2_data, shift=1)
-        probe1_data = probe1_shifted_window.at[0].set(params.probe1_signal)
-        probe2_data = probe2_shifted_window.at[0].set(params.probe2_signal)
+        probe1_data = probe1_shifted_window.at[0].set(inputs.probe1_signal)
+        probe2_data = probe2_shifted_window.at[0].set(inputs.probe2_signal)
 
         # TODO(ZanderKeith): It would be nice to have some way to turn off the expensive
         # FFT calculations when the module is not reporting and just waiting for data to come in.

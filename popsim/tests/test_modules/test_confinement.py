@@ -51,7 +51,7 @@ def test_dynamics():
         for k in species_container.species
     }
     
-    params = Confinement.Params(
+    inputs = Confinement.Inputs(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],  # [T]
         plasma_current=input_parameters["plasma_current"],  # [A]
         stored_energy=additional_assumptions['stored_energy'], # [MJ]
@@ -69,7 +69,7 @@ def test_dynamics():
         P_input_MW = input_powers_traj,  # Power input to the plasma [MW]
 )
 
-    sim_input = SimInput(time=times, initial_state=state, params=params)
+    sim_input = SimInput(time=times, initial_state=state, inputs=inputs)
     dataset = simulate(confinement_module, sim_input, return_xarray=True, stepper_type=StepperType.DIFFRAX)
 
     assert jnp.isclose(float(dataset['output.tau_E'][0]),0.1834906)

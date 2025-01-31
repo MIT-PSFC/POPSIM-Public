@@ -7,9 +7,9 @@ def test_delay_buffer():
     module = delay.DelayBuffer()
     n_buffer = 5
     initial_state = delay.DelayBuffer.State(buffer=jnp.zeros(n_buffer))
-    params = delay.DelayBuffer.Params(inp=jnp.array(1.0))
+    inputs = delay.DelayBuffer.Inputs(inp=jnp.array(1.0))
 
-    out = simulate(module, SimInput(time=ts, initial_state=initial_state, params=params), return_xarray=True)
+    out = simulate(module, SimInput(time=ts, initial_state=initial_state, inputs=inputs), return_xarray=True)
 
     delayed_vals = out['output.delayed'].values
 

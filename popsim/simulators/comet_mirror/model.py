@@ -38,7 +38,7 @@ class CometMirror(ModuleBase):
         hmode_state: hmode.HmodeDynamics.State
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         """
         Dynamic parameters for the CometMirror model.
         """
@@ -103,19 +103,19 @@ class CometMirror(ModuleBase):
 
         self.calc_fuel_average_mass_number = calc_fuel_average_mass_number
 
-    def __call__(self, state: State, params: Params) -> State:
+    def __call__(self, state: State, inputs: Inputs) -> State:
         """Calculate q_star."""
         q_star = current_drive.calc_q_star(
-            params.magnetic_field_on_axis,
-            params.geometry.major_radius,
-            params.geometry.inverse_aspect_ratio,
+            inputs.magnetic_field_on_axis,
+            inputs.geometry.major_radius,
+            inputs.geometry.inverse_aspect_ratio,
             # Convert to MA.
-            1e-6 * params.plasma_current,
-            params.geometry.f_shaping,
+            1e-6 * inputs.plasma_current,
+            inputs.geometry.f_shaping,
         )
 
         """Calculate kinetics."""
-        average_stored_energy_Joule = 1e6 * state.stored_energy / params.geometry.plasma_volume
+        average_stored_energy_Joule = 1e6 * state.stored_energy / inputs.geometry.plasma_volume
         EV_TO_JOULE = 1.6022e-19
         average_stored_energy_eV = average_stored_energy_Joule / EV_TO_JOULE
         average_stored_energy_keV = average_stored_energy_eV / 1e3
@@ -136,38 +136,38 @@ class CometMirror(ModuleBase):
         )
 
         average_electron_temp_keV = average_pressure_keV_1e19 / (
-            average_electron_density_19 + state.density_state.total_volume_average_ion_density * params.ion_to_electron_temp_ratio
+            average_electron_density_19 + state.density_state.total_volume_average_ion_density * inputs.ion_to_electron_temp_ratio
         )
-        average_ion_temp_keV = params.ion_to_electron_temp_ratio * average_electron_temp_keV
+        average_ion_temp_keV = inputs.ion_to_electron_temp_ratio * average_electron_temp_keV
 
         beta_p = beta.calc_beta_poloidal(
             average_electron_density=average_electron_density_19,
             average_electron_temp=average_electron_temp_keV,
             average_ion_temp=average_ion_temp_keV,
             # Convert to MA.
-            plasma_current=1e-6 * params.plasma_current,
-            minor_radius=params.geometry.minor_radius,
+            plasma_current=1e-6 * inputs.plasma_current,
+            minor_radius=inputs.geometry.minor_radius,
         )
 
         beta_t = beta.calc_beta_toroidal(
             average_electron_density=average_electron_density_19,
             average_electron_temp=average_electron_temp_keV,
             average_ion_temp=average_ion_temp_keV,
-            magnetic_field_on_axis=params.magnetic_field_on_axis,
+            magnetic_field_on_axis=inputs.magnetic_field_on_axis,
         )
 
         profiles = self.profiles(
             average_electron_density_19=average_electron_density_19,
             average_electron_temp_keV=average_electron_temp_keV,
             average_ion_temp_keV=average_ion_temp_keV,
-            ion_density_peaking_offset=params.ion_density_peaking_offset,
-            electron_density_peaking_offset=params.electron_density_peaking_offset,
-            temperature_peaking=params.temperature_peaking,
-            major_radius=params.geometry.major_radius,
+            ion_density_peaking_offset=inputs.ion_density_peaking_offset,
+            electron_density_peaking_offset=inputs.electron_density_peaking_offset,
+            temperature_peaking=inputs.temperature_peaking,
+            major_radius=inputs.geometry.major_radius,
             z_effective=z_effective,
             dilution=dilution,
             beta_toroidal=beta_t,
-            normalized_inverse_temp_scale_length=params.normalized_inverse_temp_scale_length,
+            normalized_inverse_temp_scale_length=inputs.normalized_inverse_temp_scale_length,
         )
 
         """
@@ -177,7 +177,7 @@ class CometMirror(ModuleBase):
         def volume_integrator(quantity_per_m3) -> float:
             # TODO(allenw): currently using cylindrical. Eventually incorporate dV/drho.
             return integrate_profile_over_volume_cylindrical(
-                quantity_per_m3, rho=profiles["rho"].data, plasma_volume=params.geometry.plasma_volume
+                quantity_per_m3, rho=profiles["rho"].data, plasma_volume=inputs.geometry.plasma_volume
             )
 
         P_rad_bremsstrahlung_MW = radiated_power.calc_bremsstrahlung_radiation(
@@ -189,10 +189,10 @@ class CometMirror(ModuleBase):
         P_rad_synchrotron_MW = radiated_power.calc_synchrotron_radiation(
             electron_density_profile=profiles["electron_density_profile"].data,
             electron_temp_profile=profiles["electron_temp_profile"].data,
-            major_radius=params.geometry.major_radius,
-            minor_radius=params.geometry.minor_radius,
-            magnetic_field_on_axis=params.magnetic_field_on_axis,
-            separatrix_elongation=params.geometry.separatrix_elongation,
+            major_radius=inputs.geometry.major_radius,
+            minor_radius=inputs.geometry.minor_radius,
+            magnetic_field_on_axis=inputs.magnetic_field_on_axis,
+            separatrix_elongation=inputs.geometry.separatrix_elongation,
             volume_integrator=volume_integrator,
         )
 
@@ -229,18 +229,18 @@ class CometMirror(ModuleBase):
 
         def calc_with_scaling_law_fun(scaling_law_fun):
             tau_E, P_tau_MW = scaling_law_fun(
-                confinement_time_scalar=params.confinement_time_scalar,
+                confinement_time_scalar=inputs.confinement_time_scalar,
                 # Convert to MA.
-                plasma_current=1e-6 * params.plasma_current,
-                magnetic_field_on_axis=params.magnetic_field_on_axis,
+                plasma_current=1e-6 * inputs.plasma_current,
+                magnetic_field_on_axis=inputs.magnetic_field_on_axis,
                 average_electron_density=average_electron_density_19,
-                major_radius=params.geometry.major_radius,
-                areal_elongation=params.geometry.areal_elongation,
-                separatrix_elongation=params.geometry.separatrix_elongation,
-                inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
+                major_radius=inputs.geometry.major_radius,
+                areal_elongation=inputs.geometry.areal_elongation,
+                separatrix_elongation=inputs.geometry.separatrix_elongation,
+                inverse_aspect_ratio=inputs.geometry.inverse_aspect_ratio,
                 fuel_average_mass_number=fuel_average_mass_number,
-                triangularity_psi95=params.geometry.triangularity_psi95,
-                separatrix_triangularity=params.geometry.separatrix_triangularity,
+                triangularity_psi95=inputs.geometry.triangularity_psi95,
+                separatrix_triangularity=inputs.geometry.separatrix_triangularity,
                 # Convert to MJ.
                 plasma_stored_energy=state.stored_energy,
                 q_star=q_star,
@@ -258,71 +258,71 @@ class CometMirror(ModuleBase):
         bootstrap_fraction = current_drive.calc_bootstrap_fraction(
             ion_density_peaking=profiles["ion_density_peaking"],
             electron_density_peaking=profiles["electron_density_peaking"],
-            temperature_peaking=params.temperature_peaking,
+            temperature_peaking=inputs.temperature_peaking,
             z_effective=z_effective,
             q_star=q_star,
-            inverse_aspect_ratio=params.geometry.inverse_aspect_ratio,
+            inverse_aspect_ratio=inputs.geometry.inverse_aspect_ratio,
             beta_poloidal=beta_p,
         )
 
-        inductive_plasma_current = params.plasma_current * (1.0 - bootstrap_fraction)
+        inductive_plasma_current = inputs.plasma_current * (1.0 - bootstrap_fraction)
         spitzer_resistivity = current_drive.calc_Spitzer_loop_resistivity(average_electron_temp_keV)
-        trapped_particle_fraction = current_drive.calc_resistivity_trapped_enhancement(params.geometry.inverse_aspect_ratio)
+        trapped_particle_fraction = current_drive.calc_resistivity_trapped_enhancement(inputs.geometry.inverse_aspect_ratio)
         neoclassical_loop_resistivity = current_drive.calc_neoclassical_loop_resistivity(
             spitzer_resistivity, z_effective, trapped_particle_fraction
         )
         loop_voltage = current_drive.calc_loop_voltage(
-            params.geometry.major_radius,
-            params.geometry.minor_radius,
+            inputs.geometry.major_radius,
+            inputs.geometry.minor_radius,
             inductive_plasma_current,
-            params.geometry.areal_elongation,
+            inputs.geometry.areal_elongation,
             neoclassical_loop_resistivity,
         )
         P_ohmic_MW = current_drive.calc_ohmic_power(1e-6 * inductive_plasma_current, loop_voltage)
 
         P_rad_MW = P_rad_bremsstrahlung_MW + P_rad_synchrotron_MW + Prad_imp_MW
 
-        Paux_MW = params.fraction_of_external_power_coupled * params.P_aux_MW
+        Paux_MW = inputs.fraction_of_external_power_coupled * inputs.P_aux_MW
 
         dW_dt = -P_tau_MW + P_alpha_MW + P_ohmic_MW + Paux_MW - P_rad_MW
 
         sources_and_sinks = {k: {} for k in self.config.species.species}
-        for k, v in params.fueling19.items():
+        for k, v in inputs.fueling19.items():
             sources_and_sinks[k]["fueling19"] = v
 
         sources_and_sinks[FuelSpecies.Deuterium]["fusion"] = -reactions_per_second
         sources_and_sinks[FuelSpecies.Tritium]["fusion"] = -reactions_per_second
         sources_and_sinks[Impurity.Helium]["fusion"] = reactions_per_second
 
-        density_params = density_model.Density.Params(
+        density_inputs = density_model.Density.Inputs(
             sources_and_sinks=sources_and_sinks,
-            species_confinement_time=jax.tree.map(lambda k: k * tau_E, params.particle_confinement_scalar),
+            species_confinement_time=jax.tree.map(lambda k: k * tau_E, inputs.particle_confinement_scalar),
             volume_dot=0.0,  # TODO(allenw): add with time-varying geometry.
-            volume=params.geometry.plasma_volume,
+            volume=inputs.geometry.plasma_volume,
         )
 
-        density_dot = density_model.multi_species_derivs(state.density_state, density_params)
+        density_dot = density_model.multi_species_derivs(state.density_state, density_inputs)
 
         """Calculate H + L mode dynamics."""
         lh_threshold = calc_LH_transition_threshold_power(
-            plasma_current=1e-6 * params.plasma_current,
-            magnetic_field_on_axis=params.magnetic_field_on_axis,
-            minor_radius=params.geometry.minor_radius,
-            major_radius=params.geometry.major_radius,
-            surface_area=params.geometry.surface_area,
+            plasma_current=1e-6 * inputs.plasma_current,
+            magnetic_field_on_axis=inputs.magnetic_field_on_axis,
+            minor_radius=inputs.geometry.minor_radius,
+            major_radius=inputs.geometry.major_radius,
+            surface_area=inputs.geometry.surface_area,
             fuel_average_mass_number=fuel_average_mass_number,
             average_electron_density=average_electron_density_19,
         )
-        hmode_params = hmode.HmodeDynamics.Params(
-            transition_characteristic_time=params.hmode_transition_characteristic_time,
+        hmode_inputs = hmode.HmodeDynamics.Inputs(
+            transition_characteristic_time=inputs.hmode_transition_characteristic_time,
             P_tau_MW=jnp.abs(P_tau_MW),
             P_input_MW=jnp.abs(Paux_MW + P_ohmic_MW + P_alpha_MW),
             lh_threshold_MW=lh_threshold,
-            hl_threshold_MW=params.hl_threshold_scalar
+            hl_threshold_MW=inputs.hl_threshold_scalar
             * lh_threshold,  # Assume the h->l transition is some fraction of the l->h transition.
         )
 
-        hmode_dot = hmode.dynamics(state.hmode_state, hmode_params)
+        hmode_dot = hmode.dynamics(state.hmode_state, hmode_inputs)
 
         state_dot = CometMirror.State(
             stored_energy=dW_dt,

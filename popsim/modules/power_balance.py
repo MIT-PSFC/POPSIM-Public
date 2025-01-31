@@ -22,7 +22,7 @@ class PowerBalance(ModuleBase):
         stored_energy: float  # [MJ]
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         P_aux: float  # Power from auxillary heating [MW]
         confinement_time: float  # energy confinement time in seconds
 
@@ -31,8 +31,8 @@ class PowerBalance(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        stored_energy_dot = -state.stored_energy / params.confinement_time + params.P_aux
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        stored_energy_dot = -state.stored_energy / inputs.confinement_time + inputs.P_aux
         return PowerBalance.State(stored_energy=stored_energy_dot), PowerBalance.Output(
             stored_energy=state.stored_energy,
         )

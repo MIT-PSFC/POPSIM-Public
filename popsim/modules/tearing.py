@@ -188,7 +188,7 @@ class Tearing(ModuleBase):
         mode_phase: dict[tuple[int, int], float]  # [rad]
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # Define the, possibly time dependent, parameters that will be passed to the module.
         rot_dur: float  # Time from trigger to when the mode begins to slow down [s]
         locking_dur: float  # Time from when the mode begins to slow down to when it locks [s]
@@ -203,7 +203,7 @@ class Tearing(ModuleBase):
     @chex.dataclass
     class Output:
         state_dot: "State"  # noqa: F821
-        params: "Params"  # noqa: F821
+        inputs: "Inputs"  # noqa: F821
         mode_current: dict[tuple[int, int], float]  # A
         mode_phase: dict[tuple[int, int], float]  # rad
         mode_freq: dict[tuple[int, int], float]  # Hz
@@ -214,22 +214,22 @@ class Tearing(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        disruption_phase = round(params.disruption_phase)
-        tearing_phase = round(params.tearing_phase)
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        disruption_phase = round(inputs.disruption_phase)
+        tearing_phase = round(inputs.tearing_phase)
 
         Wdot = {
             mode: calculate_tearing_growth_rate(
                 disruption_phase,
                 tearing_phase,
-                params.default_wdot[mode[0], mode[1]],
-                params.tq_wdot[mode[0], mode[1]],
-                params.cq_wdot[mode[0], mode[1]],
+                inputs.default_wdot[mode[0], mode[1]],
+                inputs.tq_wdot[mode[0], mode[1]],
+                inputs.cq_wdot[mode[0], mode[1]],
             )
             for mode in self.config.modes
         }
         Fdot = {
-            mode: calculate_rotation_dot(tearing_phase, params.rot_dur, params.locking_dur, params.initial_rot_freq[mode[0], mode[1]])
+            mode: calculate_rotation_dot(tearing_phase, inputs.rot_dur, inputs.locking_dur, inputs.initial_rot_freq[mode[0], mode[1]])
             for mode in self.config.modes
         }
         mode_phase_dot = {mode: state.F[mode] * 2 * jnp.pi for mode in self.config.modes}
@@ -239,12 +239,12 @@ class Tearing(ModuleBase):
             state.W[mode] = jnp.where(state.W[mode] > 0, state.W[mode], 0.0)
 
             # If mode just spawned, set F to initial value
-            state.F[mode] = jnp.where(tearing_phase == TearingPhase.SPAWN, params.initial_rot_freq[mode[0], mode[1]], state.F[mode])
+            state.F[mode] = jnp.where(tearing_phase == TearingPhase.SPAWN, inputs.initial_rot_freq[mode[0], mode[1]], state.F[mode])
             # If mode is locked, set F to 0
             state.F[mode] = jnp.where(tearing_phase == TearingPhase.LOCKED, 0.0, state.F[mode])
 
         # Calculate perturbed current
-        perturbed_current = {mode: state.W[mode] * params.cur_per_W for mode in self.config.modes}
+        perturbed_current = {mode: state.W[mode] * inputs.cur_per_W for mode in self.config.modes}
 
         # Make a state_dot.
         state_dot = Tearing.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot)
@@ -252,7 +252,7 @@ class Tearing(ModuleBase):
         # Make an output.
         out = Tearing.Output(
             state_dot=state_dot,
-            params=params,
+            inputs=inputs,
             mode_current=perturbed_current,
             mode_phase=state.mode_phase,
             mode_freq=state.F,
@@ -260,7 +260,7 @@ class Tearing(ModuleBase):
         return state_dot, out
 
     def default_setup(empty: bool = False):
-        """Get a standard instance, initial state, and params for the Tearing module.
+        """Get a standard instance, initial state, and inputs for the Tearing module.
 
         Args:
         -----
@@ -273,7 +273,7 @@ class Tearing(ModuleBase):
 
         tearing_initial_state : Tearing.State
 
-        tearing_params : Tearing.Params
+        tearing_inputs : Tearing.Inputs
 
         time_base : np.ndarray
         """
@@ -299,7 +299,7 @@ class Tearing(ModuleBase):
         disrupt_time = 3.5
         dur_tq_to_spike = 1e-3
 
-        tearing_params = Tearing.Params(
+        tearing_inputs = Tearing.Inputs(
             rot_dur=rot_dur,  # s
             locking_dur=locking_dur,  # s
             disruption_phase=generate_disruption_phase_trajectory(disrupt_time, dur_tq_to_spike, time_base, dt),
@@ -308,7 +308,7 @@ class Tearing(ModuleBase):
 
         tearing_module = Tearing(config=tearing_config)
 
-        return tearing_module, tearing_initial_state, tearing_params, time_base
+        return tearing_module, tearing_initial_state, tearing_inputs, time_base
 
 
 def load_active_circuit_overlaps(
@@ -457,23 +457,23 @@ def calculate_total_overlap(
     return jnp.abs(overlap_inst)
 
 
-def calculate_locking_threshold(scaling_law_params: dict[str, float], scaling_law_terms: dict[str, list[float]]) -> float:
+def calculate_locking_threshold(scaling_law_inputs: dict[str, float], scaling_law_terms: dict[str, list[float]]) -> float:
     """
     Calculate the locking threshold based on an arbitrary scaling law.
 
     Args:
-        scaling_law_params (dict[str, float]): The parameters for the scaling law.
+        scaling_law_inputs (dict[str, float]): The parameters for the scaling law.
         scaling_law_terms (dict[str, list[float]]): The terms for the scaling law, where the first element is the power of the parameter and the second is the error.
 
     Returns:
         float: The locking threshold.
     """
 
-    if scaling_law_params.keys() != scaling_law_terms.keys():
-        raise ValueError("scaling_law_params and scaling_law_terms must have the same keys")
+    if scaling_law_inputs.keys() != scaling_law_terms.keys():
+        raise ValueError("scaling_law_inputs and scaling_law_terms must have the same keys")
 
     delta = 1.0
-    for key, value in scaling_law_params.items():
+    for key, value in scaling_law_inputs.items():
         delta *= value ** scaling_law_terms[key][0]
 
     return delta
@@ -548,9 +548,9 @@ class ErrorFieldLocking(ModuleBase):
         mode_phase: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
-        scaling_law_params: dict[str, float]  # Values for each parameter in the scaling law
+        scaling_law_inputs: dict[str, float]  # Values for each parameter in the scaling law
         active_circuit_currents: dict[str, float]  # Current in active circuits [A]
         active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source [delta per A]
         rational_surface_exists: int  # Placeholder. Must have some term (be it q90 or something) that indicates the existence of a rational surface
@@ -559,7 +559,7 @@ class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
     class Output:
         state_dot: "State"  # noqa: F821
-        params: "Params"  # noqa: F821
+        inputs: "Inputs"  # noqa: F821
         mode_current: dict[tuple[int, int], float]
         mode_phase: dict[tuple[int, int], float]
         mode_freq: dict[tuple[int, int], float]
@@ -575,17 +575,17 @@ class ErrorFieldLocking(ModuleBase):
         self.static_overlap = sum(config.static_source_overlaps.values())
 
     def __call__(
-        self, state: "ErrorFieldLocking.State", params: "ErrorFieldLocking.Params"
+        self, state: "ErrorFieldLocking.State", inputs: "ErrorFieldLocking.Inputs"
     ) -> tuple["ErrorFieldLocking.State", "ErrorFieldLocking.Output"]:
         # Just doing the transition from none -> locked -> none for now
 
         total_overlap = calculate_total_overlap(
-            self.config, self.static_overlap, params.active_circuit_currents, params.active_circuit_overlaps
+            self.config, self.static_overlap, inputs.active_circuit_currents, inputs.active_circuit_overlaps
         )
-        locking_threshold = calculate_locking_threshold(params["scaling_law_params"], params["scaling_law_terms"])
+        locking_threshold = calculate_locking_threshold(inputs["scaling_law_inputs"], inputs["scaling_law_terms"])
 
         # If the overlap is greater than the threshold, the mode is locked
-        new_tearing_phase = locked_mode_dynamics(self.config, state, total_overlap, locking_threshold, params.rational_surface_exists)
+        new_tearing_phase = locked_mode_dynamics(self.config, state, total_overlap, locking_threshold, inputs.rational_surface_exists)
 
         for mode in self.config.modes:
             state.W[mode] = jnp.where(new_tearing_phase == TearingPhase.LOCKED, 1e-2, 0)
@@ -598,7 +598,7 @@ class ErrorFieldLocking(ModuleBase):
 
         out = ErrorFieldLocking.Output(
             state_dot=state_dot,
-            params=params,
+            inputs=inputs,
             mode_current={},
             mode_phase={},
             mode_freq={},

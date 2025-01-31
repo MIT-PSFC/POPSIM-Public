@@ -25,7 +25,7 @@ class FinjInjector(ModuleBase):
         valve_flow_rate_n_per_s: float  # [#/s]
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         flow_rate_command: float  # [Pa m^3/s]
         valve_flow_rate_tau: float  # [s]
         pipe_flow_rate_tau: float  # [s]
@@ -35,10 +35,10 @@ class FinjInjector(ModuleBase):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         """Derivatives of the valve and pipe flow rates in response to flow rate commands"""
-        valve_flow_rate_dot = (params.flow_rate_command - state.valve_flow_rate) / params.valve_flow_rate_tau
-        pipe_flow_rate_dot = (state.valve_flow_rate - state.pipe_flow_rate) / params.pipe_flow_rate_tau
+        valve_flow_rate_dot = (inputs.flow_rate_command - state.valve_flow_rate) / inputs.valve_flow_rate_tau
+        pipe_flow_rate_dot = (state.valve_flow_rate - state.pipe_flow_rate) / inputs.pipe_flow_rate_tau
         # Convert flow rate to #/s
         valve_flow_rate_n_per_s = state.valve_flow_rate * self.config.k_B * self.config.gas_temperature
 

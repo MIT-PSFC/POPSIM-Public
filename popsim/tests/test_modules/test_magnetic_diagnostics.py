@@ -18,7 +18,7 @@ def test_lown_array_same_amplitude_diff_phases():
     rot_dur = 1.0
     locking_dur = 0.2
     
-    tearing_params = Tearing.Params(
+    tearing_inputs = Tearing.Inputs(
         rot_dur=rot_dur,  # s
         locking_dur=locking_dur,  # s
         disruption_phase=DisruptionPhase.NONE,
@@ -49,9 +49,9 @@ def test_lown_array_same_amplitude_diff_phases():
 
     resulting_magnitudes = []
     for tearing_state in test_tearing_states:
-        _, tearing_output = tearing_module(tearing_state, tearing_params)
-        lown_array_params = LowNArray.Params(tearing_out=tearing_output, modes=tearing_module.config.modes)
-        lown_array_out = lown_array_module(None, lown_array_params)
+        _, tearing_output = tearing_module(tearing_state, tearing_inputs)
+        lown_array_inputs = LowNArray.Inputs(tearing_out=tearing_output, modes=tearing_module.config.modes)
+        lown_array_out = lown_array_module(None, lown_array_inputs)
         reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
         resulting_magnitudes.append(reconstructed_magnitudes)
 
@@ -74,7 +74,7 @@ def test_lown_array_nonexistent_mode():
     rot_dur = 1.0
     locking_dur = 0.2
     
-    tearing_params = Tearing.Params(
+    tearing_inputs = Tearing.Inputs(
         rot_dur=rot_dur,  # s
         locking_dur=locking_dur,  # s
         disruption_phase=DisruptionPhase.NONE,
@@ -99,9 +99,9 @@ def test_lown_array_nonexistent_mode():
                       mode_phase={mode: 0.0 for mode in modes})
     
 
-    _, tearing_output = tearing_module(tearing_state, tearing_params)
-    lown_array_params = LowNArray.Params(tearing_out=tearing_output, modes=tearing_module.config.modes)
-    lown_array_out = lown_array_module(None, lown_array_params)
+    _, tearing_output = tearing_module(tearing_state, tearing_inputs)
+    lown_array_inputs = LowNArray.Inputs(tearing_out=tearing_output, modes=tearing_module.config.modes)
+    lown_array_out = lown_array_module(None, lown_array_inputs)
     reconstructed_magnitudes = lown_array_out.reconstructed_magnitudes
 
     assert reconstructed_magnitudes[1] < 1e-6*reconstructed_magnitudes[2]

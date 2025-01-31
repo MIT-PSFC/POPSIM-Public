@@ -22,7 +22,7 @@ class DelayBuffer(ModuleBase):
         delayed: ScalarLike
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         inp: ScalarLike
 
     config: Config
@@ -30,10 +30,10 @@ class DelayBuffer(ModuleBase):
     def __init__(self, config=None):
         self.config = config or self.Config()
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         # The first element of the buffer is the delayed input.
         output = DelayBuffer.Output(delayed=state.buffer[0])
 
         # Essentially shift the buffer by one and insert the new input at the end.
-        state_out = DelayBuffer.State(buffer=jnp.concatenate([state.buffer[1:], jnp.array([params.inp])]))
+        state_out = DelayBuffer.State(buffer=jnp.concatenate([state.buffer[1:], jnp.array([inputs.inp])]))
         return state_out, output

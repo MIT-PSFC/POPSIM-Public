@@ -18,15 +18,15 @@ Base classes for defining environments for training and evaluating modules.
 @chex.dataclass
 class ModuleEvalEnvInput:
     initial_state: dict[str, ArrayLike]
-    params: dict[str, ArrayLike]
+    inputs: dict[str, ArrayLike]
     time: Array
 
 
 @eqx.filter_jit
 def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) -> diffrax.Solution:
     """Given a ModuleEvalEnvInput object consisting of arrays:
-        1) Create State and Params objects from the arrays.
-        2) Interpolate the Params.
+        1) Create State and Inputs objects from the arrays.
+        2) Interpolate the Inputs.
         3) Simulate the module and return a diffrax.Solution object.
 
     Args:
@@ -35,17 +35,17 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
     Returns:
         diffrax.Solution: the solution.
     """
-    # Construct the initial State and Params objects.
-    create_state_input = env_input.initial_state | env_input.params
+    # Construct the initial State and Inputs objects.
+    create_state_input = env_input.initial_state | env_input.inputs
     initial_state = env.create_state(create_state_input)
-    params = env.create_params(env_input.params)
+    inputs = env.create_inputs(env_input.inputs)
 
-    params_interped = interp.interp(_repeat_time_hack(env_input.time), params, interp.InterpType.RECTILINEAR)
+    inputs_interped = interp.interp(_repeat_time_hack(env_input.time), inputs, interp.InterpType.RECTILINEAR)
 
     sim_input = SimInput(
         time=env_input.time,
         initial_state=initial_state,
-        params=params_interped,
+        inputs=inputs_interped,
     )
 
     sol = _diffrax_simulate(env.module, sim_input)
@@ -62,7 +62,7 @@ class ModuleEvalEnv(eqx.Module):
 
     @staticmethod
     @abstractmethod
-    def create_params(data: dict[str, ArrayLike]) -> "Params":  # noqa: F821
+    def create_inputs(data: dict[str, ArrayLike]) -> "Inputs":  # noqa: F821
         raise NotImplementedError
 
     @eqx.filter_jit

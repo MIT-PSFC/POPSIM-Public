@@ -114,11 +114,11 @@ class PopsimMLAccessor:
         """Prepare inputs and targets for training."""
 
         ds = self.ds
-        params = ds_to_dict_jnp(ds[self.training_metadata.param_vars])
+        inputs = ds_to_dict_jnp(ds[self.training_metadata.param_vars])
         targets = ds_to_dict_jnp(ds[self.training_metadata.target_vars])
 
         if not self.training_metadata.is_time_dependent:
-            return params, targets
+            return inputs, targets
 
         # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
         time = ds[self.training_metadata.time_dep_metadata.time_coord]
@@ -134,7 +134,7 @@ class PopsimMLAccessor:
 
         env_input = ModuleEvalEnvInput(
             initial_state=state_init,
-            params=params,
+            inputs=inputs,
             time=time,
         )
 

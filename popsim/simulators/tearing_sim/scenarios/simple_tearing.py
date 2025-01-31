@@ -46,7 +46,7 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
     disrupt_time = 0.9
     dur_tq_to_spike = 1e-3
 
-    tearing_params = Tearing.Params(
+    tearing_inputs = Tearing.Inputs(
         rot_dur=rot_dur,  # s
         locking_dur=locking_dur,  # s
         disruption_phase=generate_disruption_phase_trajectory(disrupt_time, dur_tq_to_spike, time_base, dt),
@@ -90,8 +90,8 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
 
     sim_initial_state = TearingSim.State(tearing_state=tearing_initial_state, rtnewspec_mirror_state=RTNewSpecMirror.State())
 
-    sim_params = TearingSim.Params(tearing_params=tearing_params)
+    sim_inputs = TearingSim.Inputs(tearing_inputs=tearing_inputs)
 
     sim_model = TearingSim(config=sim_config)
 
-    return sim_model, time_base, sim_initial_state, sim_params
+    return sim_model, time_base, sim_initial_state, sim_inputs

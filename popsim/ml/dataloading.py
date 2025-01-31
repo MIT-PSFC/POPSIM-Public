@@ -239,7 +239,7 @@ def make_dataloader(
         time_coord (str): Name of the time coordinate variable.
         episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
-        param_vars (list[str]): Names of the variables to be fed into the "Params" structure of the module.
+        param_vars (list[str]): Names of the variables to be fed into the "Inputs" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
         extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         segment_length (typing.Optional[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment. Defaults to None.

@@ -31,11 +31,11 @@ def test_rtnewspec_mirror_call():
     )
 
     for i in range(1000):
-        params = RTNewSpecMirror.Params(
+        inputs = RTNewSpecMirror.Inputs(
             probe1_signal=probe1_signal[i],
             probe2_signal=probe2_signal[i],
         )
-        state, output = rtnewspec_mirror(present_state, params)
+        state, output = rtnewspec_mirror(present_state, inputs)
         present_state = state
     
     # Check that the output is large for n=1 but small for n=2

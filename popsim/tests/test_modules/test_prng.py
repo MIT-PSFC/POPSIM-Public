@@ -5,10 +5,10 @@ from popsim.simulate import simulate, make_time_base, SimInput
 def test_prng_module():
     module = PRNGModule()
     state = PRNGModule.State(seed=0)
-    params = PRNGModule.Params()
+    inputs = PRNGModule.Inputs()
     time_base = make_time_base(0.0, 1.0, 1e-3)
 
-    sol_xarray = simulate(module, SimInput(time=time_base, initial_state=state, params=params))
+    sol_xarray = simulate(module, SimInput(time=time_base, initial_state=state, inputs=inputs))
 
     seeds = sol_xarray["state.seed"].values
     

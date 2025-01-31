@@ -29,14 +29,14 @@ class PRNGModule(ModuleBase):
         )  # Integer seed for generating a PRNGKeyArray that gets updated at every time step. If the user does not provide a seed, a random seed is generated.
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         pass
 
     @chex.dataclass
     class Output:
         key: PRNGKeyArray  # Generated PRNGKeyArray that can be used, for example, in jax.random functions.
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         # Generate a new key from the current seed.
         key = jax.random.key(state.seed)
 

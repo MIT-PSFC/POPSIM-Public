@@ -76,7 +76,7 @@ class BFieldPoloidalProbes(ModuleBase):
         Bp: dict[str, float]  # T
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         tearing_out: Tearing.Output  # The output of the Tearing module.
         modes: list[tuple[int, int]]
 
@@ -94,25 +94,25 @@ class BFieldPoloidalProbes(ModuleBase):
                 probe["position"]["theta"] = jnp.arctan2(probe["position"]["z"], magnetic_axis_r)
                 self.config.probe_details[i] = probe
 
-    def __call__(self, state: State, params: Params) -> Output:
+    def __call__(self, state: State, inputs: Inputs) -> Output:
         """Measure the magnetic field at each probe in the B Field Poloidal Probes module.
 
         Args:
             state (State): The state of the B Field Poloidal Probes module. Not used in this module.
-            params (Params): The parameters of the B Field Poloidal Probes module. Includes the output of the Tearing module and the tearing modes to reconstruct.
+            inputs (Inputs): The parameters of the B Field Poloidal Probes module. Includes the output of the Tearing module and the tearing modes to reconstruct.
 
         Returns:
             Output: The output of the B Field Poloidal Probes module. Includes the measured magnetic field at each probe.
         """
         # Get the perturbed current, phase, and frequency of each tearing mode
-        mode_currents = params.tearing_out.mode_current
-        mode_phases = params.tearing_out.mode_phase
-        mode_freqs = params.tearing_out.mode_freq
+        mode_currents = inputs.tearing_out.mode_current
+        mode_phases = inputs.tearing_out.mode_phase
+        mode_freqs = inputs.tearing_out.mode_freq
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
-        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in params.modes}
+        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in inputs.modes}
 
-        measured_signals_array = measure_magnetic_field(self.config.probe_details, filtered_signals, mode_phases, params.modes)
+        measured_signals_array = measure_magnetic_field(self.config.probe_details, filtered_signals, mode_phases, inputs.modes)
 
         # Turn measured signals into a dictionary
         measured_signals = {
@@ -291,7 +291,7 @@ class LowNArray(ModuleBase):
         differenced_signals: jnp.ndarray  # T
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         # Define the, possibly time dependent, parameters that will be passed to the module.
         tearing_out: Tearing.Output  # The output of the Tearing module.
         modes: list[
@@ -315,30 +315,30 @@ class LowNArray(ModuleBase):
         # Needs to be jnp array for JAX
         self.pseudoinverse_matrix = jnp.linalg.pinv(design_matrix)
 
-    def __call__(self, state: State, params: Params) -> Output:
+    def __call__(self, state: State, inputs: Inputs) -> Output:
         """Reconstruct the magnitudes of the tearing modes from the signals measured by the probes in the Low-N array.
 
         Args:
             state (State): The state of the Low-N array module. Not used in this module.
-            params (Params): The parameters of the Low-N array module. Includes the output of the Tearing module and the tearing modes to reconstruct.
+            inputs (Inputs): The parameters of the Low-N array module. Includes the output of the Tearing module and the tearing modes to reconstruct.
 
         Returns:
             Output: The output of the Low-N array module. Includes the reconstructed magnitudes of the tearing modes, the filtered signals for each probe, and the differenced signals for each connection.
         """
         # Get the perturbed current, phase, and frequency of each tearing mode
-        mode_currents = params.tearing_out.mode_current
-        mode_phases = params.tearing_out.mode_phase
-        mode_freqs = params.tearing_out.mode_freq
+        mode_currents = inputs.tearing_out.mode_current
+        mode_phases = inputs.tearing_out.mode_phase
+        mode_freqs = inputs.tearing_out.mode_freq
 
         # Convert to the signal that would be measured by the probes (adjusted by the Bp/A transfer function)
-        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in params.modes}
+        filtered_signals = {mode: mode_currents[mode] * self.config.func_Bp_per_A(mode_freqs[mode]) for mode in inputs.modes}
 
         # Get the differenced signals between each pair of probes
         differenced_signals = get_differenced_signals(
             self.config.probe_connections,
             filtered_signals,
             mode_phases,
-            params.modes,
+            inputs.modes,
         )
 
         reconstructed_components = self.pseudoinverse_matrix @ differenced_signals

@@ -29,7 +29,7 @@ class PIDController(ModuleBase):
         aux_data: dict  # Auxiliary data for debugging and analysis.
 
     @chex.dataclass
-    class Params:
+    class Inputs:
         setpoint: float  # Control setpoint to track
         measurement: float  # Measured value to apply feedback with
         feed_forward: float = 0.0  # Feed forward control signal that gets added to the PID output to deterimne Output.control.
@@ -39,8 +39,8 @@ class PIDController(ModuleBase):
     def __init__(self, config=None):
         self.config = config or self.Config()
 
-    def __call__(self, state: State, params: Params) -> tuple[State, Output]:
-        error = params.setpoint - params.measurement
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        error = inputs.setpoint - inputs.measurement
 
         # Proportional term
         P = self.config.Kp * error
@@ -55,7 +55,7 @@ class PIDController(ModuleBase):
         pid_act = P + I + D
 
         # Apply output limits
-        control = jnp.clip(pid_act + params.feed_forward, self.config.output_min, self.config.output_max)
+        control = jnp.clip(pid_act + inputs.feed_forward, self.config.output_min, self.config.output_max)
 
         # The time derivative of integrated error is just error.
         integrated_error_dot = error

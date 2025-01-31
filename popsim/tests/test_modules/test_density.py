@@ -61,8 +61,8 @@ def test_dynamics():
             Impurity.Tungsten: 0.0}
     )
 
-    # Set params
-    params = Density.Params(
+    # Set inputs
+    inputs = Density.Inputs(
         sources_and_sinks=sources_and_sinks,
         species_confinement_time=jax.tree.map(lambda k: k * tau_E, particle_confinement_scalars),
         volume_dot=0.0,
@@ -71,7 +71,7 @@ def test_dynamics():
 
     density_module = Density(config=Density.Config())
     
-    state_dot, output = density_module(state, params)
+    state_dot, output = density_module(state, inputs)
 
     # Check state_dot
     assert state_dot.vol_avg_ion[FuelSpecies.Deuterium] == -0.5
@@ -80,15 +80,15 @@ def test_dynamics():
     assert state_dot.vol_avg_ion[Impurity.Tungsten] == 1.0
 
     # Repeat with non-zero volume_dot:
-    # Set params
-    params = Density.Params(
+    # Set inputs
+    inputs = Density.Inputs(
         sources_and_sinks=sources_and_sinks,
         species_confinement_time=jax.tree.map(lambda k: k * tau_E, particle_confinement_scalars),
         volume_dot=13.0,
         volume=13,
     )
 
-    state_dot, output = density_module(state, params)
+    state_dot, output = density_module(state, inputs)
 
     # Check state_dot
     assert state_dot.vol_avg_ion[FuelSpecies.Deuterium] == -1.5
