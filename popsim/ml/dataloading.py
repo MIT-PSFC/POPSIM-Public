@@ -257,11 +257,11 @@ def make_dataloader(
     if segment_length is None and segment_overlap != 0:
         raise ValueError("segment_overlap should be 0 when segment_length is None.")
 
-    input_vars = state_init_vars + input_vars
-    ds = ds[input_vars + target_vars + (extra_vars or [])]
+    model_vars = state_init_vars + input_vars
+    ds = ds[model_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
-    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=input_vars)
+    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=model_vars)
 
     # Construct the input_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.
