@@ -46,7 +46,7 @@ The easiest way to get oriented to POPSIM and many of its core capabilities is b
 ### Core Modules Infrastructure
 - [x] Continuous time (e.g. diff eq), discrete time (e.g. state machine), hybrid time modules [see "Introduction to Modules"](./notebooks/intro_to_modules.ipynb)
 - [x] All modules are simulateable with a common `simulate` function [see "Introduction to Modules"](./notebooks/intro_to_modules.ipynb)
-- [x] All modules can have time dependent trajectories as `Params` (e.g. controls, disturbances, boundary conditions, inputs from other modules) [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
+- [x] All modules can have time dependent trajectories as `Inputs` (e.g. controls, disturbances, boundary conditions, inputs from other modules) [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
 - [x] All modules output a common dataset format (`xarray.Dataset`) [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
     * [ ] Support for multi-dimensional output variables 
 - [x] Hierarchical module example [see the Controller Plus Sim Tutorial](./notebooks/controller_plus_sim.ipynb)
@@ -56,12 +56,12 @@ The easiest way to get oriented to POPSIM and many of its core capabilities is b
 - [ ] API for hooking up non-Jax modules
   
 ### Monte Carlo Simulation Tools
-- [x] `simulate` function supports a list of simulation cases, each with a different initial state and `Params` struct [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
+- [x] `simulate` function supports a list of simulation cases, each with a different initial state and `Inputs` struct [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
     * [x] `simulate` function is both CPU and GPU capable (modulo the setup and post-processing steps)
 - [x] Tools to generate multiple simulation cases, including combinatorially [see "Using CometMirror"](./notebooks/comet_mirror.ipynb)
 - [x] Tools to generate time-dependent random walks [see "Randomness and Stochasticity](./notebooks/random_and_stochastic.ipynb)
 - [x] State-dependent noise with `PRNGModule` [see "Randomness and Stochasticity](./notebooks/random_and_stochastic.ipynb)
-- [ ] Tools to specify probability distributions in the initial `State` and `Params` structs
+- [ ] Tools to specify probability distributions in the initial `State` and `Inputs` structs
 
 ### Module Training and Automated Evaluation Tools
 - [x] `xarray.Dataset` => `Dataloader` pipeline [see "Dataloading and Xarray-Based Pre-processing
