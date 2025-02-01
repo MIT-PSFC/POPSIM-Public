@@ -273,7 +273,7 @@ def get_sparc_lmode_base_config():
             "chimin": 0.05,  # minimum chi
             "chimax": 100,  # maximum chi (can be helpful for stability)
             "Demin": 0.05,  # minimum electron diffusivity
-            "qlknn_inputs": {
+            "qlknn_params": {
                 "DVeff": True,
                 "include_ITG": True,  # to toggle ITG modes on or off
                 "include_TEM": True,  # to toggle TEM modes on or off
