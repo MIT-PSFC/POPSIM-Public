@@ -26,6 +26,12 @@ This module contains utilities for evaluating models on data.
 """
 
 
+class RawEvalData(NamedTuple):
+    inputs: PyTree[Array]
+    targets: PyTree[Array]
+    outputs: PyTree[Array]
+
+
 class EvalData(NamedTuple):
     model: TrainableModel  # The model to train.
     dataloader: DataLoader  # DataLoader that was used to evaluate the module.
@@ -68,6 +74,8 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
 
         # Rename the dimensions to match the input dataset.
         ds_out = ds_out.rename({DEFAULT_SIM_DIM_NAME: DEFAULT_SAMPLE_DIM})
+
+        # Re-assign the sample coordinates to the output dataset.
         ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
         ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: dataset.training_metadata.time_dep_metadata.time_dim})
         return ds_out
@@ -80,6 +88,9 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         out = run_function_with_dim_removed(fn, (inputs,), DEFAULT_SAMPLE_DIM)
 
         ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: dataset.sample_coord})
+
+        # Re-assign the sample coordinates to the output dataset.
+        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
         return ds_out
 
     if isinstance(model, ModuleEvalEnv):
@@ -90,8 +101,8 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     sim_outs_and_batches = [(eval_fn(model, batch), batch) for batch in dataloader]
     sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
 
-    # The evaluation process can get the order of the samples wrong, so we need to reindex the output dataset.
     ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
+
     ds_sim = ds_sim.reindex_like(dataloader.ds)
 
     eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds=ds_sim)
@@ -117,6 +128,27 @@ def run_evals(
 
     eval_results = {key: eval_fn(eval_fn_input) for key, eval_fn in evaluation_suite.items()}
     return eval_results
+
+
+@eqx.filter_jit
+def model_eval(
+    model: TrainableModel,
+    inputs: PyTree[Array],
+) -> PyTree[Array]:
+    """Run the model on the inputs.
+
+    Args:
+        model (TrainableModel): the model to evaluate.
+        inputs (PyTree[Array]): the inputs to the model.
+
+    Returns:
+        PyTree[Array]: the outputs of the model.
+    """
+    if isinstance(model, ModuleEvalEnv):
+        output: diffrax.Solution = model(inputs)
+        return output.ys["output"]
+    else:
+        return model(inputs)
 
 
 @eqx.filter_jit

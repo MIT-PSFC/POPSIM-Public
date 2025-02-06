@@ -23,8 +23,6 @@ class TrainingMetadata:
     sample_dim: str
     input_vars: list[str]
     target_vars: list[str]
-    episode_coord: str
-    episode_dim: str
     time_dep_metadata: typing.Optional[TimeDepMetadata] = None
 
     @property

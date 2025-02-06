@@ -6,6 +6,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import chex
+import xarray as xr
+from popsim.ml.dataloading import XarrayPreppedDataset, DataLoader
 
 @pytest.fixture
 def simple_model():
@@ -53,7 +55,7 @@ def test_eval():
     from popsim.modules.profile_predictor.train import get_training_objs
     from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
 
-    trainer, _, val_dl, _ = get_training_objs(SPARC_CONFIG)
+    trainer, train_dl, val_dl, _ = get_training_objs(SPARC_CONFIG)
     model = trainer.train_state.model
 
     # Test that we can evaluate the model on the training data.
@@ -78,3 +80,59 @@ def test_eval():
     )
     
     chex.assert_trees_all_close(evals["val_loss"], val_loss)
+
+    # Check that evaluating on the train_dl returns the same result despite shuffling.
+    eval_data_train = eval_model_on_data(
+        model=model,
+        dataloader=train_dl
+    )
+    eval_data_train2 = eval_model_on_data(
+        model=model,
+        dataloader=train_dl
+    )
+    xr.testing.assert_allclose(eval_data_train.output_ds, eval_data_train2.output_ds)
+
+
+def test_eval_shuffling():
+    """Test that the evaluation function doesn't return scrambled outputs when the dataloader is shuffled."""
+    from popsim.ml._types import TrainingMetadata
+
+    class Module(eqx.Module):
+        def __call__(self, x):
+            return jax.tree.map(lambda x: x + 1.0, x)
+        
+    ds = xr.Dataset({'a': xr.DataArray(10.0 * jnp.arange(100), dims=['sample']), 'b': xr.DataArray(10.0 * jnp.arange(100) + 1, dims=['sample'])})
+
+    ds = ds.assign_coords(sample=jnp.arange(100))
+
+    ds = XarrayPreppedDataset(
+        ds=ds,
+        training_metadata=TrainingMetadata(
+            sample_coord='sample',
+            sample_dim='sample',
+            input_vars=['a'],
+            target_vars=['b']
+        )
+    )
+
+    dl = DataLoader(
+        dataset=ds,
+        batch_size=10,
+        shuffle=True,
+    )
+
+    eval_data = eval_model_on_data(
+        model=Module(),
+        dataloader=dl
+    )
+
+    assert eval_data.output_ds['a'].equals(eval_data.input_ds['b'])
+
+    eval_data2 = eval_model_on_data(
+        model=Module(),
+        dataloader=dl
+    )
+
+    assert eval_data2.output_ds['a'].equals(eval_data2.input_ds['b'])
+
+    assert eval_data2.output_ds.equals(eval_data.output_ds)

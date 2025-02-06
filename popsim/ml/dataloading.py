@@ -258,8 +258,6 @@ def make_time_indep_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         input_vars=input_vars,
         target_vars=target_vars,
-        episode_coord=episode_coord,
-        episode_dim=episode_var_dim,
         time_dep_metadata=None,
     )
     nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
@@ -366,8 +364,6 @@ def make_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         input_vars=input_vars,
         target_vars=target_vars,
-        episode_coord=episode_coord,
-        episode_dim=episode_var_dim,
         time_dep_metadata=TrainingMetadata.TimeDepMetadata(
             state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
         ),
