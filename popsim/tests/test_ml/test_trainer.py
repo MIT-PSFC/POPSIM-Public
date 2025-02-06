@@ -62,7 +62,8 @@ class NeuralODEEnv(ModuleTrainingEnv):
 @pytest.mark.parametrize("use_val", [True, False])
 @pytest.mark.parametrize("train_seg_length", [None, 50])
 @pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
-def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, tmpdir):
+@pytest.mark.parametrize("batch_size", [None, 1, 8])
+def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, batch_size, tmpdir):
     ds = oscillator_dataset
 
     
@@ -85,7 +86,8 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
             state_init_vars=["y0", "y1"],
             input_vars=[],
             target_vars=["y0", "y1"],
-            segment_length=None
+            segment_length=None,
+            batch_size=batch_size
         )
     else:
         val_dl = None
@@ -97,7 +99,8 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         state_init_vars=["y0", "y1"],
         input_vars=[],
         target_vars=["y0", "y1"],
-        segment_length=train_seg_length
+        segment_length=train_seg_length,
+        batch_size=batch_size
     )
 
     trainer = Trainer(
