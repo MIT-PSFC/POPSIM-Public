@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from popsim.ml import Trainer
+from popsim.ml import Trainer, make_standard_dataloaders
 from popsim.ml.loggers import NullLogger, WandbLogger
 from popsim.modules.profile_predictor.data import get_ds
 from popsim.modules.profile_predictor.module import EvalEnv, ProfilePredictor
@@ -11,7 +11,8 @@ from popsim.modules.profile_predictor.module import EvalEnv, ProfilePredictor
 def get_dls(config):
     ds, episode_coord = get_ds(config["ds"], config["debug"])
 
-    dls = ds.popsim_ml.make_dataloaders(
+    dls = make_standard_dataloaders(
+        ds=ds,
         time_coord="time",
         episode_coord=episode_coord,
         input_vars=config["input_vars"],

@@ -332,7 +332,7 @@ class ProfilePredictor(eqx.Module):
         key: jax.random.PRNGKey,
     ) -> "ProfilePredictor":
         ds = dl.ds
-        sample_dim = ds.popsim_ml.sample_dim
+        sample_dim = dl.dataset.training_metadata.sample_dim
 
         if shape_type == ShapeType.PCA_LIKE:
             te_shapes, ne_shapes = pca_initial_guess(n_shapes, ds[te_shape_var], ds[ne_shape_var], sample_dim)

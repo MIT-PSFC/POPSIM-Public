@@ -79,7 +79,7 @@ def compare_profiles_for_episode(eval_data: EvalData, episode_idx=0):
 
     rhos_plot = [0.0, 0.3, 0.6, 0.9, 1.0]
 
-    epsiode_dim = eval_data.input_ds.popsim_ml.training_metadata.episode_dim
+    epsiode_dim = eval_data.dataloader.dataset.training_metadata.episode_dim
 
     input_ds = input_ds.isel({epsiode_dim: episode_idx})
     output_ds = output_ds.isel({epsiode_dim: episode_idx})

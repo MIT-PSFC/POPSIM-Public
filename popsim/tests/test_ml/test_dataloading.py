@@ -87,3 +87,21 @@ def test_make_time_indep_dataloader(reduced_cmod_test_dataset, batch_size, shuff
         segment_length=None
     )
 
+def test_foo(reduced_cmod_test_dataset):
+    import xbatcher
+
+    ds, _, _, _ = reduced_cmod_test_dataset
+
+    coords = ds[["time", "shot"]]
+
+    segment_length = 100
+    segment_overlap = 50
+
+    gen = xbatcher.BatchGenerator(coords, input_dims={"time_slice": segment_length}, input_overlap={"time_slice": segment_overlap}, concat_input_dims=True)
+
+    foo = next(iter(gen))
+
+
+    coords = coords.reset_coords("time")
+    
+    coords_stacked = coords.stack(sample=("time_slice", "shot")).dropna("sample")

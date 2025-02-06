@@ -1,70 +1,135 @@
 import typing
 import warnings
 
+import jax
 import jax.numpy as jnp
-import jax_dataloader as jdl
+import numpy as np
 import xarray as xr
 import xbatcher
-from jax_dataloader.loaders.jax import DataLoaderJAX
 from jaxtyping import Array
 
 from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
+from popsim.ml.envs import ModuleEvalEnvInput
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
 
 DEFAULT_SAMPLE_DIM = "sample"
 
 
-class DataLoader:
-    """A thin wrapper around a jax_dataloader.DataLoader with convenience properties."""
+def prep_inputs_and_targets(ds, training_metadata):
+    """Prepare inputs and targets for training."""
 
-    dl: DataLoaderJAX
+    inputs = ds_to_dict_jnp(ds[training_metadata.input_vars])
+    targets = ds_to_dict_jnp(ds[training_metadata.target_vars])
 
-    def __init__(self, dl: DataLoaderJAX):
-        self.dl = dl
-        # Check that training metadata is set.
-        if dl.dataset.ds.popsim_ml.training_metadata is None:
-            raise ValueError("Training metadata must be set in the dataset.")
+    if not training_metadata.is_time_dependent:
+        return inputs, targets
 
-    def __len__(self):
-        return len(self.dl)
+    # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
+    time = ds[training_metadata.time_dep_metadata.time_coord]
+    sample = ds[training_metadata.sample_coord]
 
-    def __next__(self):
-        return next(self.dl)
+    # Handle the case where the time base is the same for all samples.
+    if training_metadata.sample_dim not in time.dims:
+        time = time.expand_dims({training_metadata.sample_dim: sample})
 
-    def __iter__(self):
-        return iter(self.dl)
+    time = jnp.asarray(time.values)
 
-    @property
-    def ds(self) -> xr.Dataset:
-        return self.dl.dataset.ds
+    # Grab the first time slice to get the initial state.
+    state_init = ds_to_dict_jnp(
+        ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
+    )
+
+    env_input = ModuleEvalEnvInput(
+        initial_state=state_init,
+        inputs=inputs,
+        time=time,
+    )
+
+    return env_input, targets
 
 
-class XarrayPreppedDataset(jdl.Dataset):
-    """A thin wrapper around an xr.Dataset that implements the Dataset interface for jax_dataloader."""
+def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
+    for i in range(0, len(indices), batch_size):
+        idx = indices[i : i + batch_size]
+        yield data[idx]
+
+
+class XarrayPreppedDataset:
+    """A thin wrapper around an xr.Dataset that also contains necessary metadata for training models."""
 
     ds: xr.Dataset
+    training_metadata: TrainingMetadata
 
-    def __init__(
-        self,
-        ds: xr.Dataset,
-    ):
-        if ds.popsim_ml.training_metadata is None:
-            raise ValueError("xr.Dataset must have training metadata to be used with XarrayPreppedDataset.")
+    def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata):
         self.ds = ds
+        self.training_metadata = training_metadata
 
     def __len__(self):
-        return self.ds.popsim_ml.n_samples
+        return self.sample_coord.size
 
     def __getitem__(self, idx) -> "XarrayPreppedDataset":
-        sample_dim = self.ds.popsim_ml.sample_dim
+        sample_dim = self.training_metadata.sample_dim
         ds_slice = self.ds.isel({sample_dim: idx})
-        return XarrayPreppedDataset(ds_slice)
+        return XarrayPreppedDataset(ds_slice, self.training_metadata)
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires special handling for equality comparison.
         ds_equals = self.ds.equals(other.ds)
         return ds_equals
+
+    def get_inputs_and_targets(self):
+        return prep_inputs_and_targets(self.ds, self.training_metadata)
+
+    @property
+    def sample_coord(self) -> str:
+        """Get the sample coordinate."""
+        sample_coord_name = self.training_metadata.sample_coord
+        return self.ds[sample_coord_name]
+
+    @property
+    def n_samples(self) -> int:
+        """Get the number of samples in the dataset."""
+        return self.sample_coord.size
+
+
+class DataLoader:
+    def __init__(
+        self,
+        dataset: XarrayPreppedDataset,
+        batch_size: int = 1,  # batch size
+        shuffle: bool = False,  # if true, dataloader shuffles before sampling each batch
+        drop_last: bool = False,
+        key: int = 0,
+        **kwargs,
+    ):
+        self.key = jax.random.PRNGKey(key)
+        self.dataset = dataset
+
+        self.indices = np.arange(len(dataset))
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+
+    def __len__(self):
+        complete_batches, remainder = divmod(len(self.indices), self.batch_size)
+        return complete_batches if self.drop_last else complete_batches + bool(remainder)
+
+    def __iter__(self):
+        # shuffle (permutation) indices every epoch
+        indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
+
+        if self.drop_last:
+            indices = indices[: len(self.indices) - len(self.indices) % self.batch_size]
+        return EpochIterator(self.dataset, self.batch_size, indices)
+
+    def next_key(self):
+        self.key, subkey = jax.random.split(self.key)
+        return subkey
+
+    @property
+    def ds(self) -> xr.Dataset:
+        return self.dataset.ds
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
@@ -197,21 +262,20 @@ def make_time_indep_dataloader(
         episode_dim=episode_var_dim,
         time_dep_metadata=None,
     )
-
-    sample_ds.popsim_ml.training_metadata = train_meta
-
     nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
 
     if nans_found:
         warnings.warn(f"NaNs found in dataset. NaN report: \n{nan_report}", stacklevel=2)
 
+    prepped_ds = XarrayPreppedDataset(
+        ds=sample_ds,
+        training_metadata=train_meta,
+    )
+
     dl = DataLoader(
-        DataLoaderJAX(
-            XarrayPreppedDataset(ds=sample_ds),
-            backend="jax",
-            batch_size=batch_size,
-            shuffle=shuffle,
-        )
+        dataset=prepped_ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
     )
     return dl
 
@@ -309,21 +373,21 @@ def make_dataloader(
         ),
     )
 
-    sample_ds.popsim_ml.training_metadata = train_meta
-
     nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
 
     if nans_found:
         warnings.warn(f"NaNs found in dataset. They will be forward-filled. NaN report: \n{nan_report}", stacklevel=2)
         sample_ds = sample_ds.ffill(time_dim_sample_ds)
 
+    prepped_ds = XarrayPreppedDataset(
+        ds=sample_ds,
+        training_metadata=train_meta,
+    )
+
     dl = DataLoader(
-        DataLoaderJAX(
-            XarrayPreppedDataset(ds=sample_ds),
-            backend="jax",
-            batch_size=batch_size,
-            shuffle=shuffle,
-        )
+        dataset=prepped_ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
     )
     return dl
 

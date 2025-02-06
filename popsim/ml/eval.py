@@ -29,7 +29,7 @@ This module contains utilities for evaluating models on data.
 class EvalData(NamedTuple):
     model: TrainableModel  # The model to train.
     dataloader: DataLoader  # DataLoader that was used to evaluate the module.
-    output_ds: xr.Dataset  # Output dataset from the module evaluation.
+    output_ds: xr.Dataset  # The output of the model converted to an xarray dataset.
 
     @property
     def input_ds(self):
@@ -58,8 +58,7 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     """
 
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
-        ds_in = dataset.ds
-        inputs, _ = ds_in.popsim_ml.prep_inputs_and_targets()
+        inputs, _ = dataset.get_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         vec_env = jax.vmap(env, in_axes=(inputs_spec,))
 
@@ -69,19 +68,18 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
 
         # Rename the dimensions to match the input dataset.
         ds_out = ds_out.rename({DEFAULT_SIM_DIM_NAME: DEFAULT_SAMPLE_DIM})
-        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: ds_in.popsim_ml.sample_coord})
-        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: ds_in.popsim_ml.training_metadata.time_dep_metadata.time_dim})
+        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
+        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: dataset.training_metadata.time_dep_metadata.time_dim})
         return ds_out
 
     def eval_model_return_xarray(model: TrainableModel, dataset: XarrayPreppedDataset) -> xr.Dataset:
-        ds_in = dataset.ds
-        inputs, _ = ds_in.popsim_ml.prep_inputs_and_targets()
+        inputs, _ = dataset.get_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         fn = jax.vmap(model, in_axes=(inputs_spec,))
 
         out = run_function_with_dim_removed(fn, (inputs,), DEFAULT_SAMPLE_DIM)
 
-        ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: ds_in.popsim_ml.sample_coord})
+        ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: dataset.sample_coord})
         return ds_out
 
     if isinstance(model, ModuleEvalEnv):
@@ -213,7 +211,7 @@ def make_val_loss_eval_fn(
     def eval_fn(inp: EvalData) -> float:
         loss_vecs = []
         for batch in inp.dataloader:
-            inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()
+            inputs, targets = batch.get_inputs_and_targets()
             loss_vec = batched_model_eval_and_loss(
                 inp.model,
                 loss_fn,

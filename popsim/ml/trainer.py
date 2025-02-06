@@ -70,7 +70,7 @@ def train_epoch(
     """Train the model for one epoch."""
     for batch in train_dl:
         tstart_prep = time.time()
-        inputs, targets = batch.ds.popsim_ml.prep_inputs_and_targets()
+        inputs, targets = batch.get_inputs_and_targets()
         tend_prep = time.time()
 
         tstart_step = time.time()
