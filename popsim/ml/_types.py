@@ -23,6 +23,7 @@ class TrainingMetadata:
     sample_dim: str
     input_vars: list[str]
     target_vars: list[str]
+    convert_xr_to_jnp: bool
     time_dep_metadata: typing.Optional[TimeDepMetadata] = None
 
     @property

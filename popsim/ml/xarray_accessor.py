@@ -1,15 +1,9 @@
 import typing
 
-import jax.numpy as jnp
 import tabulate
 import xarray as xr
-from jaxtyping import Array
 
 from popsim.ml.split_utils import split_dataset_by_fracs
-
-
-def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
-    return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
 
 
 @xr.register_dataset_accessor("popsim_ml")

@@ -16,29 +16,29 @@ from popsim.ml.preprocess_utils import shift_time_to_not_nan
 DEFAULT_SAMPLE_DIM = "sample"
 
 
-def prep_inputs_and_targets(ds, training_metadata):
-    """Prepare inputs and targets for training."""
+def prep_inputs_and_targets_time_dep(ds, training_metadata):
+    time = ds[training_metadata.time_dep_metadata.time_coord]
 
-    inputs = ds_to_dict_jnp(ds[training_metadata.input_vars])
-    targets = ds_to_dict_jnp(ds[training_metadata.target_vars])
+    # Drop all coords with sample dimension.
+    sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
+    ds = ds.drop_vars(sample_coords)
 
-    if not training_metadata.is_time_dependent:
-        return inputs, targets
+    inputs = ds[training_metadata.input_vars]
+    targets = ds[training_metadata.target_vars]
 
     # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
-    time = ds[training_metadata.time_dep_metadata.time_coord]
-    sample = ds[training_metadata.sample_coord]
-
-    # Handle the case where the time base is the same for all samples.
     if training_metadata.sample_dim not in time.dims:
-        time = time.expand_dims({training_metadata.sample_dim: sample})
+        time = time.expand_dims({training_metadata.sample_dim: training_metadata.sample_coord})
 
     time = jnp.asarray(time.values)
 
     # Grab the first time slice to get the initial state.
-    state_init = ds_to_dict_jnp(
-        ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
-    )
+    state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
+
+    if training_metadata.convert_xr_to_jnp:
+        state_init = ds_to_dict_jnp(state_init)
+        inputs = ds_to_dict_jnp(inputs)
+        targets = ds_to_dict_jnp(targets)
 
     env_input = ModuleEvalEnvInput(
         initial_state=state_init,
@@ -47,6 +47,19 @@ def prep_inputs_and_targets(ds, training_metadata):
     )
 
     return env_input, targets
+
+
+def prep_inputs_and_targets_time_indep(ds, training_metadata):
+    sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
+    ds = ds.drop_vars(sample_coords)
+    inputs = ds[training_metadata.input_vars]
+    targets = ds[training_metadata.target_vars]
+    # Maybe convert to jnp.
+
+    if training_metadata.convert_xr_to_jnp:
+        inputs = ds_to_dict_jnp(inputs)
+        targets = ds_to_dict_jnp(targets)
+    return inputs, targets
 
 
 def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
@@ -79,7 +92,10 @@ class XarrayPreppedDataset:
         return ds_equals
 
     def get_inputs_and_targets(self):
-        return prep_inputs_and_targets(self.ds, self.training_metadata)
+        if self.training_metadata.is_time_dependent:
+            return prep_inputs_and_targets_time_dep(self.ds, self.training_metadata)
+        else:
+            return prep_inputs_and_targets_time_indep(self.ds, self.training_metadata)
 
     @property
     def sample_coord(self) -> str:
@@ -133,7 +149,7 @@ class DataLoader:
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
-    return {var: jnp.asarray(ds[var].values).squeeze() for var in ds.data_vars}
+    return {var: jnp.asarray(ds[var].values) for var in ds.data_vars}
 
 
 def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str) -> tuple[str, str]:
@@ -174,6 +190,7 @@ def make_standard_dataloaders(
     target_vars: list[str],
     split_fracs: typing.Sequence[float],
     key: int,
+    convert_xr_to_jnp: bool = True,
     extra_vars: typing.Optional[list[str]] = None,
     state_init_vars: typing.Optional[list[str]] = None,
     batch_size: typing.Optional[int] = None,
@@ -198,7 +215,7 @@ def make_standard_dataloaders(
     else:
 
         def dl_fun(ds_, shuffle):
-            return make_dataloader(
+            return make_time_dep_dataloader(
                 ds=ds_,
                 time_coord=time_coord,
                 episode_coord=episode_coord,
@@ -226,6 +243,7 @@ def make_time_indep_dataloader(
     episode_coord: str,
     input_vars: list[str],
     target_vars: list[str],
+    convert_xr_to_jnp: bool = True,
     extra_vars: typing.Optional[list[str]] = None,
     batch_size: typing.Optional[int] = None,
     shuffle: bool = True,
@@ -238,6 +256,7 @@ def make_time_indep_dataloader(
         episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
         input_vars (list[str]): Names of the input variables that go into the model.
         target_vars (list[str]): Names of the target variables that the model predicts.
+        convert_xr_to_jnp (bool, optional): Whether to convert the xarray dataset to a dictionary of jnp arrays before loading the data into the model. Defaults to True.
         extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
@@ -258,6 +277,7 @@ def make_time_indep_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         input_vars=input_vars,
         target_vars=target_vars,
+        convert_xr_to_jnp=convert_xr_to_jnp,
         time_dep_metadata=None,
     )
     nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
@@ -278,13 +298,14 @@ def make_time_indep_dataloader(
     return dl
 
 
-def make_dataloader(
+def make_time_dep_dataloader(
     ds: xr.Dataset,
     time_coord: str,
     episode_coord: str,
     state_init_vars: list[str],
     input_vars: list[str],
     target_vars: list[str],
+    convert_xr_to_jnp: bool = True,
     extra_vars: typing.Optional[list[str]] = None,
     segment_length: typing.Optional[int] = None,
     segment_overlap: int = 0,
@@ -303,6 +324,7 @@ def make_dataloader(
         state_init_vars (list[str]): Names of the variables required to initialize the state of the module.
         input_vars (list[str]): Names of the variables to be fed into the "Inputs" structure of the module.
         target_vars (list[str]): Names of the target variables that the module predicts.
+        convert_xr_to_jnp (bool, optional): Whether to convert the xarray dataset to a dictionary of jnp arrays before loading the data into the model. Defaults to True.
         extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         segment_length (typing.Optional[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment. Defaults to None.
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
@@ -364,6 +386,7 @@ def make_dataloader(
         sample_dim=DEFAULT_SAMPLE_DIM,
         input_vars=input_vars,
         target_vars=target_vars,
+        convert_xr_to_jnp=convert_xr_to_jnp,
         time_dep_metadata=TrainingMetadata.TimeDepMetadata(
             state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
         ),

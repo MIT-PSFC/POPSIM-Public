@@ -1,7 +1,7 @@
 from jaxtyping import PyTree
 from popsim.tests.fixtures import oscillator_dataset
 from popsim.ml.trainer import Trainer
-from popsim.ml.dataloading import make_dataloader
+from popsim.ml.dataloading import make_time_dep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
@@ -79,7 +79,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
     if use_val:
         ds, val_ds = split_dataset_by_fracs(ds, (0.8, 0.2), "simulation", 42)
-        val_dl = make_dataloader(
+        val_dl = make_time_dep_dataloader(
             val_ds,
             time_coord="time",
             episode_coord="simulation",
@@ -92,7 +92,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
     else:
         val_dl = None
 
-    dl = make_dataloader(
+    dl = make_time_dep_dataloader(
         ds,
         time_coord="time",
         episode_coord="simulation",
