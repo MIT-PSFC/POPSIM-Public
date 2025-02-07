@@ -135,6 +135,7 @@ class EmptyDataclass:
     ({}, False),  # Empty dict
     ((), False),  # Empty tuple
     (EmptyDataclass(), False),  # Empty dataclass
+    ((jax.jit(lambda x: x + 1.0), jnp.array([1.0, 2.0])), False) # Tuple with a function
 ])
 def test_any_nans_and_no_nans(tree, has_nans):
     assert tree_util.any_nans(tree) == has_nans

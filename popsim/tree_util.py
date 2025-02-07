@@ -2,6 +2,7 @@ import collections
 import typing
 from enum import Enum, IntEnum
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as tu
@@ -200,6 +201,7 @@ def no_nans(tree: PyTree[ArrayLike]) -> bool:
         bool: whether any NaNs are present.
     """
     # A tree with leaves that are True if the leaf is not NaN.
+    tree = eqx.filter(tree, eqx.is_array_like)
     not_nan_leaf_tree = jax.tree.map(lambda x: jnp.all(jnp.logical_not(jnp.isnan(x))), tree)
 
     leaves = jax.tree.leaves(not_nan_leaf_tree)
