@@ -85,7 +85,7 @@ def save_train_state(train_state: TrainState, checkpoint_manager: ocp.Checkpoint
     composite_save = ocp.args.Composite(
         model=ocp.args.StandardSave(model_save),
         opt_state=ocp.args.StandardSave(opt_state_save),
-        metadata=ocp.args.StandardSave(metadata),
+        metadata=ocp.args.JsonSave(metadata),
     )
 
     checkpoint_manager.save(
@@ -114,7 +114,7 @@ def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: Tra
     composite_restore = ocp.args.Composite(
         model=ocp.args.StandardRestore(model_saveable),
         opt_state=ocp.args.StandardRestore(opt_state_saveable),
-        metadata=ocp.args.StandardRestore(),
+        metadata=ocp.args.JsonRestore(),
     )
 
     restored = checkpoint_manager.restore(
