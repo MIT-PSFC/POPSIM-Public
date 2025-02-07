@@ -29,7 +29,7 @@ def prep_inputs_and_targets_time_dep(ds: xr.Dataset, training_metadata: Training
 
     # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
     if training_metadata.sample_dim not in time.dims:
-        time = time.expand_dims({training_metadata.sample_dim: samples})
+        time = time.expand_dims({training_metadata.sample_dim: samples}).data
 
     # Grab the first time slice to get the initial state.
     state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})

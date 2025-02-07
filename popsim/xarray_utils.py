@@ -83,22 +83,26 @@ def _handle_xr_types(data: xr.DataArray | xr.Variable, base_coords, name) -> xr.
         da = xr.DataArray(data, coords=base_coords, name=name)
         return da
     elif isinstance(data, xr.DataArray):
-        data = data.assign_coords(base_coords)
         data.name = name
+        return data
+    elif isinstance(data, xr.Dataset):
+        # Add the name as a prefix to the variables in the dataset.
+        if name:
+            data = data.rename({var: f"{name}_{var}" for var in data.data_vars})
         return data
     else:
         raise ValueError("Only xr.Variable and xr.DataArray are supported.")
 
 
 def pytree_to_xarray(
-    tree: PyTree[Array | xr.Variable | xr.DataArray],
+    tree: PyTree[Array | xr.Variable | xr.DataArray | xr.Dataset],
     base_dims: typing.Optional[list[str]] = None,
     base_coords: typing.Optional[dict[str, xr.DataArray]] = None,
 ) -> xr.Dataset:
     """Convert a PyTree of array-likes, xr.Variables, and xr.DataArrays to an xarray Dataset.
 
     Args:
-        tree (PyTree[ArrayLike  |  xr.Variable  |  xr.DataArray]): tree containing array-like quantities, xr.Variables, and xr.DataArrays.
+        tree (PyTree[ArrayLike  |  xr.Variable  |  xr.DataArray | xr.Dataset]): tree containing array-like quantities, xr.Variables, xr.DataArrays, or xr.Datasets.
         base_dims (list[str]): list of dimension names for leaf arrays.
         base_coords (dict[str, xr.DataArray]): coordinates to add to all leaves.
 
@@ -113,7 +117,7 @@ def pytree_to_xarray(
 
     def process_tree_leaf(path, data: np.ndarray | ArrayLike | xr.DataArray | xr.Variable) -> xr.DataArray:
         name = ptu.keypath_to_string(path)
-        if isinstance(data, (xr.Variable, xr.DataArray)):
+        if isinstance(data, (xr.Variable, xr.DataArray, xr.Dataset)):
             return _handle_xr_types(data, base_coords, name)
         elif eqx.is_array_like(data):
             data = np.asarray(data) if not eqx.is_array(data) else data
@@ -122,11 +126,19 @@ def pytree_to_xarray(
             raise ValueError("Expected ArrayLike, xr.Variable, or xr.DataArray.")
 
     # Construct a tree of DataArrays.
-    paths_and_leaves = jax.tree_util.tree_leaves_with_path(tree, is_leaf=lambda x: isinstance(x, (xr.DataArray, xr.Variable, ArrayLike)))
+    paths_and_leaves = jax.tree_util.tree_leaves_with_path(
+        tree, is_leaf=lambda x: isinstance(x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike))
+    )
 
-    dataarrays = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
+    das_and_ds = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
 
-    ds = xr.merge(dataarrays)
+    dataarrays = [da for da in das_and_ds if isinstance(da, xr.DataArray)]
+    datasets = [da for da in das_and_ds if isinstance(da, xr.Dataset)]
+
+    ds = xr.merge(datasets)
+
+    ds_from_das = xr.merge(dataarrays)
+    ds = xr.merge([ds, ds_from_das])
     return ds
 
 
