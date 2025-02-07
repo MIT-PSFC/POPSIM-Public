@@ -3,6 +3,7 @@ from abc import abstractmethod
 import chex
 import diffrax
 import equinox as eqx
+import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import ModuleBase, interp
@@ -17,8 +18,8 @@ Base classes for defining environments for training and evaluating modules.
 
 @chex.dataclass
 class ModuleEvalEnvInput:
-    initial_state: dict[str, ArrayLike]
-    inputs: dict[str, ArrayLike]
+    initial_state: dict[str, ArrayLike] | xr.Dataset
+    inputs: dict[str, ArrayLike] | xr.Dataset
     time: Array
 
 
@@ -35,15 +36,24 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
     Returns:
         diffrax.Solution: the solution.
     """
-    # Construct the initial State and Inputs objects.
-    create_state_input = env_input.initial_state | env_input.inputs
+
+    # Construct the initial State and Input objects.
+    if isinstance(env_input.initial_state, dict) and isinstance(env_input.inputs, dict):
+        create_state_input = env_input.initial_state | env_input.inputs
+    elif isinstance(env_input.initial_state, xr.Dataset) and isinstance(env_input.inputs, xr.Dataset):
+        create_state_input = xr.merge([env_input.initial_state, env_input.inputs])
+    else:
+        raise ValueError("Invalid input types for initial_state and inputs")
     initial_state = env.create_state(create_state_input)
+
     inputs = env.create_inputs(env_input.inputs)
 
-    inputs_interped = interp.interp(_repeat_time_hack(env_input.time), inputs, interp.InterpType.RECTILINEAR)
+    time = _repeat_time_hack(env_input.time)
+
+    inputs_interped = interp.interp(time, inputs, interp.InterpType.RECTILINEAR)
 
     sim_input = SimInput(
-        time=env_input.time,
+        time=time,
         initial_state=initial_state,
         inputs=inputs_interped,
     )
