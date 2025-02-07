@@ -5,7 +5,6 @@ from os import PathLike
 
 import equinox as eqx
 import jax
-import jax.numpy as jnp
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
@@ -21,6 +20,12 @@ from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
 from popsim.tree_util import any_nans
+
+
+@eqx.filter_jit
+def step_nan_check(model, opt_state, loss_value):
+    """Check for NaN values in the model, optimizer state, or loss value."""
+    return any_nans((model, opt_state, loss_value))
 
 
 @eqx.filter_jit
@@ -43,13 +48,8 @@ def train_step(
     # Compute the loss value and the gradient of loss w.r.t. the trainable parts of the model.
     loss_value, grads = eqx.filter_value_and_grad(_batch_loss)(trainable)
 
-    loss_value = eqx.error_if(loss_value, jnp.isnan(loss_value), "Loss is NaN!")
-    grads = eqx.error_if(grads, any_nans(grads), "Gradients contain NaNs!")
-
     # Update the optimizer and the model.
     model_updates, opt_state = optimizer.update(grads, opt_state, trainable, value=loss_value, grad=grads, value_fn=_batch_loss)
-
-    model_updates = eqx.error_if(model_updates, any_nans(model_updates), "Model updates contain NaNs!")
 
     # Apply the updates to the trainable part of the model.
     trainable = eqx.apply_updates(trainable, model_updates)
@@ -66,7 +66,7 @@ def train_epoch(
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
     logger: LoggerBase,
-) -> TrainState:
+) -> TrainState | None:
     """Train the model for one epoch."""
     for batch in train_dl:
         tstart_prep = time.time()
@@ -87,6 +87,11 @@ def train_epoch(
                 targets,
             )
         )
+
+        if step_nan_check(model, opt_state, loss_value):
+            warnings.warn("NaN values found in model, optimizer state, or loss value. Stopping training.", stacklevel=2)
+            return None
+
         tend_step = time.time()
 
         logger.log(
@@ -122,6 +127,7 @@ class Trainer:
         optimizer: optax.GradientTransformation,
         checkpoint_dir: typing.Optional[PathLike] = None,
         trainable_getter: typing.Optional[typing.Callable[[TrainableModel], PyTree]] = None,
+        grad_clip: typing.Optional[optax.GradientTransformation] = None,
     ):
         """Initialize a Trainer object.
 
@@ -131,6 +137,7 @@ class Trainer:
             optimizer (optax.GradientTransformation): the optimizer to use.
             checkpoint_dir (typing.Optional[PathLike], optional): path to the directory to save checkpoints at / load checkpoints from. Defaults to None.
             trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
+            grad_clip (typing.Optional[optax.GradientTransformation], optional): Gradient clipping to apply before optimizer to avoid training instability. If None, then will default to optax.clip_by_global_norm(0.5). Defaults to None.
 
         """
         if isinstance(model, ModuleTrainingEnv):
@@ -141,6 +148,9 @@ class Trainer:
         else:
             partition_fn = make_partition_by_members(trainable_getter or (lambda m: m))
 
+        # Add gradient clipping to the optimizer.
+        grad_clip = grad_clip or optax.clip_by_global_norm(0.5)
+        optimizer = optax.chain(grad_clip, optimizer)
         self.partition_fn = partition_fn
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
@@ -182,7 +192,12 @@ class Trainer:
         for epoch in tqdm(epoch_range, desc="Epochs", initial=epoch_range[0], total=epoch_range[-1]):
             tstart_epoch = time.time()
 
-            self.train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger)
+            new_train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger)
+
+            if new_train_state is None:
+                break
+            else:
+                self.train_state = new_train_state
 
             tend_epoch = time.time()
 

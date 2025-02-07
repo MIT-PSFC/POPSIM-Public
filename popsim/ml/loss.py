@@ -57,7 +57,7 @@ class IntegralLoss(eqx.Module):
     instantaneous_loss: InstantaneousLoss
     nan_strategy: str = eqx.field(static=True)
 
-    def __init__(self, instantaneous_loss: InstantaneousLoss, nan_strategy: str = "raise"):
+    def __init__(self, instantaneous_loss: InstantaneousLoss, nan_strategy: str = "ignore"):
         self.instantaneous_loss = instantaneous_loss
         self.nan_strategy = nan_strategy
 
@@ -91,6 +91,8 @@ def _integral_loss(
         filled = eqx.error_if(filled, jnp.any(jnp.isnan(filled)), "NaN values found in filled instantaneous loss values.")
         time = eqx.error_if(time, jnp.any(jnp.isnan(time)), "NaN values found in time.")
         return trapezoid(filled, x=time)
+    elif nan_strategy == "ignore":
+        pass
     else:
         raise ValueError(f"Unknown nan_strategy: {nan_strategy}")
 

@@ -92,8 +92,8 @@ def test_eval():
     )
     xr.testing.assert_allclose(eval_data_train.output_ds, eval_data_train2.output_ds)
 
-
-def test_eval_shuffling():
+@pytest.mark.parametrize("convert_xr_to_jnp", [True, False])
+def test_eval_shuffling(convert_xr_to_jnp):
     """Test that the evaluation function doesn't return scrambled outputs when the dataloader is shuffled."""
     from popsim.ml._types import TrainingMetadata
 
@@ -111,7 +111,8 @@ def test_eval_shuffling():
             sample_coord='sample',
             sample_dim='sample',
             input_vars=['a'],
-            target_vars=['b']
+            target_vars=['b'],
+            convert_xr_to_jnp=convert_xr_to_jnp
         )
     )
 

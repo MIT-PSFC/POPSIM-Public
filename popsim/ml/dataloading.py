@@ -16,8 +16,9 @@ from popsim.ml.preprocess_utils import shift_time_to_not_nan
 DEFAULT_SAMPLE_DIM = "sample"
 
 
-def prep_inputs_and_targets_time_dep(ds, training_metadata):
+def prep_inputs_and_targets_time_dep(ds: xr.Dataset, training_metadata: TrainingMetadata):
     time = ds[training_metadata.time_dep_metadata.time_coord]
+    samples = ds[training_metadata.sample_coord]
 
     # Drop all coords with sample dimension.
     sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
@@ -28,9 +29,7 @@ def prep_inputs_and_targets_time_dep(ds, training_metadata):
 
     # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
     if training_metadata.sample_dim not in time.dims:
-        time = time.expand_dims({training_metadata.sample_dim: training_metadata.sample_coord})
-
-    time = jnp.asarray(time.values)
+        time = time.expand_dims({training_metadata.sample_dim: samples})
 
     # Grab the first time slice to get the initial state.
     state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
@@ -49,23 +48,16 @@ def prep_inputs_and_targets_time_dep(ds, training_metadata):
     return env_input, targets
 
 
-def prep_inputs_and_targets_time_indep(ds, training_metadata):
+def prep_inputs_and_targets_time_indep(ds: xr.Dataset, training_metadata: TrainingMetadata):
     sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
     ds = ds.drop_vars(sample_coords)
     inputs = ds[training_metadata.input_vars]
     targets = ds[training_metadata.target_vars]
-    # Maybe convert to jnp.
 
     if training_metadata.convert_xr_to_jnp:
         inputs = ds_to_dict_jnp(inputs)
         targets = ds_to_dict_jnp(targets)
     return inputs, targets
-
-
-def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
-    for i in range(0, len(indices), batch_size):
-        idx = indices[i : i + batch_size]
-        yield data[idx]
 
 
 class XarrayPreppedDataset:
@@ -132,6 +124,11 @@ class DataLoader:
         return complete_batches if self.drop_last else complete_batches + bool(remainder)
 
     def __iter__(self):
+        def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
+            for i in range(0, len(indices), batch_size):
+                idx = indices[i : i + batch_size]
+                yield data[idx]
+
         # shuffle (permutation) indices every epoch
         indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
 
