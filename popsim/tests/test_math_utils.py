@@ -49,12 +49,27 @@ def test_round_trip_signed_log():
     y_reconstructed = signed_log(x)
     assert jnp.allclose(random_samples_y, y_reconstructed, atol=1e-6)
 
+    # Test that back-propagation works
+    def fn(x):
+        return jnp.sum(signed_log(x))
+    
+    grad_fn = jax.grad(fn)
+    grads = grad_fn(random_samples_x)
+    assert not jnp.any(jnp.isnan(grads))
+
+    def fn_inv(y):
+        return jnp.sum(inverse_signed_log(y))
+    grad_fn_inv = jax.grad(fn_inv)
+    grads_inv = grad_fn_inv(random_samples_y)
+    assert not jnp.any(jnp.isnan(grads_inv))
+
 @pytest.mark.parametrize("min_value, max_value, sharpness", [
     (-1.0, 1.0, 10.0),
     (0.0, 5.0, 5.0),
     (-2.0, 3.0, 20.0),
+    (1e-5, 2e-5, 1.0),
 ])
-def test_soft_clip_inverse(min_value: float, max_value: float, sharpness: float):
+def test_soft_clip(min_value: float, max_value: float, sharpness: float):
     key = jax.random.PRNGKey(0)
     x = jax.random.uniform(key, (100,), minval=min_value, maxval=max_value)
 
@@ -64,6 +79,13 @@ def test_soft_clip_inverse(min_value: float, max_value: float, sharpness: float)
     # Check that clipped values are within bounds.
     assert jnp.all(clipped_x >= min_value)
     assert jnp.all(clipped_x <= max_value)
+    
+    # Test that back-propagation works
+    def fn(x):
+        return jnp.sum(soft_clip(x, min_value, max_value, sharpness))
+    grads = jax.grad(fn)(x)
+    assert not jnp.any(jnp.isnan(grads))
+
 
 def test_soft_clip_vec():
     values = jnp.array([0.0, 0.0, 1.0])
@@ -72,3 +94,9 @@ def test_soft_clip_vec():
     out = soft_clip(values, mins, maxs)
     assert out[0] == 0.0
     assert out[1] > 0.0 and out[1] < 1.0
+
+    # Test that back-propagation works
+    def fn(x):
+        return jnp.sum(soft_clip(x, mins, maxs))
+    grads = jax.grad(fn)(values)
+    assert not jnp.any(jnp.isnan(grads))

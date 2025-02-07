@@ -20,7 +20,6 @@ def safe_log(x: ArrayLike) -> ArrayLike:
 def signed_log(x: ArrayLike) -> ArrayLike:
     """Signed log that can take in positive and negative values.
     Note that the log is shifted by 1 to avoid a singularity at 0.
-    A plot of this function reveals that it is smooth for the entire real line.
 
     Args:
         x (ArrayLike): Input value.
@@ -44,9 +43,7 @@ def inverse_signed_log(y: ArrayLike) -> ArrayLike:
 
 
 def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpness: float = 1.0, eps: float = 1e-6) -> ArrayLike:
-    """Softly clips a value (or vector) between minimum and maximum values (or vectors).
-    This function provides a smooth alternative to the clip function.
-    TODO(allenw): thsi function can have numerical issues with backpropagation. Investigate further.
+    """A smooth alternative to clipping that uses a tanh function.
 
     Args:
         x (ArrayLike): the value(s) to be clipped.
