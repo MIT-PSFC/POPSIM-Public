@@ -16,50 +16,6 @@ from popsim.ml.preprocess_utils import shift_time_to_not_nan
 DEFAULT_SAMPLE_DIM = "sample"
 
 
-def prep_inputs_and_targets_time_dep(ds: xr.Dataset, training_metadata: TrainingMetadata):
-    time = ds[training_metadata.time_dep_metadata.time_coord]
-    samples = ds[training_metadata.sample_coord]
-
-    # Drop all coords with sample dimension.
-    sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
-    ds = ds.drop_vars(sample_coords)
-
-    inputs = ds[training_metadata.input_vars]
-    targets = ds[training_metadata.target_vars]
-
-    # If the sample dimension is not in the time dimension, expand time to include the sample dimension.
-    if training_metadata.sample_dim not in time.dims:
-        time = time.expand_dims({training_metadata.sample_dim: samples}).data
-
-    # Grab the first time slice to get the initial state.
-    state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
-
-    if training_metadata.convert_xr_to_jnp:
-        state_init = ds_to_dict_jnp(state_init)
-        inputs = ds_to_dict_jnp(inputs)
-        targets = ds_to_dict_jnp(targets)
-
-    env_input = ModuleEvalEnvInput(
-        initial_state=state_init,
-        inputs=inputs,
-        time=time,
-    )
-
-    return env_input, targets
-
-
-def prep_inputs_and_targets_time_indep(ds: xr.Dataset, training_metadata: TrainingMetadata):
-    sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
-    ds = ds.drop_vars(sample_coords)
-    inputs = ds[training_metadata.input_vars]
-    targets = ds[training_metadata.target_vars]
-
-    if training_metadata.convert_xr_to_jnp:
-        inputs = ds_to_dict_jnp(inputs)
-        targets = ds_to_dict_jnp(targets)
-    return inputs, targets
-
-
 class XarrayPreppedDataset:
     """A thin wrapper around an xr.Dataset that also contains necessary metadata for training models."""
 
@@ -85,9 +41,48 @@ class XarrayPreppedDataset:
 
     def get_inputs_and_targets(self):
         if self.training_metadata.is_time_dependent:
-            return prep_inputs_and_targets_time_dep(self.ds, self.training_metadata)
+            training_metadata, ds = self.training_metadata, self.ds
+
+            # Get the time and sample coordinate variable, then drop them from the dataset.
+            # We want to drop them because having different coordinates will re-trigger JIT compilation.
+            time = ds[training_metadata.time_dep_metadata.time_coord]
+            samples = ds[training_metadata.sample_coord]
+            sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
+            ds = ds.drop_vars(sample_coords)
+
+            inputs = ds[training_metadata.input_vars]
+            targets = ds[training_metadata.target_vars]
+
+            # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
+            if training_metadata.sample_dim not in time.dims:
+                time = time.expand_dims({training_metadata.sample_dim: samples}).data
+
+            # Grab the first time slice to get the initial state.
+            state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
+
+            if training_metadata.convert_xr_to_jnp:
+                state_init = ds_to_dict_jnp(state_init)
+                inputs = ds_to_dict_jnp(inputs)
+                targets = ds_to_dict_jnp(targets)
+
+            env_input = ModuleEvalEnvInput(
+                initial_state=state_init,
+                inputs=inputs,
+                time=time,
+            )
+
+            return env_input, targets
         else:
-            return prep_inputs_and_targets_time_indep(self.ds, self.training_metadata)
+            # Time-independent case.
+            sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
+            ds = ds.drop_vars(sample_coords)
+            inputs = ds[training_metadata.input_vars]
+            targets = ds[training_metadata.target_vars]
+
+            if training_metadata.convert_xr_to_jnp:
+                inputs = ds_to_dict_jnp(inputs)
+                targets = ds_to_dict_jnp(targets)
+            return inputs, targets
 
     @property
     def sample_coord(self) -> str:
