@@ -18,6 +18,10 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length, co
     first_batches = []
     for idx, batch in enumerate(dl):
         assert isinstance(batch, XarrayPreppedDataset)
+
+        # Make sure the leading dimension is the sample dimension.
+        assert list(batch.ds.dims.keys())[0] == DEFAULT_SAMPLE_DIM
+
         # Nominally, the batch size is just "batch_size_handle_none", but the last batch may be smaller.
         expected_sample_size = min(batch_size_handle_none, expected_n_samps - idx * batch_size_handle_none)
 

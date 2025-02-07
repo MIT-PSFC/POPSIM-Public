@@ -101,7 +101,6 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         segment_length=train_seg_length,
         batch_size=batch_size
     )
-
     trainer = Trainer(
         model=env,
         loss_fn=IntegralLoss(loss),

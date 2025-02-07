@@ -23,6 +23,8 @@ class XarrayPreppedDataset:
     training_metadata: TrainingMetadata
 
     def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata):
+        if next(iter(ds.dims)) != training_metadata.sample_dim:
+            ds = ds.transpose(training_metadata.sample_dim, ...)
         self.ds = ds
         self.training_metadata = training_metadata
 
@@ -40,9 +42,8 @@ class XarrayPreppedDataset:
         return ds_equals
 
     def get_inputs_and_targets(self):
+        training_metadata, ds = self.training_metadata, self.ds
         if self.training_metadata.is_time_dependent:
-            training_metadata, ds = self.training_metadata, self.ds
-
             # Get the time and sample coordinate variable, then drop them from the dataset.
             # We want to drop them because having different coordinates will re-trigger JIT compilation.
             time = ds[training_metadata.time_dep_metadata.time_coord]
@@ -141,7 +142,7 @@ class DataLoader:
 
     @property
     def metrics(self) -> dict:
-        out = {"n_samples": len(self.dl.dataset), "n_GB": self.dl.dataset.ds.nbytes / 1e9}
+        out = {"n_samples": len(self.dataset.ds), "n_GB": self.dataset.ds.nbytes / 1e9}
         return out
 
 
