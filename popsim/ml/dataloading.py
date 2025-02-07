@@ -139,6 +139,11 @@ class DataLoader:
     def ds(self) -> xr.Dataset:
         return self.dataset.ds
 
+    @property
+    def metrics(self) -> dict:
+        out = {"n_samples": len(self.dl.dataset), "n_GB": self.dl.dataset.ds.nbytes / 1e9}
+        return out
+
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
     return {var: jnp.asarray(ds[var].values) for var in ds.data_vars}

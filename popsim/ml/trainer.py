@@ -184,6 +184,9 @@ class Trainer:
         if not val_dl and self.checkpoint_manager:
             warnings.warn("No validation DataLoader provided. Checkpoints will not be saved.", stacklevel=2)
 
+        # Log summary metrics of the dataloaders.
+        logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
+
         val_loss_history = np.array([])
 
         # epoch_range accounts for restarting training from a checkpoint.

@@ -5,22 +5,12 @@ import loguru
 import numpy as np
 from jaxtyping import Array
 
+from popsim.utils import flatten_dict
+
 """
 Logging utilities for tracking training progress.
 TODO(allenw): not much time was spent on this, it could use considerable improvement.
 """
-
-
-def _flatten_dict(dictionary, parent_key="", sep="/"):
-    """Flatten a nested dictionary, using a separator for nested keys."""
-    items = {}
-    for k, v in dictionary.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.update(_flatten_dict(v, parent_key=new_key, sep=sep))
-        else:
-            items[new_key] = v
-    return items
 
 
 def convert_val_to_serializable(val):
@@ -73,7 +63,7 @@ class WandbLogger(LoggerBase):
         self.run.define_metric("val/*", step_metric="val/epoch")
 
     def log(self, dictionary):
-        self.run.log(_flatten_dict(dictionary))
+        self.run.log(flatten_dict(dictionary))
 
 
 def get_logger(logger_type: str, **kwargs) -> LoggerBase:
