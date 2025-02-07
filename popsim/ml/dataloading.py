@@ -419,9 +419,16 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
 
     # Identify the elements that are end padding.
     padding_mask = contiguous_true_end_of_axis_mask(ds[time_coord].isnull().values, axis=time_axis)
-    ds[time_coord] = xr.where(padding_mask, ds[time_coord].ffill(time_dim), ds[time_coord])
 
-    ds = xr.where(padding_mask, ds.ffill(time_dim), ds)
+    padding_mask_da = xr.DataArray(padding_mask, dims=ds[time_coord].dims, coords=ds[time_coord].coords)
+
+    # For some reason, if we don't reset the time coordinate, in some cases the time coordinate is dropped.
+    # by the xr.where operation.
+    ds = ds.reset_coords(time_coord)
+
+    ds = xr.where(padding_mask_da, ds.ffill(time_dim), ds)
+
+    ds[time_coord] = ds[time_coord].ffill(time_dim)
 
     if DEFAULT_SAMPLE_DIM in ds[time_coord].dims:
         # Drop samples where time is all NaN.
