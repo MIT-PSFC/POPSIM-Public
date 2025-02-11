@@ -15,6 +15,7 @@ from popsim.array_utils import min_greater_than_thresh
 from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.input_utils import input_specs_to_paths
 from popsim.interp import InterpType, resolve_paths
+from popsim.ml.utils import time_epsilon
 from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
@@ -180,8 +181,8 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: boo
         out = generate_save_output(y, inputs_resolved, output, record_state=record_state)
         return out
 
-    # Get the minimum time step that is greater than zero.
-    dt0 = min_greater_than_thresh(jnp.diff(sim_input.time), 0.0)
+    # Get the minimum time step that is greater than the maximum time padding amount.
+    dt0 = min_greater_than_thresh(jnp.diff(sim_input.time), jnp.max(time_epsilon(sim_input.time)))
 
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),

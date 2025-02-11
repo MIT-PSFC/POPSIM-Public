@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array
+from jaxtyping import Array, ArrayLike
 
 
 def _count_repeat_elements(times: Array) -> Array:
@@ -27,6 +27,19 @@ def _count_repeat_elements(times: Array) -> Array:
     return counts
 
 
+def time_epsilon(time: ArrayLike) -> ArrayLike:
+    """Determine the padding amount to add to the time array.
+    Note this is better than using a fixed epsilon value as it scales the epsilon to the size of the time array.
+
+    Args:
+        time (ArrayLike): a single time value or an array of times.
+
+    Returns:
+        ArrayLike: the padding amount for each time value.
+    """
+    return jnp.nextafter(time, jnp.inf) - time
+
+
 def _repeat_time_hack(times: Array) -> Array:
     """Diffrax has issues with both repeated times and nans in the time array.
     The solution is to repeat the last time but with a small epsilon added to it.
@@ -47,7 +60,7 @@ def _repeat_time_hack(times: Array) -> Array:
     def scan_func(carry, current_val):
         prev_val, _ = carry
         current_val = jax.lax.cond(
-            jnp.greater(current_val, prev_val), lambda _: current_val, lambda _: jnp.nextafter(prev_val, jnp.inf), operand=None
+            jnp.greater(current_val, prev_val), lambda _: current_val, lambda _: prev_val + time_epsilon(prev_val), operand=None
         )
         return (current_val, _), current_val
 
