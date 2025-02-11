@@ -69,7 +69,7 @@ class XarrayPreppedDataset:
             env_input = ModuleEvalEnvInput(
                 initial_state=state_init,
                 inputs=inputs,
-                time=time,
+                time=time.data,
             )
 
             return env_input, targets
