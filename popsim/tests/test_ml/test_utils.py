@@ -1,7 +1,7 @@
 import pytest
 import jax.numpy as jnp
 import numpy as np
-from popsim.ml.utils import pad_time, pad_time_xr
+from popsim.ml.utils import pad_time_with_epsilon, pad_time_with_epsilon_xr
 import xarray as xr
 
 @pytest.mark.parametrize("times, expected", [
@@ -19,8 +19,8 @@ import xarray as xr
      jnp.array([1., 2., 3., 3. + 3. * jnp.finfo(jnp.float64).eps, 3. + 6. * jnp.finfo(jnp.float64).eps, 4., 4. + 3. * jnp.finfo(jnp.float64).eps])),
      
 ])
-def test_pad_time(times, expected):
-    result = pad_time(times)
+def test_pad_time_with_epsilon(times, expected):
+    result = pad_time_with_epsilon(times)
     np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
     assert (result[1:] > result[:-1]).all()
 
@@ -37,26 +37,26 @@ def test_pad_time(times, expected):
     # The > operator always returns False even though the array is strictly increasing.
     # Also, you can't do subtraction on floats too close to zero (~1e-324), it will just return zero.
 ])
-def test_pad_time_only_inequality(times):
-    out = pad_time(times)
+def test_pad_time_with_epsilon_only_inequality(times):
+    out = pad_time_with_epsilon(times)
     assert (out[1:] > out[:-1]).all()
 
-def test_pad_time_xr():
+def test_pad_time_with_epsilon_xr():
     example_time = xr.DataArray(
         data=np.array([[0, 1, 2, 3, 4, 4, 4], [2, 3, 4, 5, 6, np.nan, np.nan]]),
         dims=["sample", "time"],
         coords={"sample": [0, 1]}
     )
 
-    padded_time = pad_time_xr(example_time, "time")
+    padded_time = pad_time_with_epsilon_xr(example_time, "time")
 
     # Check that the time array is strictly increasing.
     assert (padded_time.diff("time") > 0.0).all()
 
     # Check that the time array is padded correctly.
-    assert (padded_time.isel(sample=0).data == pad_time(example_time.isel(sample=0).data)).all()
-    assert (padded_time.isel(sample=1).data == pad_time(example_time.isel(sample=1).data)).all()
+    assert (padded_time.isel(sample=0).data == pad_time_with_epsilon(example_time.isel(sample=0).data)).all()
+    assert (padded_time.isel(sample=1).data == pad_time_with_epsilon(example_time.isel(sample=1).data)).all()
 
     # Test that changing the order of sample and time, we still get the same result.
-    padded_time2 = pad_time_xr(example_time.transpose(), "time")
+    padded_time2 = pad_time_with_epsilon_xr(example_time.transpose(), "time")
     assert padded_time2.equals(padded_time)

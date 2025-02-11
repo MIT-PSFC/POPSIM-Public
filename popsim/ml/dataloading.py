@@ -12,7 +12,7 @@ from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
 from popsim.ml.envs import ModuleEvalEnvInput
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
-from popsim.ml.utils import pad_time_xr
+from popsim.ml.utils import pad_time_with_epsilon_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
 
@@ -436,7 +436,7 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
 
     ds = xr.where(padding_mask_da, ds.ffill(time_dim), ds)
 
-    ds[time_coord] = pad_time_xr(ds[time_coord], time_dim)
+    ds[time_coord] = pad_time_with_epsilon_xr(ds[time_coord], time_dim)
     if DEFAULT_SAMPLE_DIM in ds[time_coord].dims:
         # Drop samples where time is all NaN.
         ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])

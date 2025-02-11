@@ -23,19 +23,7 @@ class ModuleEvalEnvInput:
 
 
 @eqx.filter_jit
-def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) -> diffrax.Solution:
-    """Given a ModuleEvalEnvInput object consisting of arrays:
-        1) Create State and Inputs objects from the arrays.
-        2) Interpolate the Inputs.
-        3) Simulate the module and return a diffrax.Solution object.
-
-    Args:
-        env_input (ModuleEvalEnvInput):
-
-    Returns:
-        diffrax.Solution: the solution.
-    """
-
+def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, max_step_mult: int = 10) -> diffrax.Solution:
     # Construct the initial State and Input objects.
     if isinstance(env_input.initial_state, dict) and isinstance(env_input.inputs, dict):
         create_state_input = env_input.initial_state | env_input.inputs
@@ -57,7 +45,8 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
         inputs=inputs_interped,
     )
 
-    sol = _diffrax_simulate(env.module, sim_input)
+    max_steps = max_step_mult * time.size
+    sol = _diffrax_simulate(env.module, sim_input, max_steps=max_steps)
     return sol
 
 

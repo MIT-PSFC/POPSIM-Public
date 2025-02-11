@@ -164,7 +164,9 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 
 @eqx.filter_jit
-def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> diffrax.Solution:
+def _diffrax_simulate(
+    module: ModuleBase, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
+) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
     def module_f(t, y, inputs, return_aux=False):
@@ -193,7 +195,7 @@ def _diffrax_simulate(module: ModuleBase, sim_input: SimInput, record_state: boo
         y0=sim_input.initial_state,
         args=sim_input.inputs,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
-        max_steps=config["DIFFRAX_MAX_STEPS"],
+        max_steps=max_steps,
     )
     # Add simulation dimension to any xr.Variable instances.
     sol = add_dim_to_vars(sol, DEFAULT_TIME_DIM_NAME)

@@ -6,7 +6,7 @@ from jaxtyping import Array
 from popsim.utils import time_epsilon
 
 
-def pad_time(times: Array) -> Array:
+def pad_time_with_epsilon(times: Array) -> Array:
     """Diffrax has issues with both repeated times and nans in the time array.
     The solution is to repeat the last time but with a small epsilon added to it.
     This epsilon addition is handled by jnp.nextafter, which accounts for properly scaling the epsilon
@@ -34,7 +34,7 @@ def pad_time(times: Array) -> Array:
     return times
 
 
-def pad_time_xr(time: xr.DataArray, time_dim: str) -> xr.DataArray:
+def pad_time_with_epsilon_xr(time: xr.DataArray, time_dim: str) -> xr.DataArray:
     """Given an xarray DataArray of times corresponding to episodes, apply time padding. This replaces nans and repeated times with strictly increasing times.
 
     Args:
@@ -47,7 +47,7 @@ def pad_time_xr(time: xr.DataArray, time_dim: str) -> xr.DataArray:
 
     def _pad(t):
         # By default, xr.apply_ufunc moves core dimensions to the end of the array.
-        # Thus, using np.apply_along_axis along the last dimension ensures "pad_time" is applied to the time dimension.
-        return jnp.apply_along_axis(pad_time, -1, t)
+        # Thus, using np.apply_along_axis along the last dimension ensures "pad_time_with_epsilon" is applied to the time dimension.
+        return jnp.apply_along_axis(pad_time_with_epsilon, -1, t)
 
     return xr.apply_ufunc(_pad, time, input_core_dims=[[time_dim]], output_core_dims=[[time_dim]])

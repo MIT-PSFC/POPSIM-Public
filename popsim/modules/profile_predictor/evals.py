@@ -79,10 +79,10 @@ def compare_profiles_for_episode(eval_data: EvalData, episode_idx=0):
 
     rhos_plot = [0.0, 0.3, 0.6, 0.9, 1.0]
 
-    epsiode_dim = "shot"
+    episode_dim = "simulation"
 
-    input_ds = input_ds.isel({epsiode_dim: episode_idx})
-    output_ds = output_ds.isel({epsiode_dim: episode_idx})
+    input_ds = input_ds.isel({episode_dim: episode_idx})
+    output_ds = output_ds.isel({episode_dim: episode_idx})
     targ_ne = input_ds["ne20_rho"]
     targ_te = input_ds["Te_keV_rho"]
     pred_ne = output_ds["ne"]
