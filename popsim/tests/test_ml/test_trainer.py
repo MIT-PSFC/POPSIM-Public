@@ -60,7 +60,7 @@ class NeuralODEEnv(ModuleTrainingEnv):
         return self.module.config.nn
 
 @pytest.mark.parametrize("use_val", [True, False])
-@pytest.mark.parametrize("train_seg_length", [None, 50])
+@pytest.mark.parametrize("train_seg_length", [None, 31]) # 31 is chosen as an unusual segment length to test the code.
 @pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
 @pytest.mark.parametrize("batch_size", [None, 1, 8])
 def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, batch_size, tmpdir):

@@ -1,46 +1,12 @@
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
+import xarray as xr
+from jaxtyping import Array
+
+from popsim.utils import time_epsilon
 
 
-def _count_repeat_elements(times: Array) -> Array:
-    """Given an array of times that is sorted in ascending order and may contain repeat elements at
-    the end, count the cumulative number of times an element is repeated.
-
-    Example:
-        jnp.array([0, 1, 2, 3, 4, 4, 4]) -> jnp.array([0, 0, 0, 0, 0, 1, 2])
-
-    Args:
-        times (Array): array of times in ascending order possibly with repeat elements at the end.
-
-    Returns:
-        Array: the cumulative number of times an element is repeated.
-    """
-
-    def scan_func(carry, current):
-        prev_val, prev_count = carry
-        diff = jax.lax.cond(jnp.equal(prev_val, current), lambda _: 1, lambda _: 0, operand=None)
-        count = prev_count + diff
-        return (current, count), count
-
-    _, counts = jax.lax.scan(scan_func, (times[0], -1), times)
-    return counts
-
-
-def time_epsilon(time: ArrayLike) -> ArrayLike:
-    """Determine the padding amount to add to the time array.
-    Note this is better than using a fixed epsilon value as it scales the epsilon to the size of the time array.
-
-    Args:
-        time (ArrayLike): a single time value or an array of times.
-
-    Returns:
-        ArrayLike: the padding amount for each time value.
-    """
-    return jnp.nextafter(time, jnp.inf) - time
-
-
-def _repeat_time_hack(times: Array) -> Array:
+def pad_time(times: Array) -> Array:
     """Diffrax has issues with both repeated times and nans in the time array.
     The solution is to repeat the last time but with a small epsilon added to it.
     This epsilon addition is handled by jnp.nextafter, which accounts for properly scaling the epsilon
@@ -66,3 +32,22 @@ def _repeat_time_hack(times: Array) -> Array:
 
     _, times = jax.lax.scan(scan_func, (times[0], -1), times)
     return times
+
+
+def pad_time_xr(time: xr.DataArray, time_dim: str) -> xr.DataArray:
+    """Given an xarray DataArray of times corresponding to episodes, apply time padding. This replaces nans and repeated times with strictly increasing times.
+
+    Args:
+        time (xr.DataArray): xarray DataArray of times.
+        time_dim (str): name of the time dimension.
+
+    Returns:
+        xr.DataArray: the time DataArray with nans and repeated times replaced with strictly increasing times.
+    """
+
+    def _pad(t):
+        # By default, xr.apply_ufunc moves core dimensions to the end of the array.
+        # Thus, using np.apply_along_axis along the last dimension ensures "pad_time" is applied to the time dimension.
+        return jnp.apply_along_axis(pad_time, -1, t)
+
+    return xr.apply_ufunc(_pad, time, input_core_dims=[[time_dim]], output_core_dims=[[time_dim]])

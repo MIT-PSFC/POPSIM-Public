@@ -7,7 +7,6 @@ import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import ModuleBase, interp
-from popsim.ml.utils import _repeat_time_hack
 from popsim.sim_utils import SimInput
 from popsim.simulate import _diffrax_simulate
 
@@ -48,7 +47,7 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput) ->
 
     inputs = env.create_inputs(env_input.inputs)
 
-    time = _repeat_time_hack(env_input.time)
+    time = env_input.time
 
     inputs_interped = interp.interp(time, inputs, interp.InterpType.RECTILINEAR)
 

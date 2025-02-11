@@ -1,3 +1,7 @@
+import jax.numpy as jnp
+from jaxtyping import ArrayLike
+
+
 def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
     """Recursively flattens a nested dictionary.
 
@@ -17,3 +21,16 @@ def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
         else:
             items[new_key] = v
     return items
+
+
+def time_epsilon(time: ArrayLike) -> ArrayLike:
+    """Determine the padding amount to use for time arrays.
+    Note this is better than using a fixed epsilon value as it scales the epsilon to the size of the time array.
+
+    Args:
+        time (ArrayLike): a single time value or an array of times.
+
+    Returns:
+        ArrayLike: the padding amount for each time value.
+    """
+    return jnp.nextafter(time, jnp.inf) - time

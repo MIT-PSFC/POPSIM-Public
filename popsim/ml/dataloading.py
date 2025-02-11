@@ -12,6 +12,7 @@ from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
 from popsim.ml.envs import ModuleEvalEnvInput
 from popsim.ml.preprocess_utils import shift_time_to_not_nan
+from popsim.ml.utils import pad_time_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
 
@@ -56,7 +57,7 @@ class XarrayPreppedDataset:
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
             if training_metadata.sample_dim not in time.dims:
-                time = time.expand_dims({training_metadata.sample_dim: samples}).data
+                time = time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
             state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
@@ -420,6 +421,7 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
     Returns:
         xr.Dataset: dataset with nan-padding at the end of the time dimension filled in.
     """
+
     # Get the axis of the time dimension
     time_axis = ds[time_coord].dims.index(time_dim)
 
@@ -434,8 +436,7 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
 
     ds = xr.where(padding_mask_da, ds.ffill(time_dim), ds)
 
-    ds[time_coord] = ds[time_coord].ffill(time_dim)
-
+    ds[time_coord] = pad_time_xr(ds[time_coord], time_dim)
     if DEFAULT_SAMPLE_DIM in ds[time_coord].dims:
         # Drop samples where time is all NaN.
         ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])

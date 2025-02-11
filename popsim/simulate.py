@@ -15,7 +15,6 @@ from popsim.array_utils import min_greater_than_thresh
 from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.input_utils import input_specs_to_paths
 from popsim.interp import InterpType, resolve_paths
-from popsim.ml.utils import time_epsilon
 from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
@@ -24,6 +23,7 @@ from popsim.sim_utils import (
     make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
 )
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
+from popsim.utils import time_epsilon
 from popsim.xarray_utils import (
     DEFAULT_SIM_DIM_NAME,
     DEFAULT_TIME_DIM_NAME,
