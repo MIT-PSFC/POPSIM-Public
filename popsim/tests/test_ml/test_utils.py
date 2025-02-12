@@ -29,7 +29,7 @@ def test_pad_time_with_epsilon(times, expected):
        2.14500022, 2.15400004, 2.16400027, 2.1730001 , 2.18299985,
        2.19200015, 2.20099998, 2.2110002 , 2.2110002 , 2.2110002]),
     jnp.array([1e10, np.nan, 1e11, 1e12, 1e12]),
-    jnp.array([1e-200, 1e-200, 1e-200, 2e-200, 3e-200]),
+    jnp.array([0.0, 0.0, 1e-10, 1e-10, 1e-10, 2e-10, 3e-10]),
     jnp.ones(10),
     jnp.array([0, 1, 2, 3, 4, jnp.nan, jnp.nan]),
     # TODO(ZanderKeith): jnp.zeros(10),
