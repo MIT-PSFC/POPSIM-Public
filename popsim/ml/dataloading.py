@@ -146,7 +146,7 @@ class DataLoader:
 
     @property
     def metrics(self) -> dict:
-        out = {"n_samples": len(self.dataset.ds), "n_GB": self.dataset.ds.nbytes / 1e9}
+        out = {"n_samples": self.dataset.n_samples, "n_GB": self.dataset.ds.nbytes / 1e9}
         return out
 
 
