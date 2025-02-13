@@ -23,7 +23,20 @@ class ModuleEvalEnvInput:
 
 
 @eqx.filter_jit
-def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, max_step_mult: int = 10) -> diffrax.Solution:
+def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, max_step_mult: int = 2) -> diffrax.Solution:
+    """Run a ModuleEvalEnv with the given input. This handles state initialization and interpolation of time-dependent inputs.
+
+    Args:
+        env (ModuleEvalEnv): the environment to run.
+        env_input (ModuleEvalEnvInput): the input to the environment.
+        max_step_mult (int, optional): the maximum number of diffeqsolve steps is the number of time steps in env_input times this quantity. Defaults to 2.
+
+    Raises:
+        ValueError: if the input types for initial_state and inputs are invalid.
+
+    Returns:
+        diffrax.Solution: the solution of the simulation.
+    """
     # Construct the initial State and Input objects.
     if isinstance(env_input.initial_state, dict) and isinstance(env_input.inputs, dict):
         create_state_input = env_input.initial_state | env_input.inputs
