@@ -102,8 +102,8 @@ class DataLoader:
     def __init__(
         self,
         dataset: XarrayPreppedDataset,
-        batch_size: int = 1,  # batch size
-        shuffle: bool = False,  # if true, dataloader shuffles before sampling each batch
+        batch_size: int,
+        shuffle: bool,
         drop_last: bool = False,
         key: int = 0,
         **kwargs,
