@@ -24,6 +24,9 @@ class XarrayPreppedDataset:
     training_metadata: TrainingMetadata
 
     def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata):
+        if ds[training_metadata.sample_coord].ndim != 1:
+            raise ValueError(f"The sample coordinate '{training_metadata.sample_coord}' must be 1D.")
+
         if next(iter(ds.dims)) != training_metadata.sample_dim:
             ds = ds.transpose(training_metadata.sample_dim, ...)
         self.ds = ds
