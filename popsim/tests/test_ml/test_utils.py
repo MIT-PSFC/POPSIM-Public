@@ -32,10 +32,7 @@ def test_pad_time_with_epsilon(times, expected):
     jnp.array([0.0, 0.0, 1e-10, 1e-10, 1e-10, 2e-10, 3e-10]),
     jnp.ones(10),
     jnp.array([0, 1, 2, 3, 4, jnp.nan, jnp.nan]),
-    # TODO(ZanderKeith): jnp.zeros(10),
-    # For the case of jnp.zeros(10), the function works but I don't know how to write a test for it
-    # The > operator always returns False even though the array is strictly increasing.
-    # Also, you can't do subtraction on floats too close to zero (~1e-324), it will just return zero.
+    jnp.zeros(10)
 ])
 def test_pad_time_with_epsilon_only_inequality(times):
     out = pad_time_with_epsilon(times)
