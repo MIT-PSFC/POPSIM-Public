@@ -38,13 +38,12 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, ma
         diffrax.Solution: the solution of the simulation.
     """
     # Construct the initial State and Input objects.
-    if isinstance(env_input.initial_state, dict) and isinstance(env_input.inputs, dict):
-        create_state_input = env_input.initial_state | env_input.inputs
-    elif isinstance(env_input.initial_state, xr.Dataset) and isinstance(env_input.inputs, xr.Dataset):
-        create_state_input = xr.merge([env_input.initial_state, env_input.inputs])
-    else:
+    if not (
+        (isinstance(env_input.initial_state, dict) and isinstance(env_input.inputs, dict))
+        or (isinstance(env_input.initial_state, xr.Dataset) and isinstance(env_input.inputs, xr.Dataset))
+    ):
         raise ValueError("Invalid input types for initial_state and inputs")
-    initial_state = env.create_state(create_state_input)
+    initial_state = env.create_state(env_input.initial_state, env_input.inputs)
 
     inputs = env.create_inputs(env_input.inputs)
 
@@ -68,7 +67,7 @@ class ModuleEvalEnv(eqx.Module):
 
     @staticmethod
     @abstractmethod
-    def create_state(data: dict[str, ArrayLike]) -> "State":  # noqa: F821
+    def create_state(observations: dict[str, ArrayLike], inputs: dict[str, ArrayLike]) -> "State":  # noqa: F821
         raise NotImplementedError
 
     @staticmethod

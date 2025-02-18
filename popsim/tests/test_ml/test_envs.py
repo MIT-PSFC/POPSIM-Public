@@ -9,7 +9,7 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, input_dict):
+        def create_state(self, observation_dict, input_dict):
             pass
 
         def create_inputs(self, input_dict):
@@ -26,7 +26,7 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.modules = module
 
-        def create_state(self, input_dict):
+        def create_state(self, observation_dict, input_dict):
             pass
 
         def create_inputs(self, input_dict):
@@ -41,7 +41,7 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, input_dict):
+        def create_state(self, observation_dict, input_dict):
             pass
         
     
@@ -58,7 +58,7 @@ def test_train_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, input_dict):
+        def create_state(self, observation_dict, input_dict):
             pass
 
         def create_inputs(self, input_dict):
@@ -77,7 +77,7 @@ def test_train_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, input_dict):
+        def create_state(self, observation_dict, input_dict):
             pass
 
         def create_inputs(self, input_dict):
