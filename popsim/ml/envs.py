@@ -72,7 +72,7 @@ class ModuleEvalEnv(eqx.Module):
 
     @staticmethod
     @abstractmethod
-    def create_inputs(data: dict[str, ArrayLike]) -> "Inputs":  # noqa: F821
+    def create_inputs(inputs: dict[str, ArrayLike]) -> "Inputs":  # noqa: F821
         raise NotImplementedError
 
     @eqx.filter_jit

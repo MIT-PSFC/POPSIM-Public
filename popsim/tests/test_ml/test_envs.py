@@ -9,10 +9,10 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, observation_dict, input_dict):
+        def create_state(self, observations, inputs):
             pass
 
-        def create_inputs(self, input_dict):
+        def create_inputs(self, inputs):
             pass
         
 
@@ -26,10 +26,10 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.modules = module
 
-        def create_state(self, observation_dict, input_dict):
+        def create_state(self, observations, inputs):
             pass
 
-        def create_inputs(self, input_dict):
+        def create_inputs(self, inputs):
             pass
     
     with pytest.raises(ValueError):
@@ -41,7 +41,7 @@ def test_eval_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, observation_dict, input_dict):
+        def create_state(self, observations, inputs):
             pass
         
     
@@ -58,10 +58,10 @@ def test_train_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, observation_dict, input_dict):
+        def create_state(self, observations, inputs):
             pass
 
-        def create_inputs(self, input_dict):
+        def create_inputs(self, inputs):
             pass
         
         def get_trainable(self):
@@ -77,10 +77,10 @@ def test_train_env_specification():
         def __init__(self, module: HybridExample):
             self.module = module
 
-        def create_state(self, observation_dict, input_dict):
+        def create_state(self, observations, inputs):
             pass
 
-        def create_inputs(self, input_dict):
+        def create_inputs(self, inputs):
             pass
         
     
