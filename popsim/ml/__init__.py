@@ -1,4 +1,5 @@
 import popsim.ml.xarray_accessor  # noqa: F401
+from popsim.ml._export import export
 from popsim.ml.dataloading import DataLoader, make_standard_dataloaders, make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.eval import EvalData
 from popsim.ml.loss import IntegralLoss
@@ -18,4 +19,5 @@ __all__ = [
     "EvalData",
     "DataLoader",
     "DEFAULT_SAMPLE_DIM",
+    "export",
 ]

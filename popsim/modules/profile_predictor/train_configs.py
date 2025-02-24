@@ -1,3 +1,5 @@
+import os
+
 from popsim.modules.profile_predictor.evals import compute_integrated_error
 from popsim.modules.profile_predictor.module import ShapeType
 
@@ -13,8 +15,8 @@ SPARC_CONFIG = {
     "weight_decay": 2e-4,
     "max_epochs": 500,
     "epochs_per_val": 10,
-    "nn_depth": 3,
-    "nn_width": 256,
+    "nn_depth": 1,
+    "nn_width": 16,
     "prng_seed": 42,
     "n_shapes": 3,
     "n_basis": 10,
@@ -29,6 +31,7 @@ SPARC_CONFIG = {
     "target_vars": ["ne20_rho", "Te_keV_rho"],
     "extra_vars": ["Te_shape", "ne_shape"],
     "train_eval_suite": {"integrated_profile_error": compute_integrated_error},
+    "checkpoint_dir": os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "sparc_latest"),
 }
 
 # TCV_CONFIG is a copy of SPARC_CONFIG with the "project" and "ds" fields changed

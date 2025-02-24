@@ -70,6 +70,7 @@ def get_training_objs(config):
         loss_fn=loss_fn,
         optimizer=opt,
         trainable_getter=lambda m: m.get_trainable(freeze_shapes=config["freeze_shapes"]),
+        checkpoint_dir=config.get("checkpoint_dir", None),
     )
     return trainer, train_dl, val_dl, test_dl
 

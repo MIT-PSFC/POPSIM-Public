@@ -263,7 +263,7 @@ class ProfilePredictor(eqx.Module):
             out_size=len(te_shapes) + len(ne_shapes) + 1,
             width_size=nn_width,
             depth=nn_depth,
-            activation=jax.nn.gelu,
+            activation=jax.nn.relu,
             key=subkey,
         )
         self.softmax_temp = softmax_temp
@@ -351,6 +351,15 @@ class ProfilePredictor(eqx.Module):
             use_ne_edge=use_ne_edge,
             key=key,
         )
+
+    @classmethod
+    def load_latest_sparc(cls):
+        from popsim.modules.profile_predictor.train import get_training_objs
+        from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
+
+        trainer, train_dl, val_dl, test_dl = get_training_objs(SPARC_CONFIG)
+        trainer.restore_best_checkpoint()
+        return trainer, train_dl, val_dl, test_dl
 
 
 class EvalEnv(eqx.Module):

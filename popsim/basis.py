@@ -28,7 +28,7 @@ class Basis1DProtocol(Protocol):
 
 
 class BSplineBasis(eqx.Module):
-    basis_fns: list[CubicHermiteSpline] = eqx.field(static=True)
+    basis_fns: list[CubicHermiteSpline]
 
     def __init__(self, n_comps: int, boundary_zero: Optional[str] = None):
         self.basis_fns = self.generate_bspline_basis(n_comps, boundary_zero)
@@ -113,7 +113,7 @@ class BSplineBasis(eqx.Module):
 
 
 class InterpedLinearBasis(eqx.Module):
-    grid: Array = eqx.field(static=True)
+    grid: Array
 
     def __init__(self, grid: Array):
         self.grid = grid

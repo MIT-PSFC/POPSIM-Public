@@ -73,3 +73,9 @@ def mast_thomson_test_dataset():
 @pytest.fixture(scope="session")
 def oscillator_dataset():
     return generate_oscillator_dataset()
+
+@pytest.fixture(scope="session")
+def profile_predictor_latest_sparc():
+    from popsim.modules.profile_predictor.module import ProfilePredictor
+    trainer, train_dl, val_dl, test_dl = ProfilePredictor.load_latest_sparc()
+    return trainer, train_dl, val_dl, test_dl

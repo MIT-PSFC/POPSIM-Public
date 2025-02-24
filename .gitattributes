@@ -3,3 +3,5 @@ popsim/data/**/*.py !filter=lfs !diff=lfs !merge=lfs
 popsim/data/**/*.ipynb !filter=lfs !diff=lfs !merge=lfs
 popsim/data/**/*.nc filter=lfs diff=lfs merge=lfs -text
 popsim/data/tearing/pcs_data_for_onsim2.h5 filter=lfs diff=lfs merge=lfs -text
+popsim/modules/profile_predictor/checkpoints/** filter=lfs diff=lfs merge=lfs -text
+popsim/modules/profile_predictor/exports/** filter=lfs diff=lfs merge=lfs -text
