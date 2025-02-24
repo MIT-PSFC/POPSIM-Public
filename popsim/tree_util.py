@@ -6,6 +6,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as tu
+import orbax.checkpoint as ocp
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
 from xarray_jax import var_change_on_unflatten
@@ -255,3 +256,30 @@ def keypath_to_string(keypath: tuple[ptypes.PyTreeKey]) -> str:
     strings = [x.replace("'", "") for x in strings]
 
     return ".".join(strings)
+
+
+def to_json_compatible(tree: PyTree) -> dict:
+    """Convert a PyTree to a JSON-compatible dictionary.
+
+    Args:
+        tree (PyTree): the tree to convert.
+
+    Returns:
+        dict: the JSON-compatible dictionary.
+    """
+    tree_dict = ocp.tree.serialize_tree(tree, keep_empty_nodes=True)
+
+    # Convert all ArrayLike leaves to lists.
+    # Keep valid types as they are. Valid types are from the JSON schema:
+    #   https://json-schema.org/understanding-json-schema/reference/type
+    # All other types are not JSON compatible, so we convert them to strings via repr.
+    def convert(x):
+        if isinstance(x, Array):
+            return x.tolist()
+        elif isinstance(x, (str, int, float, bool, type(None))):
+            return x
+        else:
+            return repr(x)
+
+    tree_dict = jax.tree.map(convert, tree_dict)
+    return tree_dict

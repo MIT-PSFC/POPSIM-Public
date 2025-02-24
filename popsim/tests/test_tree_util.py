@@ -7,6 +7,7 @@ from popsim.sim_utils import CombinatorialCases, MultiCases
 import pytest
 import xarray as xr
 import jax
+import equinox as eqx
 
 
 # Sample data structures for testing
@@ -159,3 +160,53 @@ def test_tree_transpose():
 
     chex.assert_trees_all_equal(input_tree, back)
 
+
+def test_json_compatible():
+    import json
+    import tempfile
+
+    def test_write_json(out):
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as tmp:
+            json.dump(out, tmp)
+            tmp.seek(0)
+            loaded1 = json.load(tmp)
+            assert loaded1 == out
+
+    # Test case 1: Pytree with arrays.
+    tree0a = {"a": jnp.array([1.0, 2.0]), "b": jnp.array([3.0, 4.0]), "c": {"d": jnp.array([5.0, 6.0])}}
+    tree0b = tree_util.to_json_compatible(tree0a)
+    assert tree0b == {"a": [1.0, 2.0], "b": [3.0, 4.0], "c": {"d": [5.0, 6.0]}}
+    test_write_json(tree0b)
+
+    # Test case 2: things that should be left alone.
+    tree1a = {"a": 1.1, "b": "foo", "c": [1, 2, 3], "d": True, "e": None}
+    tree1b = tree_util.to_json_compatible(tree1a)
+    assert tree1b == tree1a
+    test_write_json(tree1b)
+
+    # Test case 3: a NN.
+    nn = eqx.nn.MLP(
+        in_size=1,
+        out_size=1,
+        width_size=2,
+        depth=1,
+        activation=jax.nn.relu,
+        final_activation=None,
+        key=jax.random.PRNGKey(42),
+    )
+    tree2b = tree_util.to_json_compatible(nn)
+    
+    test_write_json(tree2b)
+
+    assert isinstance(tree2b, dict)
+    assert isinstance(tree2b['activation'], str)
+    assert tree2b['final_activation'] is None
+
+    layer0 = tree2b['layers'][0]
+    layer1 = tree2b['layers'][1]
+
+    assert layer0["bias"] == nn.layers[0].bias.tolist()
+    assert layer0["weight"] == nn.layers[0].weight.tolist()
+
+    assert layer1["bias"] == nn.layers[1].bias.tolist()
+    assert layer1["weight"] == nn.layers[1].weight.tolist()
