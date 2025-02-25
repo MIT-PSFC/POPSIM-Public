@@ -9,6 +9,7 @@ class Activation(Enum):
     SIGMOID = "sigmoid"
     SOFTMAX = "softmax"
     SOFTPLUS = "softplus"
+    IDENTITY = "identity"
 
     def get_fn(self):
         if self == Activation.RELU:
@@ -19,6 +20,8 @@ class Activation(Enum):
             return jax.nn.softmax
         elif self == Activation.SOFTPLUS:
             return jax.nn.softplus
+        elif self == Activation.IDENTITY:
+            return lambda x: x
         else:
             raise ValueError(f"Activation {self} not recognized")
 
@@ -45,5 +48,7 @@ class Activation(Enum):
         elif self == Activation.SOFTPLUS:
             return lambda x: jnp.diag(jax.nn.sigmoid(x))  # Jacobian is diag(sigmoid(x))
 
+        elif self == Activation.IDENTITY:
+            return lambda x: jnp.eye(x.shape[0])
         else:
             raise ValueError(f"Activation {self} not recognized")

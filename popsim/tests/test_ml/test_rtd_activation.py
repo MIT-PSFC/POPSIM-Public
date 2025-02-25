@@ -1,4 +1,4 @@
-from popsim.ml.activation import Activation
+from popsim.ml.rtd_activation import Activation
 import jax
 import jax.numpy as jnp
 import pytest
