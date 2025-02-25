@@ -49,8 +49,8 @@ class NeuralODE(ModuleBase):
 class NeuralODEEnv(ModuleTrainingEnv):
     module: NeuralODE
     @staticmethod
-    def create_state(observation, inputs):
-        return NeuralODE.State(state={"y0": data["y0"], "y1": data["y1"]})
+    def create_state(observations, inputs):
+        return NeuralODE.State(state={"y0": observations["y0"], "y1": observations["y1"]})
     
     @staticmethod
     def create_inputs(inputs):
