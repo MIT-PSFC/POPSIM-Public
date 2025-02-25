@@ -3,7 +3,9 @@ Utilities for exporting models.
 """
 import json
 import os
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
+from typing import Any
 
 import jax
 import xarray as xr
@@ -29,11 +31,41 @@ def write_json(module: TrainableModel, path: str | Path):
 
     tree_dict = to_json_compatible(module)
     treedef = str(jax.tree.structure(module))
+    static_fields = get_static_fields(module)
 
-    out = {"treedef": treedef, "model_parameters": tree_dict}
+    out = {
+        "static_fields": static_fields,
+        "model_parameters": tree_dict,
+        "treedef": treedef,
+    }
 
     with open(path, "w") as f:
         json.dump(out, f, indent=4)
+
+
+def get_static_fields(module: dataclass) -> dict[str, Any]:
+    """
+    Recursively retrieves all static fields from a dataclass.
+
+    Args:
+        module (dataclass): The dataclass instance to inspect.
+
+    Returns:
+        dict: A dictionary containing field names and their values for static fields.
+    """
+    if not is_dataclass(module):
+        raise TypeError("Expected a dataclass instance")
+
+    static_fields = {}
+
+    for f in fields(module):
+        value = getattr(module, f.name)
+        if is_dataclass(value):  # If the field is another dataclass, recurse
+            nested_static = get_static_fields(value)
+            static_fields[f.name] = nested_static
+        elif f.metadata.get("static", False):
+            static_fields[f.name] = to_json_compatible(value)
+    return static_fields
 
 
 def export(module: TrainableModel, path: str | Path, dataloader: DataLoader):

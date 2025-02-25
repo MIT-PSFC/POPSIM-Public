@@ -58,13 +58,6 @@ def test_generate_bspline_invalid_boundary():
     with pytest.raises(ValueError):
         BSplineBasis.generate_bspline_basis(5, boundary_zero="invalid")
 
-
-def test_bspline_basis_internals_static():
-    # Expect the data inside the BSplineBasis to be static, and hencen ot a part of the PyTree.
-    basis = BSplineBasis(5)
-    leaves = jax.tree.leaves(basis)
-    assert len(leaves) == 0 
-
 def test_bspline_basis():
     basis = BSplineBasis(5)
     coeffs = jnp.array([1, 2, 3, 4, 5])

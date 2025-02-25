@@ -15,6 +15,7 @@ from popsim.basis import Basis1DProtocol, BSplineBasis, InterpedLinearBasis
 from popsim.cfspopcon_jax.current_drive import calc_f_shaping, calc_q_star
 from popsim.cfspopcon_jax.geometry import calc_plasma_volume
 from popsim.ml import DataLoader
+from popsim.ml.rtd_mlp import Activation, RtdMLP
 
 
 class ProfileShape(eqx.Module):
@@ -238,7 +239,7 @@ class ProfilePredictor(eqx.Module):
     te_shapes: list[ProfileShape]
     ne_shapes: list[ProfileShape]
 
-    nn: eqx.nn.MLP
+    nn: RtdMLP
     shape_type: ShapeType = eqx.field(static=True)
     softmax_temp: float = eqx.field(static=True, default=1.0)
     use_ne_edge: bool = eqx.field(static=True, default=False)
@@ -258,12 +259,13 @@ class ProfilePredictor(eqx.Module):
         self.ne_shapes = ne_shapes
 
         key, subkey = jax.random.split(key)
-        self.nn = eqx.nn.MLP(
+        self.nn = RtdMLP(
             in_size=9,
             out_size=len(te_shapes) + len(ne_shapes) + 1,
             width_size=nn_width,
             depth=nn_depth,
-            activation=jax.nn.relu,
+            activation=Activation.RELU,
+            final_activation=Activation.IDENTITY,
             key=subkey,
         )
         self.softmax_temp = softmax_temp
