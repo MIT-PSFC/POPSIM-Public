@@ -279,6 +279,8 @@ def to_json_compatible(tree: PyTree) -> dict:
             return np.asarray(x).tolist()
         elif isinstance(x, (str, int, float, bool, type(None))):
             return x
+        elif isinstance(x, Enum):
+            return x.value
         else:
             return repr(x)
 
