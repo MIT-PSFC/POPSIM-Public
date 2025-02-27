@@ -6,6 +6,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as tu
+import numpy as np
 import orbax.checkpoint as ocp
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
@@ -274,8 +275,8 @@ def to_json_compatible(tree: PyTree) -> dict:
     #   https://json-schema.org/understanding-json-schema/reference/type
     # All other types are not JSON compatible, so we convert them to strings via repr.
     def convert(x):
-        if isinstance(x, Array):
-            return x.tolist()
+        if isinstance(x, ArrayLike):
+            return np.asarray(x).tolist()
         elif isinstance(x, (str, int, float, bool, type(None))):
             return x
         else:
