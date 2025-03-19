@@ -275,7 +275,9 @@ def to_json_compatible(tree: PyTree) -> dict:
     #   https://json-schema.org/understanding-json-schema/reference/type
     # All other types are not JSON compatible, so we convert them to strings via repr.
     def convert(x):
-        if isinstance(x, ArrayLike):
+        if isinstance(x, Array):
+            return x.tolist()
+        elif isinstance(x, ArrayLike):
             return np.asarray(x).tolist()
         elif isinstance(x, (str, int, float, bool, type(None))):
             return x
