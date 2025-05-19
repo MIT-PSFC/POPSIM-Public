@@ -349,7 +349,15 @@ def make_time_dep_dataloader(
     ds = ds[model_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
-    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, how="any", subset=model_vars)
+    # If dataset has 1D time, expand to 2D along the shot dimension.
+    # Make this a function
+    if episode_var_dim not in ds[time_coord].dims:
+        ds[time_coord] = ds[time_coord].expand_dims(dim={episode_var_dim: ds.sizes[episode_var_dim]})
+        time_var_dim_new = "time_slice"
+        ds = ds.rename_dims({time_var_dim: time_var_dim_new})
+        ds[time_var_dim_new] = np.arange(ds.sizes[time_var_dim_new])
+        time_var_dim = time_var_dim_new
+    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=model_vars)
 
     # Construct the model_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.

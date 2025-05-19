@@ -72,7 +72,12 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
 
 
 def shift_time_to_not_nan(
-    ds: xr.Dataset, episode_dim: str, time_coord: str, how: str = "any", subset: typing.Optional[typing.Iterable[typing.Hashable]] = None
+    ds: xr.Dataset,
+    episode_dim: str,
+    time_coord: str,
+    time_dim: str,
+    how: str = "any",
+    subset: typing.Optional[typing.Iterable[typing.Hashable]] = None,
 ) -> xr.Dataset:
     """For each episode in a dataset, shift the time dimension so that the first time slice is not NaN. Each episode is end-padded with NaNs. To specify that only a subset of the variables should be considered when determining the first non-NaN time slice, pass a list of variable names to the `subset` argument.
 
@@ -80,6 +85,7 @@ def shift_time_to_not_nan(
         ds (xr.Dataset): dataset to be processed.
         episode_dim (str): name of the episode dimension (e.g. "shot").
         time_coord (str): name of the time variable (e.g. "time").
+        time_dim (str): name of the time dimension (e.g. "time_slice").
         how (str, optional): Either "any" or "ally". Forwarded to xr.Dataset.dropna . Defaults to "any".
         subset (typing.Optional[typing.Iterable[typing.Hashable]], optional): Forwarded to xr.Dataset.dropna . Defaults to None.
 
@@ -88,12 +94,6 @@ def shift_time_to_not_nan(
     """
 
     def _shift_time_to_not_nan(group):
-        # Remove extraneous dimensions.
-        group = group.squeeze()
-
-        assert len(group[time_coord].dims) == 1, "Unexpected number of dimensions for time variable."
-        time_dim = group[time_coord].dims[0]
-
         # Drop NaNs across the 'time_slice' dimension.
         cleaned_group = group.dropna(time_dim, how=how, subset=subset)
 
