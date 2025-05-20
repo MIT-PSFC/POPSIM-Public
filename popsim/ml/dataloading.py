@@ -351,7 +351,7 @@ def make_time_dep_dataloader(
 
     # If dataset has 1D time, expand to 2D along the shot dimension.
     if episode_var_dim not in ds[time_coord].dims:
-        ds, time_coord, time_var_dim = expand_time_dim(ds, episode_var_dim, time_coord)
+        ds, time_var_dim = expand_time_dim(ds, episode_var_dim, time_coord)
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=model_vars)
 
