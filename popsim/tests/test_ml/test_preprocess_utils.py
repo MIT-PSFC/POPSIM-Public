@@ -5,7 +5,7 @@ import os
 from popsim import PACKAGE_ROOT
 import matplotlib.pyplot as plt
 
-from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan
+from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan, expand_time_dim
 from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset
 from popsim.ml.dataloading import make_time_dep_dataloader
 
@@ -301,18 +301,12 @@ def test_test_mask_to_largest_group_cmod(cmod_data_with_energy_mask, multishot):
 ])
 def test_shift_time_to_not_nan(ds, how, subset, expected):
 
-    episode_var_dim = "shot"
+    episode_dim = "shot"
     time_coord = "time"
-    time_var_dim = "time"
 
-    if episode_var_dim not in ds[time_coord].dims:
-        ds[time_coord] = ds[time_coord].expand_dims(dim={episode_var_dim: ds.sizes[episode_var_dim]})
-        time_var_dim_new = "time_slice"
-        ds = ds.rename_dims({time_var_dim: time_var_dim_new})
-        ds[time_var_dim_new] = np.arange(ds.sizes[time_var_dim_new])
-        time_var_dim = time_var_dim_new
+    ds, time_dim = expand_time_dim(ds, episode_dim, time_coord)
 
-    result = shift_time_to_not_nan(ds, episode_dim="shot", time_coord="time", time_dim="time_slice", how=how, subset=subset)
+    result = shift_time_to_not_nan(ds, episode_dim, time_coord, time_dim, how=how, subset=subset)
     xr.testing.assert_identical(result, expected)
 
 @pytest.mark.parametrize("multishot", [True, False])
@@ -324,11 +318,17 @@ def test_shift_time_to_not_nan_cmod(cmod_data_with_energy_mask, multishot):
     expected_times = (0.347, 1.774)
     expected_wmhds = (10135.40933778, 10013.27040793)
     ds = ds.where(ds["values_in_bounds"], drop=True)
+
+    episode_dim = "shot"
+    time_coord = "time"
+    time_dim = "time_slice"
+    if episode_dim not in ds[time_coord].dims:
+        ds, time_dim = expand_time_dim(ds, episode_dim, time_coord, time_dim)
     if multishot:
-        result = shift_time_to_not_nan(ds, episode_dim="shot", time_coord="time", how="any", subset=["Wmhd"])
+        result = shift_time_to_not_nan(ds, episode_dim, time_coord, time_dim, how="any", subset=["Wmhd"])
         result = result.sel(shot=test_shot)
     else:
-        result = shift_time_to_not_nan(ds.sel(shot=test_shot), episode_dim="shot", time_coord="time", how="any", subset=["Wmhd"])
+        result = shift_time_to_not_nan(ds.sel(shot=test_shot), episode_dim, time_coord, time_dim, how="any", subset=["Wmhd"])
     
     result = result.dropna('time_slice', how='all')
     # Check that the first and last times and Wmhd values are as expected.
@@ -336,34 +336,4 @@ def test_shift_time_to_not_nan_cmod(cmod_data_with_energy_mask, multishot):
     assert np.isclose(result["time"].max().values, expected_times[1])
     assert np.isclose(result["Wmhd"].isel(time_slice=0), expected_wmhds[0])
     assert np.isclose(result["Wmhd"].isel(time_slice=-1), expected_wmhds[1])
-
-
-def test_shift_time_to_not_nan_tcv():
-    ds = xr.open_dataset(os.path.join(PACKAGE_ROOT, "..", "tcv_data", "tcv_dataset_151_shots.nc"))
-
-    dl = make_time_dep_dataloader(
-        ds,
-        time_coord="time",
-        episode_coord="shot",
-        state_init_vars=["Wmhd"],
-        input_vars=["Wmhd", "p_rad"],
-        target_vars=["Wmhd"],
-    )
-
-    # ds_time_expanded = ds.time.expand_dims(dim={"shot": ds.shot.size})
-
-    # ds['time'] = ds_time_expanded
-
-    # pass
-    ds_orig = ds.sel(shot=82875)
-    ds_new = dl.ds.sel(shot=82875)
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6), sharex=True)
-
-    # ax.plot(ds_orig["time"], ds_orig["Wmhd"], label="Original Wmhd")
-    ax.plot(ds_new["time"], ds_new["Wmhd"], label="Shifted Wmhd")
-    ax.legend()
-
-    plt.savefig(os.path.join(PACKAGE_ROOT, "..", "tcv_data", "tcv_dataset_151_shots_shifted.png"))
-    plt.close(fig)
 

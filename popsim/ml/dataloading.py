@@ -11,7 +11,7 @@ from jaxtyping import Array
 from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
 from popsim.ml.envs import ModuleEvalEnvInput
-from popsim.ml.preprocess_utils import shift_time_to_not_nan
+from popsim.ml.preprocess_utils import expand_time_dim, shift_time_to_not_nan
 from popsim.ml.utils import pad_time_with_epsilon_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
@@ -350,13 +350,8 @@ def make_time_dep_dataloader(
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
     # If dataset has 1D time, expand to 2D along the shot dimension.
-    # Make this a function
     if episode_var_dim not in ds[time_coord].dims:
-        ds[time_coord] = ds[time_coord].expand_dims(dim={episode_var_dim: ds.sizes[episode_var_dim]})
-        time_var_dim_new = "time_slice"
-        ds = ds.rename_dims({time_var_dim: time_var_dim_new})
-        ds[time_var_dim_new] = np.arange(ds.sizes[time_var_dim_new])
-        time_var_dim = time_var_dim_new
+        ds, time_coord, time_var_dim = expand_time_dim(ds, episode_var_dim, time_coord)
 
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=model_vars)
 
