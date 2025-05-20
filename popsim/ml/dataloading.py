@@ -357,6 +357,7 @@ def make_time_dep_dataloader(
         ds = ds.rename_dims({time_var_dim: time_var_dim_new})
         ds[time_var_dim_new] = np.arange(ds.sizes[time_var_dim_new])
         time_var_dim = time_var_dim_new
+
     ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=model_vars)
 
     # Construct the model_dims dictionary to define the input dimension the model will see.

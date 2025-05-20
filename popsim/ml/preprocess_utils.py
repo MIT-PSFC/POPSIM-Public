@@ -86,7 +86,7 @@ def shift_time_to_not_nan(
         episode_dim (str): name of the episode dimension (e.g. "shot").
         time_coord (str): name of the time variable (e.g. "time").
         time_dim (str): name of the time dimension (e.g. "time_slice").
-        how (str, optional): Either "any" or "ally". Forwarded to xr.Dataset.dropna . Defaults to "any".
+        how (str, optional): Either "any" or "all". Forwarded to xr.Dataset.dropna . Defaults to "any".
         subset (typing.Optional[typing.Iterable[typing.Hashable]], optional): Forwarded to xr.Dataset.dropna . Defaults to None.
 
     Returns:
@@ -97,14 +97,15 @@ def shift_time_to_not_nan(
         # Drop NaNs across the 'time_slice' dimension.
         cleaned_group = group.dropna(time_dim, how=how, subset=subset)
 
-        # If there are no time slices left, just return all NaNs.
+        # If there are no time slices left, just return all NaNs without shifting time.
         if cleaned_group[time_dim].size == 0:
             return group * np.nan
 
         # Find the first time slice remaining in the cleaned group.
         # Find its index in the original group and shift the time dimension by that amount.
         first_cleaned_slice = cleaned_group[time_coord].isel({time_dim: 0})
-        time_index = np.where(group[time_coord] == first_cleaned_slice)[0][0]
+        dim_index = group[time_coord].dims.index(time_dim)
+        time_index = np.where(group[time_coord] == first_cleaned_slice)[dim_index][0]
         n_shift = time_index
 
         # We want to shift the time dimension by n_shift, but .shift() does not shift
