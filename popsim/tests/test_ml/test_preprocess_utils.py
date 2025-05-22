@@ -304,7 +304,7 @@ def test_shift_time_to_not_nan(ds, how, subset, expected):
     episode_dim = "shot"
     time_coord = "time"
 
-    ds, time_dim = expand_time_dim(ds, episode_dim, time_coord)
+    ds, time_dim = expand_time_dim(ds, episode_dim, time_coord, f"{time_coord}_slice")
 
     result = shift_time_to_not_nan(ds, episode_dim, time_coord, time_dim, how=how, subset=subset)
     xr.testing.assert_identical(result, expected)

@@ -120,7 +120,7 @@ def shift_time_to_not_nan(
     return maybe_groupby_and_map(ds, episode_dim, _shift_time_to_not_nan)
 
 
-def expand_time_dim(ds, episode_dim, time_coord, time_dim_new: str = "time_slice") -> tuple[xr.Dataset, str, str]:
+def expand_time_dim(ds, episode_dim, time_coord, time_dim_new) -> tuple[xr.Dataset, str, str]:
     """Expand the time dimension of a dataset to 2D along the episode dimension.
 
     Parameters
