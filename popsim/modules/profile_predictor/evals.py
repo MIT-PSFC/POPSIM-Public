@@ -198,7 +198,7 @@ def make_quantile_examples(eval_data: EvalData, quantiles=None):
 
 
 def plot_shapes(eval_data: EvalData):
-    model = eval_data.model.profile_predictor
+    model = eval_data.model
 
     # Plot all of the Te shapes.
     te_shapes = model.te_shapes
@@ -228,6 +228,8 @@ def plot_shapes(eval_data: EvalData):
 
 
 def plot_ne_te_weights(eval_data: EvalData):
+    if "debug_info.ne_coeffs" not in eval_data.output_ds or "debug_info.te_coeffs" not in eval_data.output_ds:
+        return None, None
     ne_weights = eval_data.output_ds["debug_info.ne_coeffs"].transpose("sample", ...).values
     te_weights = eval_data.output_ds["debug_info.te_coeffs"].transpose("sample", ...).values
 

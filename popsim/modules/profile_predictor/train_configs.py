@@ -5,36 +5,52 @@ from popsim.modules.profile_predictor.module import ShapeType
 
 SPARC_CONFIG = {
     "project": "sparc_profile_predictor",
-    "ds": "sparc",
-    "debug": False,
-    "use_wandb": False,
-    "lr0": 3e-3,
-    "transition_steps": 500,
-    "decay_rate": 0.5,
-    "lrf": 5e-4,
-    "weight_decay": 2e-4,
+    "training_spec_class_path": "popsim.modules.profile_predictor.train_spec.ProfilePredictorTrainSpec",
     "max_epochs": 500,
-    "epochs_per_val": 10,
-    "nn_depth": 1,
-    "nn_width": 16,
-    "prng_seed": 42,
-    "n_shapes": 3,
-    "n_basis": 10,
-    "batch_size": 4096,
-    "split_fracs": (0.5, 0.3, 0.2),
-    "huber_delta": 0.5,
-    "shape_type": ShapeType.CONVEX_COMBINATION.value,
-    "use_ne_edge": False,
-    "freeze_shapes": True,
-    "softmax_temp": 10,
-    "input_vars": ["Ip_MA", "a_minor", "kappa", "delta", "Paux_MW", "ne20_line_avg", "Wtot_MJ", "B0", "R0", "ne20_edge"],
-    "target_vars": ["ne20_rho", "Te_keV_rho"],
-    "extra_vars": ["Te_shape", "ne_shape"],
-    "train_eval_suite": {"integrated_profile_error": compute_integrated_error},
-    "checkpoint_dir": os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "sparc_latest"),
+    "epochs_per_val": 2,
+    "checkpoint_dir": None,
+    "dataloader_config": {
+        "ds": "sparc",
+        "debug": False,
+        "input_vars": ["Ip_MA", "a_minor", "kappa", "delta", "Paux_MW", "ne20_line_avg", "Wtot_MJ", "B0", "R0", "ne20_edge"],
+        "target_vars": ["ne20_rho", "Te_keV_rho"],
+        "extra_vars": ["Te_shape", "ne_shape"],
+        "split_fracs": (0.5, 0.3, 0.2),
+        "prng_seed": 42,
+        "batch_size": 4096,
+        "convert_xr_to_jnp": False,
+    },
+    "model_init_config": {
+        "shape_type": ShapeType.CONVEX_COMBINATION.value,
+        "te_shape_var": "Te_shape",
+        "ne_shape_var": "ne_shape",
+        "n_shapes": 3,
+        "nn_depth": 2,
+        "nn_width": 16,
+        "softmax_temp": 10,
+        "use_ne_edge": False,
+        "freeze_shapes": True,
+        "prng_seed": 42,
+    },
+    "loss_config": {
+        "huber_delta": 0.5,
+    },
+    "optimizer_config": {
+        "lr0": 3e-3,
+        "transition_steps": 500,
+        "decay_rate": 0.5,
+        "lrf": 5e-4,
+        "weight_decay": 2e-4,
+    },
+    "trainable_getter_config": {
+        "freeze_shapes": True,
+    },
 }
+
 
 # TCV_CONFIG is a copy of SPARC_CONFIG with the "project" and "ds" fields changed
 TCV_CONFIG = SPARC_CONFIG.copy()
 TCV_CONFIG["project"] = "tcv_profile_predictor"
 TCV_CONFIG["ds"] = "tcv"
+TCV_CONFIG["model_init_config"]["nn_depth"] = 3
+TCV_CONFIG["model_init_config"]["nn_width"] = 256

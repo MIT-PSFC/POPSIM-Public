@@ -1,12 +1,11 @@
 from enum import IntEnum
-from typing import Optional
+from typing import Optional, Union
 
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
 import xarray as xr
 from jaxtyping import Array
 from scipy.constants import eV, mu_0
@@ -14,7 +13,6 @@ from scipy.constants import eV, mu_0
 from popsim.basis import Basis1DProtocol, BSplineBasis, InterpedLinearBasis
 from popsim.cfspopcon_jax.current_drive import calc_f_shaping, calc_q_star
 from popsim.cfspopcon_jax.geometry import calc_plasma_volume
-from popsim.ml import DataLoader
 from popsim.ml.rtd_mlp import Activation, RtdMLP
 
 
@@ -240,6 +238,7 @@ class ProfilePredictor(eqx.Module):
     ne_shapes: list[ProfileShape]
 
     nn: RtdMLP
+    rhogrid: Array = eqx.field(static=True)  # The rho grid on which the profiles are evaluated
     shape_type: ShapeType = eqx.field(static=True)
     softmax_temp: float = eqx.field(static=True, default=1.0)
     use_ne_edge: bool = eqx.field(static=True, default=False)
@@ -253,6 +252,7 @@ class ProfilePredictor(eqx.Module):
         softmax_temp: float,
         shape_type: ShapeType,
         use_ne_edge: bool,
+        rhogrid: Array,
         key: jax.random.PRNGKey,
     ):
         self.te_shapes = te_shapes
@@ -271,8 +271,24 @@ class ProfilePredictor(eqx.Module):
         self.softmax_temp = softmax_temp
         self.shape_type = shape_type
         self.use_ne_edge = use_ne_edge
+        self.rhogrid = rhogrid
 
-    def __call__(self, inputs: Inputs, debug: bool = False) -> Outputs:
+    def __call__(self, inputs: Union[Inputs, xr.Dataset], debug: bool = False) -> Outputs:
+        if isinstance(inputs, xr.Dataset):
+            inputs = Inputs(
+                R0=inputs["R0"].data,
+                B0=inputs["B0"].data,
+                Ip=inputs["Ip_MA"].data,
+                a_minor=inputs["a_minor"].data,
+                kappa=inputs["kappa"].data,
+                delta=inputs["delta"].data,
+                Paux=inputs["Paux_MW"].data,
+                ne20_line_avg=inputs["ne20_line_avg"].data,
+                Wtot_MJ=inputs["Wtot_MJ"].data,
+                rho=self.rhogrid,
+                ne_edge=inputs["ne20_edge"].data if "ne20_edge" in inputs else None,
+            )
+
         nn_inputs = inputs.nn_inputs
 
         # Predict the coefficients for the shapes and the correction factor.
@@ -322,27 +338,17 @@ class ProfilePredictor(eqx.Module):
     @classmethod
     def init(
         cls,
-        dl: DataLoader,
-        te_shape_var: str,
-        ne_shape_var: str,
         n_shapes: int,
+        rhogrid: Array,
         nn_width: int,
         nn_depth: int,
         shape_type: ShapeType,
         softmax_temp: float,
         use_ne_edge: bool,
-        key: jax.random.PRNGKey,
+        prng_seed: int,
     ) -> "ProfilePredictor":
-        ds = dl.ds
-        sample_dim = dl.dataset.training_metadata.sample_dim
-
-        if shape_type == ShapeType.PCA_LIKE:
-            te_shapes, ne_shapes = pca_initial_guess(n_shapes, ds[te_shape_var], ds[ne_shape_var], sample_dim)
-        elif shape_type == ShapeType.CONVEX_COMBINATION:
-            te_shapes, ne_shapes = kmeans_initial_guess(n_shapes, ds[te_shape_var], ds[ne_shape_var], sample_dim)
-        else:
-            raise ValueError(f"Invalid shape type: {shape_type}")
-
+        te_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid), grid=rhogrid, normalize=False) for _ in range(n_shapes)]
+        ne_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid), grid=rhogrid, normalize=False) for _ in range(n_shapes)]
         return cls(
             te_shapes=te_shapes,
             ne_shapes=ne_shapes,
@@ -351,53 +357,6 @@ class ProfilePredictor(eqx.Module):
             softmax_temp=softmax_temp,
             shape_type=shape_type,
             use_ne_edge=use_ne_edge,
-            key=key,
+            rhogrid=rhogrid,
+            key=jax.random.PRNGKey(prng_seed),
         )
-
-    @classmethod
-    def load_latest_sparc(cls):
-        from popsim.modules.profile_predictor.train import get_training_objs
-        from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
-
-        trainer, train_dl, val_dl, test_dl = get_training_objs(SPARC_CONFIG)
-        trainer.restore_best_checkpoint()
-        return trainer, train_dl, val_dl, test_dl
-
-
-class EvalEnv(eqx.Module):
-    profile_predictor: ProfilePredictor
-    rhogrid: np.ndarray = eqx.field(static=True)
-
-    def __init__(self, profile_predictor, rhogrid: Array):
-        self.profile_predictor = profile_predictor
-        self.rhogrid = np.asarray(rhogrid)
-
-    def make_input(self, inputs):
-        return Inputs(
-            R0=inputs["R0"],
-            B0=inputs["B0"],
-            Ip=inputs["Ip_MA"],
-            a_minor=inputs["a_minor"],
-            kappa=inputs["kappa"],
-            delta=inputs["delta"],
-            Paux=inputs["Paux_MW"],
-            ne20_line_avg=inputs["ne20_line_avg"],
-            Wtot_MJ=inputs["Wtot_MJ"],
-            rho=self.rhogrid,
-            ne_edge=inputs["ne20_edge"],
-        )
-
-    def __call__(self, inputs):
-        inputs = self.make_input(inputs)
-
-        outputs = self.profile_predictor(inputs, debug=True)
-        return outputs
-
-    def get_trainable(self, freeze_shapes: bool = False):
-        if freeze_shapes:
-            # Get all leaves that are not a part of te_shapes and ne_shapes.
-            # All of these leaves are trainable.
-            ids_of_shape_leaves = [id(x) for x in jax.tree.leaves((self.profile_predictor.te_shapes, self.profile_predictor.ne_shapes))]
-            return [x for x in jax.tree.leaves(self.profile_predictor) if id(x) not in ids_of_shape_leaves]
-        else:
-            return self.profile_predictor
