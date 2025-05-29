@@ -1,9 +1,9 @@
 import chex
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 
 
-class IcrhZone(ModuleBase):
+class IcrhZone(TimeDepModuleBase):
     """
     A model of an ICRH zone.
     """

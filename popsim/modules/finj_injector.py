@@ -1,11 +1,11 @@
 import chex
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 
 # TODO: Include delays (should be cascade of FOPDT)
 
 
-class FinjInjector(ModuleBase):
+class FinjInjector(TimeDepModuleBase):
     """A model of a FINJ injector."""
 
     @chex.dataclass

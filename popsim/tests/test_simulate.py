@@ -1,7 +1,7 @@
 import popsim.simulate as simulate
 import pytest
 import chex
-from popsim import ModuleBase, discrete_time_field, discrete_no_save_field
+from popsim import TimeDepModuleBase, discrete_time_field, discrete_no_save_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
 import jax.numpy as jnp
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
@@ -11,7 +11,7 @@ from jaxtyping import Array
 from jaxlib.xla_extension import XlaRuntimeError
 import equinox as eqx
 
-class ContinuousTimeModule(ModuleBase):
+class ContinuousTimeModule(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         pass
@@ -194,7 +194,7 @@ def test_disable_record_state():
     Test a module where recording the state would result OOM to see if disabling record_state works.
     """
 
-    class MemoryHogExample(ModuleBase):
+    class MemoryHogExample(TimeDepModuleBase):
 
         @chex.dataclass
         class State:

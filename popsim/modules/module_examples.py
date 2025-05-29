@@ -3,7 +3,7 @@ from enum import IntEnum
 import chex
 import jax.numpy as jnp
 
-from popsim import ModuleBase, discrete_time_field
+from popsim import TimeDepModuleBase, discrete_time_field
 from popsim.logic_utils import select_w_tuples
 
 """
@@ -12,7 +12,7 @@ See docs/notebooks/intro_to_modules.ipynb for a tutorial on how to use these mod
 """
 
 
-class BasicLorenz(ModuleBase):
+class BasicLorenz(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         # Define the configuration variables for the module.
@@ -82,7 +82,7 @@ class ExampleDisruptedState(IntEnum):
     DISRUPTED = 1
 
 
-class DiscreteTimeExample(ModuleBase):
+class DiscreteTimeExample(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         disruptivity_threshold: float
@@ -122,7 +122,7 @@ class DiscreteTimeExample(ModuleBase):
         return state_out, out
 
 
-class HybridExample(ModuleBase):
+class HybridExample(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         pass

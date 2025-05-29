@@ -6,12 +6,12 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PyTree
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 from popsim.enums import Species
 from popsim.tree_util import leaves_as_array
 
 
-class Density(ModuleBase):
+class Density(TimeDepModuleBase):
     """A multi-species density dynamics model that evolves volume-averaged ion densities for each species."""
 
     @chex.dataclass

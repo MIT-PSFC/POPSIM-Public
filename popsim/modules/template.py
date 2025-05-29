@@ -1,9 +1,9 @@
 import chex
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 
 
-class ExampleTemplate(ModuleBase):
+class ExampleTemplate(TimeDepModuleBase):
     """
     An example template to copy and paste when creating a new module.
     """

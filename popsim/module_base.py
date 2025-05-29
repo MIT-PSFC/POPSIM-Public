@@ -6,7 +6,7 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 
-class ModuleBase(eqx.Module, ABC):
+class TimeDepModuleBase(eqx.Module, ABC):
     state_dims: ClassVar[PyTree] = {}
     output_dims: ClassVar[PyTree] = {}
 
@@ -24,10 +24,10 @@ class ModuleBase(eqx.Module, ABC):
         self._check_call_signature()
 
     def _check_call_signature(self):
-        if self.__class__.__call__ is ModuleBase.__call__:
+        if self.__class__.__call__ is TimeDepModuleBase.__call__:
             # This check is for concrete implementations.
             # If a subclass doesn't override __call__, the abstractmethod error will be raised upon instantiation.
-            # Or, if an instance of ModuleBase itself were somehow created (which ABC prevents).
+            # Or, if an instance of TimeDepModuleBase itself were somehow created (which ABC prevents).
             return
 
         call_method = self.__class__.__call__

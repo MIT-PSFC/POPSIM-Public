@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike, PyTree
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 from popsim.enums import (
     Species,
     SpeciesContainer,
@@ -17,7 +17,7 @@ from popsim.modules.icrh_zone import IcrhZone
 from popsim.modules.power_balance import PowerBalance
 
 
-class ModularModel(ModuleBase):
+class ModularModel(TimeDepModuleBase):
     @chex.dataclass
     class State:
         """

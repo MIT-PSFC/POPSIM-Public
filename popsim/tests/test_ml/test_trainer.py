@@ -6,7 +6,7 @@ from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 import chex
 import equinox as eqx
 import jax.nn as jnn
@@ -16,7 +16,7 @@ import optax
 import pytest
 import os
 
-class NeuralODE(ModuleBase):
+class NeuralODE(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         nn: eqx.Module

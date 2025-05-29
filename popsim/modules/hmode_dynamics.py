@@ -1,12 +1,12 @@
 import chex
 import jax.numpy as jnp
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 
 CRITICAL_THRESHOLD = 0.5
 
 
-class HmodeDynamics(ModuleBase):
+class HmodeDynamics(TimeDepModuleBase):
     """An H-Mode dynamics module.
 
     An implementation of Hmode dynamics using a low-pass filter approach where:

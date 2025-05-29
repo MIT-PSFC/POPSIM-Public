@@ -5,14 +5,14 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from popsim import ModuleBase, discrete_time_field
+from popsim import TimeDepModuleBase, discrete_time_field
 
 
 def random_seed():
     return random.randint(jnp.iinfo(jnp.int32).min, jnp.iinfo(jnp.int32).max)
 
 
-class PRNGModule(ModuleBase):
+class PRNGModule(TimeDepModuleBase):
     """A module for generating a time-dependent trajectory of PRNGKeyArray.
 
     Note that the state is the "seed", not the key itself. This is because the PRNGKeyArray can be an array of special types, which is not conducive for re-initialization.

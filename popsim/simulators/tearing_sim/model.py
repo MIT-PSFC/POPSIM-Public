@@ -1,6 +1,6 @@
 import chex
 
-from popsim import ModuleBase
+from popsim import TimeDepModuleBase
 from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes, LowNArray
 from popsim.modules.rtnewspec_mirror import RTNewSpecMirror
 from popsim.modules.tearing import Tearing
@@ -10,7 +10,7 @@ Simulation for tearing modes and all the diagnostics which can measure them.
 """
 
 
-class TearingSim(ModuleBase):
+class TearingSim(TimeDepModuleBase):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.

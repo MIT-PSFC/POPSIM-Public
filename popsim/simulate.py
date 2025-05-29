@@ -10,7 +10,7 @@ import xarray as xr
 from jaxtyping import PyTree
 from loguru import logger
 
-from popsim import ModuleBase, config
+from popsim import TimeDepModuleBase, config
 from popsim.array_utils import min_greater_than_thresh
 from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.input_utils import input_specs_to_paths
@@ -39,7 +39,7 @@ class StepperType(IntEnum):
     DIFFRAX = 1
 
 
-def _check_sim_inputs(module: ModuleBase, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
+def _check_sim_inputs(module: TimeDepModuleBase, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
     """Perform checks of the simulation inputs."""
 
     # Check if the state has any discrete components when using Diffrax. If so, raise an error.
@@ -89,7 +89,7 @@ def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_s
 
 
 def simulate(
-    module: ModuleBase,
+    module: TimeDepModuleBase,
     sim_inputs: typing.Union[SimInput, typing.Sequence[SimInput]],
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
@@ -99,7 +99,7 @@ def simulate(
     """Public facing API for simulating a module.
 
     Args:
-        module (ModuleBase): the dynamics module to simulate.
+        module (TimeDepModuleBase): the dynamics module to simulate.
         sim_inputs (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
         interp_type (InterpType, optional): interpolation method for inputs over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
@@ -149,8 +149,41 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
 
+def simple_step(module: TimeDepModuleBase, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
+    """Perform a single Euler step on the module.
+
+    Args:
+        module (TimeDepModuleBase):
+        state (PyTree): state structure of the module.
+        inputs (PyTree): inputs structure of the module.
+        dt (float): time step size for the Euler integration.
+        record_state (bool, optional): Whether or not to record state in the output structure. Defaults to True.
+
+    Returns:
+        tuple[PyTree, PyTree]: (next_state, output_data)
+    """
+    state_out, out = module(state, inputs)
+
+    # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
+    # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
+    discrete_state_next, state_dot = partition_discrete_cont(state_out)
+
+    def step_fn(x, xdot):
+        return x + xdot * dt if xdot is not None else None
+
+    # Perform an Euler step on the continuous part
+    continuous_state_next = jax.tree.map(step_fn, state, state_dot)
+
+    # Combine the next continuous state with the next discrete state
+    state_next = eqx.combine(discrete_state_next, continuous_state_next)
+
+    output_data = generate_save_output(state, inputs, out, record_state=record_state)
+
+    return state_next, output_data
+
+
 @eqx.filter_jit
-def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
+def _vec_simulate(module: TimeDepModuleBase, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
 
@@ -165,7 +198,7 @@ def _vec_simulate(module: ModuleBase, sim_input: SimInput, simulate_fun):
 
 @eqx.filter_jit
 def _diffrax_simulate(
-    module: ModuleBase, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
+    module: TimeDepModuleBase, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
 ) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
@@ -203,7 +236,7 @@ def _diffrax_simulate(
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state: bool = True) -> PyTree:
+def _simple_euler_simulate(module: TimeDepModuleBase, sim_input: SimInput, record_state: bool = True) -> PyTree:
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
@@ -211,30 +244,18 @@ def _simple_euler_simulate(module: ModuleBase, sim_input: SimInput, record_state
 
     dt = dts[0]
 
-    def _euler_step(carry, t):
+    def _step(carry, t):
+        """Perform a single Euler step."""
         state = carry
         inputs_resolved = resolve_paths(sim_input.inputs, t)
-        state_out, out = module(state, inputs_resolved)
+        state_next, outputs = simple_step(module, state, inputs_resolved, dt, record_state=record_state)
+        return state_next, outputs
 
-        # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
-        # The continuous parts are assumed to be state_dot. The discrete parts are assumed to be the next state.
-        discrete_state_next, state_dot = partition_discrete_cont(state_out)
-
-        def step_fn(x, xdot):
-            return x + xdot * dt if xdot is not None else None
-
-        # Perform an Euler step on the continuous part
-        continuous_state_next = jax.tree.map(step_fn, state, state_dot)
-
-        # Combine the next continuous state with the next discrete state
-        state_next = eqx.combine(discrete_state_next, continuous_state_next)
-
-        # Generate the output data.
-        output_data = generate_save_output(state, inputs_resolved, out, record_state=record_state)
-
-        return state_next, output_data
-
-    _, outputs = jax.lax.scan(_euler_step, sim_input.initial_state, xs=sim_input.time)
+    if dts.size == 1:
+        # We only have one time step, which makes things simpler.
+        outputs = _step(sim_input.initial_state, sim_input.time)
+    else:
+        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=sim_input.time)
     # Add simulation dimension to any xr.Variable instances.
     outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
     return outputs
