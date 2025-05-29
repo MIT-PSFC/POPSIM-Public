@@ -152,10 +152,10 @@ def simulate(
 
 @partial(jax.jit, static_argnames=("record_state"))
 def simple_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
-    """Perform a single Euler step on the module.
+    """Perform a single time step of a module. Continuous states are updated using Euler integration.
 
     Args:
-        module (TimeDepModule):
+        module (TimeDepModule): the module to simulate for a time step.
         state (PyTree): state structure of the module.
         inputs (PyTree): inputs structure of the module.
         dt (float): time step size for the Euler integration.
