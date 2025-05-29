@@ -10,7 +10,6 @@ Simulation for tearing modes and all the diagnostics which can measure them.
 """
 
 
-@chex.dataclass
 class TearingSim(ModuleBase):
     @chex.dataclass
     class Config:

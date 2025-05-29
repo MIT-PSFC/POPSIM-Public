@@ -3,7 +3,6 @@ import chex
 from popsim import ModuleBase
 
 
-@chex.dataclass
 class ExampleTemplate(ModuleBase):
     """
     An example template to copy and paste when creating a new module.

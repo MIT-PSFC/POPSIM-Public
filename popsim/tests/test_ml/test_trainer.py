@@ -16,7 +16,6 @@ import optax
 import pytest
 import os
 
-@chex.dataclass
 class NeuralODE(ModuleBase):
     @chex.dataclass
     class Config:

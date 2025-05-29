@@ -17,7 +17,6 @@ from popsim.modules.icrh_zone import IcrhZone
 from popsim.modules.power_balance import PowerBalance
 
 
-@chex.dataclass
 class ModularModel(ModuleBase):
     @chex.dataclass
     class State:

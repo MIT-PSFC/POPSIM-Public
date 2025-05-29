@@ -14,7 +14,6 @@ Mirror of rtnewspec, used to calculate n1rms (and n2rms, n3rms, etc.) in real-ti
 """
 
 
-@chex.dataclass
 class RTNewSpecMirror(ModuleBase):
     @chex.dataclass
     class Config:

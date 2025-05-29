@@ -7,7 +7,6 @@ A power balance dynamics model that evolves stored energy.
 """
 
 
-@chex.dataclass
 class PowerBalance(ModuleBase):
     @chex.dataclass
     class Config:

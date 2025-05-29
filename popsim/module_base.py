@@ -2,14 +2,15 @@ import inspect
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
+import equinox as eqx
 from jaxtyping import PyTree
 
 
-class ModuleBase(ABC):
+class ModuleBase(eqx.Module, ABC):
     state_dims: ClassVar[PyTree] = {}
     output_dims: ClassVar[PyTree] = {}
 
-    def __post_init__(self):
+    def __check__init__(self):
         # Derived classes must be registered as PyTrees.
         if not isinstance(self, PyTree):
             raise TypeError(f"{type(self).__name__} must be a PyTree")
@@ -23,16 +24,16 @@ class ModuleBase(ABC):
         self._check_call_signature()
 
     def _check_call_signature(self):
-        # Get the __call__ method of the current (sub)class
+        if self.__class__.__call__ is ModuleBase.__call__:
+            # This check is for concrete implementations.
+            # If a subclass doesn't override __call__, the abstractmethod error will be raised upon instantiation.
+            # Or, if an instance of ModuleBase itself were somehow created (which ABC prevents).
+            return
+
         call_method = self.__class__.__call__
-
-        # Get the signature of the __call__ method
         signature = inspect.signature(call_method)
-
-        # Define required parameters
         required_params = ("state", "inputs")
 
-        # Check if all required parameters are in the signature
         for param_name in required_params:
             if param_name not in signature.parameters:
                 raise TypeError(f"__call__ method in {self.__class__.__name__} must have a '{param_name}' parameter")

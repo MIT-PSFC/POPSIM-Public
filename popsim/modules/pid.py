@@ -4,7 +4,6 @@ import jax.numpy as jnp
 from popsim import ModuleBase, discrete_time_field
 
 
-@chex.dataclass
 class PIDController(ModuleBase):
     """A Basic PID Controller."""
 

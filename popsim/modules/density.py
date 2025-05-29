@@ -11,7 +11,6 @@ from popsim.enums import Species
 from popsim.tree_util import leaves_as_array
 
 
-@chex.dataclass
 class Density(ModuleBase):
     """A multi-species density dynamics model that evolves volume-averaged ion densities for each species."""
 

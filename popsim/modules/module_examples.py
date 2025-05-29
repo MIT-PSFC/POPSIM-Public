@@ -12,7 +12,6 @@ See docs/notebooks/intro_to_modules.ipynb for a tutorial on how to use these mod
 """
 
 
-@chex.dataclass
 class BasicLorenz(ModuleBase):
     @chex.dataclass
     class Config:
@@ -83,7 +82,6 @@ class ExampleDisruptedState(IntEnum):
     DISRUPTED = 1
 
 
-@chex.dataclass
 class DiscreteTimeExample(ModuleBase):
     @chex.dataclass
     class Config:
@@ -124,7 +122,6 @@ class DiscreteTimeExample(ModuleBase):
         return state_out, out
 
 
-@chex.dataclass
 class HybridExample(ModuleBase):
     @chex.dataclass
     class Config:

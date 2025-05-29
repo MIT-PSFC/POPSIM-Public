@@ -52,7 +52,6 @@ def measure_magnetic_field(
     return total_perturbation
 
 
-@chex.dataclass
 class BFieldPoloidalProbes(ModuleBase):
     @chex.dataclass
     class Config:
@@ -265,7 +264,6 @@ def get_differenced_signals(
     return differenced_signals
 
 
-@chex.dataclass
 class LowNArray(ModuleBase):
     @chex.dataclass
     class Config:

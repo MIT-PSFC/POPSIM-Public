@@ -9,9 +9,8 @@ from popsim.simulate import SimInput
 import xarray as xr
 from jaxtyping import Array
 from jaxlib.xla_extension import XlaRuntimeError
+import equinox as eqx
 
-
-@chex.dataclass
 class ContinuousTimeModule(ModuleBase):
     @chex.dataclass
     class Config:
@@ -195,7 +194,6 @@ def test_disable_record_state():
     Test a module where recording the state would result OOM to see if disabling record_state works.
     """
 
-    @chex.dataclass
     class MemoryHogExample(ModuleBase):
 
         @chex.dataclass

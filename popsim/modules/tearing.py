@@ -172,7 +172,6 @@ def calculate_rotation_dot(tearing_phase: TearingPhase, rot_dur: float, locking_
     return Fdot
 
 
-@chex.dataclass
 class Tearing(ModuleBase):
     @chex.dataclass
     class Config:
@@ -515,7 +514,6 @@ def locked_mode_dynamics(
     return new_tearing_phase
 
 
-@chex.dataclass
 class ErrorFieldLocking(ModuleBase):
     @chex.dataclass
     class Config:

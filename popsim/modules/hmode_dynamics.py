@@ -6,7 +6,6 @@ from popsim import ModuleBase
 CRITICAL_THRESHOLD = 0.5
 
 
-@chex.dataclass
 class HmodeDynamics(ModuleBase):
     """An H-Mode dynamics module.
 

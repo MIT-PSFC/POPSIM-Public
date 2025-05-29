@@ -3,7 +3,6 @@ import chex
 from popsim import ModuleBase
 
 
-@chex.dataclass
 class IcrhZone(ModuleBase):
     """
     A model of an ICRH zone.

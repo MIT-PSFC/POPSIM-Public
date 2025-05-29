@@ -5,7 +5,6 @@ from popsim import ModuleBase
 # TODO: Include delays (should be cascade of FOPDT)
 
 
-@chex.dataclass
 class FinjInjector(ModuleBase):
     """A model of a FINJ injector."""
 

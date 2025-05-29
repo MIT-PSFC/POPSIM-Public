@@ -25,7 +25,6 @@ from popsim.physics.profiles import ProfileCalculator
 read_confinement_scalings()
 
 
-@chex.dataclass
 class CometMirror(ModuleBase):
     @chex.dataclass
     class State:
