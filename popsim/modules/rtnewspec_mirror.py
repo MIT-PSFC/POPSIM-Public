@@ -3,7 +3,7 @@ import dataclasses
 import chex
 import jax.numpy as jnp
 
-from popsim import TimeDepModuleBase, discrete_no_save_field, discrete_time_field
+from popsim import TimeDepModule, discrete_no_save_field, discrete_time_field
 
 FFT_SAMPLES = 2048
 SAMPLING_FREQUENCY = 60e3  # Hz
@@ -14,7 +14,7 @@ Mirror of rtnewspec, used to calculate n1rms (and n2rms, n3rms, etc.) in real-ti
 """
 
 
-class RTNewSpecMirror(TimeDepModuleBase):
+class RTNewSpecMirror(TimeDepModule):
     @chex.dataclass
     class Config:
         # Toroidal angle between probes [deg]

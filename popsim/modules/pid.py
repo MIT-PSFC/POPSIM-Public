@@ -1,10 +1,10 @@
 import chex
 import jax.numpy as jnp
 
-from popsim import TimeDepModuleBase, discrete_time_field
+from popsim import TimeDepModule, discrete_time_field
 
 
-class PIDController(TimeDepModuleBase):
+class PIDController(TimeDepModule):
     """A Basic PID Controller."""
 
     @chex.dataclass

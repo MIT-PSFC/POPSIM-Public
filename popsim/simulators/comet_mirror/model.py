@@ -10,7 +10,7 @@ from jaxtyping import Array
 
 import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
-from popsim import TimeDepModuleBase
+from popsim import TimeDepModule
 from popsim.cfspopcon_jax import average_fuel_ion_mass, beta, current_drive, fusion_rates, radiated_power
 from popsim.cfspopcon_jax.confinement_regime_threshold_powers import calc_LH_transition_threshold_power
 from popsim.cfspopcon_jax.energy_confinement_time_scalings import tau_e_from_Wp
@@ -25,7 +25,7 @@ from popsim.physics.profiles import ProfileCalculator
 read_confinement_scalings()
 
 
-class CometMirror(TimeDepModuleBase):
+class CometMirror(TimeDepModule):
     @chex.dataclass
     class State:
         """

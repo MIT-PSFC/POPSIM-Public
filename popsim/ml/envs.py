@@ -6,7 +6,7 @@ import equinox as eqx
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
 
-from popsim import TimeDepModuleBase, interp
+from popsim import TimeDepModule, interp
 from popsim.sim_utils import SimInput
 from popsim.simulate import _diffrax_simulate
 
@@ -63,7 +63,7 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, ma
 
 
 class ModuleEvalEnv(eqx.Module):
-    module: TimeDepModuleBase
+    module: TimeDepModule
 
     @staticmethod
     @abstractmethod

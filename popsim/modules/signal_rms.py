@@ -1,10 +1,10 @@
 import chex
 import jax.numpy as jnp
 
-from popsim import TimeDepModuleBase, discrete_time_field
+from popsim import TimeDepModule, discrete_time_field
 
 
-class SignalRMS(TimeDepModuleBase):
+class SignalRMS(TimeDepModule):
     """Calculates the RMS of a signal over a moving window."""
 
     @chex.dataclass

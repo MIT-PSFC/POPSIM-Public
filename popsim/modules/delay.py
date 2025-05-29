@@ -2,10 +2,10 @@ import chex
 import jax.numpy as jnp
 from jaxtyping import Array, ScalarLike
 
-from popsim import TimeDepModuleBase, discrete_time_field
+from popsim import TimeDepModule, discrete_time_field
 
 
-class DelayBuffer(TimeDepModuleBase):
+class DelayBuffer(TimeDepModule):
     """A simple delay buffer that delays the input by a number of time steps equal to the buffer size."""
 
     @chex.dataclass

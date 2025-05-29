@@ -1,13 +1,13 @@
 import chex
 
-from popsim import TimeDepModuleBase
+from popsim import TimeDepModule
 
 """
 A power balance dynamics model that evolves stored energy.
 """
 
 
-class PowerBalance(TimeDepModuleBase):
+class PowerBalance(TimeDepModule):
     @chex.dataclass
     class Config:
         pass

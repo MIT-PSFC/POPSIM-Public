@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 from interpax import Interpolator1D
 
-from popsim import PACKAGE_ROOT, TimeDepModuleBase
+from popsim import PACKAGE_ROOT, TimeDepModule
 from popsim.modules.tearing import Tearing
 
 """
@@ -52,7 +52,7 @@ def measure_magnetic_field(
     return total_perturbation
 
 
-class BFieldPoloidalProbes(TimeDepModuleBase):
+class BFieldPoloidalProbes(TimeDepModule):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
@@ -264,7 +264,7 @@ def get_differenced_signals(
     return differenced_signals
 
 
-class LowNArray(TimeDepModuleBase):
+class LowNArray(TimeDepModule):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.

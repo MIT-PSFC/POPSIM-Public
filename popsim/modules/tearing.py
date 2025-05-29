@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
 
-from popsim import PACKAGE_ROOT, TimeDepModuleBase, discrete_time_field
+from popsim import PACKAGE_ROOT, TimeDepModule, discrete_time_field
 from popsim.logic_utils import select_w_tuples
 from popsim.simulate import make_time_base
 
@@ -172,7 +172,7 @@ def calculate_rotation_dot(tearing_phase: TearingPhase, rot_dur: float, locking_
     return Fdot
 
 
-class Tearing(TimeDepModuleBase):
+class Tearing(TimeDepModule):
     @chex.dataclass
     class Config:
         # Define the data that configures the module and will be static during the simulation.
@@ -514,7 +514,7 @@ def locked_mode_dynamics(
     return new_tearing_phase
 
 
-class ErrorFieldLocking(TimeDepModuleBase):
+class ErrorFieldLocking(TimeDepModule):
     @chex.dataclass
     class Config:
         # Combined overlap from the TF coils (pre-calculated since this shouldn't change over time)

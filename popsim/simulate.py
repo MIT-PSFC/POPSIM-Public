@@ -10,7 +10,7 @@ import xarray as xr
 from jaxtyping import PyTree
 from loguru import logger
 
-from popsim import TimeDepModuleBase, config
+from popsim import TimeDepModule, config
 from popsim.array_utils import min_greater_than_thresh
 from popsim.field_labels import partition_discrete_cont, partition_save_no_save
 from popsim.input_utils import input_specs_to_paths
@@ -39,7 +39,7 @@ class StepperType(IntEnum):
     DIFFRAX = 1
 
 
-def _check_sim_inputs(module: TimeDepModuleBase, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
+def _check_sim_inputs(module: TimeDepModule, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
     """Perform checks of the simulation inputs."""
 
     # Check if the state has any discrete components when using Diffrax. If so, raise an error.
@@ -89,7 +89,7 @@ def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_s
 
 
 def simulate(
-    module: TimeDepModuleBase,
+    module: TimeDepModule,
     sim_inputs: typing.Union[SimInput, typing.Sequence[SimInput]],
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
@@ -99,7 +99,7 @@ def simulate(
     """Public facing API for simulating a module.
 
     Args:
-        module (TimeDepModuleBase): the dynamics module to simulate.
+        module (TimeDepModule): the dynamics module to simulate.
         sim_inputs (typing.Union[SimInput, typing.Sequence[SimInput]]): simulation input.
         interp_type (InterpType, optional): interpolation method for inputs over time.
         return_xarray (bool, optional): whether to return a xr.Dataset or a diffrax.Solution. Defaults to True.
@@ -149,11 +149,11 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
 
-def simple_step(module: TimeDepModuleBase, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
+def simple_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
     """Perform a single Euler step on the module.
 
     Args:
-        module (TimeDepModuleBase):
+        module (TimeDepModule):
         state (PyTree): state structure of the module.
         inputs (PyTree): inputs structure of the module.
         dt (float): time step size for the Euler integration.
@@ -183,7 +183,7 @@ def simple_step(module: TimeDepModuleBase, state: PyTree, inputs: PyTree, dt: fl
 
 
 @eqx.filter_jit
-def _vec_simulate(module: TimeDepModuleBase, sim_input: SimInput, simulate_fun):
+def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
     sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
 
@@ -198,7 +198,7 @@ def _vec_simulate(module: TimeDepModuleBase, sim_input: SimInput, simulate_fun):
 
 @eqx.filter_jit
 def _diffrax_simulate(
-    module: TimeDepModuleBase, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
+    module: TimeDepModule, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
 ) -> diffrax.Solution:
     """Function for simulating a single case using diffrax."""
 
@@ -236,7 +236,7 @@ def _diffrax_simulate(
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: TimeDepModuleBase, sim_input: SimInput, record_state: bool = True) -> PyTree:
+def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
