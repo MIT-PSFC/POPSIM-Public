@@ -225,3 +225,19 @@ def test_disable_record_state():
     module = MemoryHogExample()
 
     out = simulate.simulate(module, SimInput(time=ts, initial_state=state, inputs=MemoryHogExample.Inputs()), record_state=False)
+
+def test_run_single_timestep(hybrid_time_module):
+    module, time_base, initial_state, inputs = hybrid_time_module
+    n_steps = time_base.size - 1
+    dt = time_base[1] - time_base[0]
+    state = initial_state
+    inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
+    
+    for _ in range(n_steps):
+        state, _ = simulate.simple_step(module, state, inputs, dt)
+
+    # Test that the final time step is the same as if we call simulate.simulate.
+    out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER, return_xarray=False)
+    
+    assert out['state'].y[-1] == state.y
+    assert out['state'].sign[-1] == state.sign

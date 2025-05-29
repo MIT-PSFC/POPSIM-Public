@@ -1,6 +1,7 @@
 import typing
 import warnings
 from enum import IntEnum
+from functools import partial
 
 import diffrax
 import equinox as eqx
@@ -149,6 +150,7 @@ def simulate(
         raise ValueError("Stepper type not recognized.")
 
 
+@partial(jax.jit, static_argnames=("record_state"))
 def simple_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
     """Perform a single Euler step on the module.
 
@@ -162,6 +164,15 @@ def simple_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float,
     Returns:
         tuple[PyTree, PyTree]: (next_state, output_data)
     """
+    # Make sure state + inputs have JAX arrays.
+    state = jax.tree.map(lambda x: jnp.asarray(x), state)
+    inputs = jax.tree.map(lambda x: jnp.asarray(x), inputs)
+    # Perform a single step.
+    state_next, output_data = _simple_step(module, state, inputs, dt, record_state=record_state)
+    return state_next, output_data
+
+
+def _simple_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float, record_state: bool = True) -> tuple[PyTree, PyTree]:
     state_out, out = module(state, inputs)
 
     # Partition the state output tree into continuous (float, complex, and arrays of float + complex) and discrete parts (everything else).
@@ -248,7 +259,7 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
         """Perform a single Euler step."""
         state = carry
         inputs_resolved = resolve_paths(sim_input.inputs, t)
-        state_next, outputs = simple_step(module, state, inputs_resolved, dt, record_state=record_state)
+        state_next, outputs = _simple_step(module, state, inputs_resolved, dt, record_state=record_state)
         return state_next, outputs
 
     if dts.size == 1:
