@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import click
 from tqdm import tqdm
 
-from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr
+from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr, tcv_fbt_to_xr
 
 
 @click.command()
@@ -14,9 +14,13 @@ from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr
     "output_dir",
     type=click.Path(),
 )
+@click.argument(
+    "file_type",
+    type=click.STRING,
+)
 @click.option("--use-zarr", is_flag=True, help="Save files in Zarr format instead of NetCDF.")
 @click.option("--workers", default=1, type=int, help="Number of workers for parallel processing.")
-def db_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
+def mat_to_xr_cli(paths, output_dir, file_type, use_zarr, workers):
     if isinstance(paths, str):
         paths = glob.glob(paths)
 
@@ -28,20 +32,27 @@ def db_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
     if workers > 1 and not use_zarr:
         raise ValueError("Parallel processing is only supported with Zarr output.")
 
+    if file_type == "db":
+        mat_path_to_data_fn = tcv_db_to_xr
+    elif file_type == "fbt":
+        mat_path_to_data_fn = tcv_fbt_to_xr
+    else:
+        raise ValueError("File type must be either 'db' or 'fbt'.")
+
     def process_file(mat_path):
         try:
-            # Convert .mat file to xr.DataTree
-            dt = tcv_db_to_xr(mat_path)
+            # Convert .mat file to xr.DataTree or xr.Dataset
+            dt_or_ds = mat_path_to_data_fn(mat_path)
 
             # Generate output path
             filename = os.path.basename(mat_path).replace(".mat", ".zarr" if use_zarr else ".nc")
             output_path = os.path.join(output_dir, filename)
 
-            # Save the DataTree in the specified format
+            # Save the data in the desired format
             if use_zarr:
-                dt.to_zarr(output_path)
+                dt_or_ds.to_zarr(output_path)
             else:
-                dt.to_netcdf(output_path)
+                dt_or_ds.to_netcdf(output_path)
 
             print(f"Converted and saved: {mat_path} -> {output_path}")
         except Exception as e:
@@ -52,4 +63,4 @@ def db_mat_to_xr_cli(paths, output_dir, use_zarr, workers):
 
 
 if __name__ == "__main__":
-    db_mat_to_xr_cli()
+    mat_to_xr_cli()

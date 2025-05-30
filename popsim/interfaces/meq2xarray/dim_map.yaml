@@ -179,6 +179,8 @@
   - "LY.Va"
   - "LX.Ia"
   - "LX.Va"
+  - "LX.gpia"
+  - "LX.gpie"
 !!python.tuple ["active_coils"]:
   - "L.G.Iamax"
   - "L.G.Iamin"
@@ -196,6 +198,7 @@
 !!python.tuple ["flux_loop", "time"]:
   - "LY.Ff"
   - "LX.Ff"
+  - "LX.Uf"
 !!python.tuple ["passive_currents", "time"]:
   - "LY.Iu"
   - "LX.Iu"
@@ -209,3 +212,14 @@
 !!python.tuple ["xpoint", "time"]:
   - "LY.rX"
   - "LY.zX"
+!!python.tuple ["nc", "time"]:
+  - "LY.SC.rc"
+  - "LY.SC.zc"
+  - "LY.SC.dimc"
+  - "LY.SC.lcC"
+  - "LY.SC.lcL"
+  - "LY.SC.lcS"
+  - "LY.SC.lcX1"
+  - "LY.SC.lcX2"
+  - "LY.SC.lcD"
+  - "LY.SC.lcI"
