@@ -234,7 +234,7 @@ def test_run_single_timestep(hybrid_time_module):
     inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
     
     for _ in range(n_steps):
-        state, _ = simulate.simple_step(module, state, inputs, dt)
+        state, _ = simulate.single_step(module, state, inputs, dt)
 
     # Test that the final time step is the same as if we call simulate.simulate.
     out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER, return_xarray=False)
