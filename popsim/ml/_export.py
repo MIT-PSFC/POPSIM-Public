@@ -100,4 +100,4 @@ def export(module: TrainableModel, path: str | Path, dataloader: DataLoader):
 
     ds = ds.reset_index(DEFAULT_SAMPLE_DIM)
 
-    ds.to_netcdf(path / "validation_data.nc")
+    ds.to_netcdf(path / "eval_data.nc")
