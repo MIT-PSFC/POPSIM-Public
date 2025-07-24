@@ -11,8 +11,6 @@ import equinox as eqx
 @pytest.mark.parametrize("depth", [1, 3])
 def test_rtd_mlp(activation, in_size, out_size, depth):
     
-    if ((in_size == 1) or (out_size == 1)) and activation == Activation.SOFTMAX:
-        return
     rtd_mlp = RtdMLP(
         in_size=in_size,
         out_size=out_size,
