@@ -8,13 +8,6 @@ from jaxtyping import Array, PRNGKeyArray
 from popsim.ml.rtd_activation import Activation
 
 
-def default_floating_dtype():
-    if jax.config.jax_enable_x64:
-        return jnp.float64
-    else:
-        return jnp.float32
-
-
 class RtdMLP(eqx.Module, strict=True):
     layers: tuple[eqx.nn.Linear, ...]
     activation: Activation = eqx.field(static=True)
@@ -71,7 +64,7 @@ class RtdMLP(eqx.Module, strict=True):
         Likewise `out_size` can also be a string `"scalar"`, in which case the
         output from the module will have shape `()`.
         """
-        dtype = default_floating_dtype() if dtype is None else dtype
+        dtype = jnp.float64 if jax.config.jax_enable_x64 else jnp.float32 if dtype is None else dtype
         keys = jax.random.split(key, depth + 1)
         layers = []
         if depth == 0:
