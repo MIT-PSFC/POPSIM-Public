@@ -253,3 +253,50 @@ def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inp
 
     out = add_dim_to_vars(out, dim_remove)
     return out
+
+
+def scramble_xr(obj: typing.Union[xr.DataArray, xr.Dataset, xr.DataTree], zero: bool = False):
+    """Scramble the data in an xarray object by replacing it with random values or zeros.
+
+    Args:
+        obj (typing.Union[xr.DataArray, xr.Dataset, xr.DataTree]): The xarray object to scramble. Can be a DataArray, Dataset, or DataTree.
+        zero (bool, optional): If true, replaces all data with zeros. Otherwise, use np.random.random. Defaults to False.
+    """
+
+    def _scrambler(arr):
+        if zero:
+            return np.zeros(arr.shape, dtype=arr.dtype)
+        else:
+            return np.random.random(arr.shape)
+
+    # DataArray case: build a new DataArray that preserves everything except the data.
+    if isinstance(obj, xr.DataArray):
+        return xr.DataArray(
+            _scrambler(obj),
+            dims=obj.dims,
+            coords=obj.coords,
+            name=obj.name,
+            attrs=obj.attrs,
+        )
+
+    # Dataset case: map over the DataArrays in the Dataset and apply the same randomization.
+    elif isinstance(obj, xr.Dataset):
+
+        def _rand_da(da: xr.DataArray) -> xr.DataArray:
+            return xr.DataArray(
+                _scrambler(da),
+                dims=da.dims,
+                coords=da.coords,
+                name=da.name,
+                attrs=da.attrs,
+            )
+
+        return obj.map(_rand_da)
+
+    # DataTree case: map over the datasets in the DataTree and apply the same randomization.
+    elif xr.DataTree is not None and isinstance(obj, xr.DataTree):
+        # map_over_datasets expects a function that takes a Dataset and returns a Dataset
+        return obj.map_over_datasets(scramble_xr)
+
+    else:
+        raise TypeError(f"Unsupported type {type(obj)}; expected xr.DataArray, xr.Dataset, or xarray.DataTree")

@@ -1,4 +1,4 @@
-from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, add_dim_to_vars, remove_dim_from_vars, pytree_to_xarray
+from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, add_dim_to_vars, remove_dim_from_vars, pytree_to_xarray, scramble_xr
 import numpy as np
 import pytest
 import xarray as xr
@@ -254,3 +254,56 @@ def test_pytree_to_xarray_torax():
     assert ds.sizes["simulation"] == 2
     assert isinstance(ds, xr.Dataset)
     assert (ds["simulation"].values == np.array([0, 1])).all()
+
+
+
+
+@pytest.mark.parametrize("zero", [True, False])
+def test_scramble_xr_da(zero):
+    #
+    # Test scramble for xr.DataArray.
+    #
+    da = xr.DataArray(np.random.rand(3, 4), dims=["x", "y"], coords={"x": np.arange(3), "y": np.arange(4)})
+    scrambled_da = scramble_xr(da, zero=zero)
+    
+    if zero:
+        assert (scrambled_da.values == 0.0).all()
+    else:
+        # Check scrambled_da does not have same data as da.
+        assert not np.array_equal(scrambled_da.values, da.values)
+    
+    # Check everything else is the same.
+    assert scrambled_da.dims == da.dims
+    assert scrambled_da.coords.equals(da.coords)
+    
+    #
+    # Test scramble for xr.Dataset.
+    #
+    ds = xr.Dataset({"var1": da, "var2": da})
+    scrambled_ds = scramble_xr(ds, zero=zero)
+    for var in ds.data_vars:
+        if zero:
+            assert (scrambled_ds[var].values == 0.0).all()
+        else:
+            assert not np.array_equal(scrambled_ds[var].values, ds[var].values)
+        assert scrambled_ds[var].dims == ds[var].dims
+        assert scrambled_ds[var].coords.equals(ds[var].coords)
+    assert set(scrambled_ds.data_vars) == set(ds.data_vars)
+    
+    #
+    # Test scramble for xr.DataTree.
+    #
+    dt = xr.DataTree.from_dict({"node1": ds, "node2": ds})
+    scrambled_dt = scramble_xr(dt, zero=zero)
+    for node in ["node1", "node2"]:
+        scrambled_dt_ds = scrambled_dt[node].ds
+        dt_ds = dt[node].ds
+        assert isinstance(scrambled_dt_ds, xr.Dataset)
+        for var in scrambled_dt_ds.data_vars:
+            if zero:
+                assert (scrambled_dt_ds[var].values == 0.0).all()
+            else:
+                assert not np.array_equal(scrambled_dt_ds[var].values, dt_ds[var].values)
+            assert scrambled_dt_ds[var].dims == dt_ds[var].dims
+            assert scrambled_dt_ds[var].coords.equals(dt_ds[var].coords)
+    
