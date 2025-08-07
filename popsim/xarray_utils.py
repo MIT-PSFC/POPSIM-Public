@@ -127,7 +127,8 @@ def pytree_to_xarray(
 
     # Construct a tree of DataArrays.
     paths_and_leaves = jax.tree_util.tree_leaves_with_path(
-        tree, is_leaf=lambda x: isinstance(x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike))
+        tree,
+        is_leaf=lambda x: isinstance(x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike)),
     )
 
     das_and_ds = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
@@ -142,7 +143,11 @@ def pytree_to_xarray(
     return ds
 
 
-def time_and_pytree_to_xarray(time: Array, tree: PyTree[Array | xr.Variable | xr.DataArray], multi_simulation: bool = False) -> xr.Dataset:
+def time_and_pytree_to_xarray(
+    time: Array,
+    tree: PyTree[Array | xr.Variable | xr.DataArray],
+    multi_simulation: bool = False,
+) -> xr.Dataset:
     """Convert a time array and a PyTree of arrays, xr.Variable, and xr.DataArray instances to a xr.Dataset. In the multi-simulation case, assign numbered names to the simulations.
 
     Args:
@@ -212,7 +217,11 @@ def add_dim_to_vars(tree: PyTree, dim_name: str) -> PyTree:
         var._dims = (dim_name, *var._dims)
         return var
 
-    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+    return jax.tree.map(
+        lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x,
+        tree,
+        is_leaf=lambda x: isinstance(x, xr.Variable),
+    )
 
 
 def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
@@ -230,7 +239,11 @@ def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
         var._dims = tuple(d for d in var._dims if d != dim_name)
         return var
 
-    return jax.tree.map(lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x, tree, is_leaf=lambda x: isinstance(x, xr.Variable))
+    return jax.tree.map(
+        lambda x: var_change_fn(x) if isinstance(x, xr.Variable) else x,
+        tree,
+        is_leaf=lambda x: isinstance(x, xr.Variable),
+    )
 
 
 def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inputs: tuple, dim_remove: int) -> typing.Any:
@@ -255,12 +268,17 @@ def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inp
     return out
 
 
-def scramble_xr(obj: typing.Union[xr.DataArray, xr.Dataset, xr.DataTree], zero: bool = False):
+def scramble_xr(
+    obj: typing.Union[xr.DataArray, xr.Dataset, xr.DataTree], zero: bool = False
+) -> typing.Union[xr.DataArray, xr.Dataset, xr.DataTree]:
     """Scramble the data in an xarray object by replacing it with random values or zeros.
 
     Args:
         obj (typing.Union[xr.DataArray, xr.Dataset, xr.DataTree]): The xarray object to scramble. Can be a DataArray, Dataset, or DataTree.
-        zero (bool, optional): If true, replaces all data with zeros. Otherwise, use np.random.random. Defaults to False.
+        zero (bool, optional): If True, replaces all data with zeros. Otherwise, use np.random.random. Defaults to False.
+
+    Returns:
+        typing.Union[xr.DataArray, xr.Dataset, xr.DataTree]: The scrambled xarray object.
     """
 
     def _scrambler(arr):
