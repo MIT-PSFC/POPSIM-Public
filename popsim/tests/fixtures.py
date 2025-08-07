@@ -26,6 +26,15 @@ def load_mast_thomson_test_dataset():
     except:
         raise ValueError(f"Could not find the MAST Thomson scattering test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
+@lru_cache(maxsize=1)  # Caches only one result since it's always the same dataset
+def load_tcv_fbt_test_dataset():
+    try:
+        path_to_data = os.path.join(popsim.DATA_DIR, "tcv/TCV_FBTE_scrambled.nc")
+        ds = xr.open_dataset(path_to_data)
+        return ds
+    except:
+        raise ValueError(f"Could not find the TCV FBT test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
+
 def generate_oscillator_dataset():
     """Generate an oscillator dataset, following the example from: https://docs.kidger.site/diffrax/examples/neural_ode """
     ts = jnp.linspace(0, 5, 50)
@@ -69,6 +78,10 @@ def reduced_cmod_test_dataset(cmod_test_dataset):
 @pytest.fixture(scope="session")
 def mast_thomson_test_dataset():
     return load_mast_thomson_test_dataset()
+
+@pytest.fixture(scope="session")
+def tcv_fbt_test_dataset():
+    return load_tcv_fbt_test_dataset()
 
 @pytest.fixture(scope="session")
 def oscillator_dataset():
