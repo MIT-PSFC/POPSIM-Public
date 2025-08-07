@@ -25,11 +25,11 @@ from popsim.physics.profiles import ProfileCalculator
 read_confinement_scalings()
 
 
-class CometMirror(TimeDepModule):
+class TdPopcon(TimeDepModule):
     @chex.dataclass
     class State:
         """
-        State variables for the CometMirror model.
+        State variables for the TdPopcon model.
         """
 
         stored_energy: float  # [MJ]
@@ -39,7 +39,7 @@ class CometMirror(TimeDepModule):
     @chex.dataclass
     class Inputs:
         """
-        Dynamic inputs for the CometMirror model.
+        Dynamic inputs for the TdPopcon model.
         """
 
         magnetic_field_on_axis: float  # [T]
@@ -61,7 +61,7 @@ class CometMirror(TimeDepModule):
     @chex.dataclass
     class Config:
         """
-        Static compile-time configuration for the CometMirror model.
+        Static compile-time configuration for the TdPopcon model.
         """
 
         species: SpeciesContainer
@@ -323,7 +323,7 @@ class CometMirror(TimeDepModule):
 
         hmode_dot = hmode.dynamics(state.hmode_state, hmode_inputs)
 
-        state_dot = CometMirror.State(
+        state_dot = TdPopcon.State(
             stored_energy=dW_dt,
             density_state=density_dot,
             hmode_state=hmode_dot,
@@ -333,5 +333,5 @@ class CometMirror(TimeDepModule):
         aux_data = eqx.filter(locals(), eqx.is_array_like)
         # Promote any scalar-like variables to arrays
         aux_data = jax.tree.map(jnp.asarray, aux_data)
-        output = CometMirror.Output(aux_data=aux_data)
+        output = TdPopcon.Output(aux_data=aux_data)
         return state_dot, output

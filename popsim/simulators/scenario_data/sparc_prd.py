@@ -1,10 +1,10 @@
 import chex
 
-from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario_for_comet_mirror
+from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario_for_td_popcon
 
 
 def load_cfspopcon_prd():
-    return load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
+    return load_cfspopcon_scenario_for_td_popcon("SPARC_PRD")
 
 
 @chex.dataclass

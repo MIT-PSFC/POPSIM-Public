@@ -2,11 +2,11 @@ from popsim.modules.confinement import Confinement
 from popsim.physics.geometry import GeometryCFSPopcon
 import jax.numpy as jnp
 import diffrax
-from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
+from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_td_popcon
 from popsim.simulate import simulate, StepperType, SimInput
 
 def test_dynamics():
-    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
+    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_td_popcon("SPARC_PRD")
     # Assumptions that aren't provided by the CFSPOPCON scenario.
     
     additional_assumptions = {

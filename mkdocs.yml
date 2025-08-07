@@ -77,7 +77,7 @@ plugins:
 nav:
     - 'index.md'
     - Getting Started:
-        - Using CometMirror: 'notebooks/comet_mirror.ipynb'
+        - Using TdPopcon: 'notebooks/td_popcon.ipynb'
     - Tutorials:
         - Building Modules:
             - Introduction to Modules: 'notebooks/intro_to_modules.ipynb'

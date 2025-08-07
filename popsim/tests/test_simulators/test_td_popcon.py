@@ -1,14 +1,14 @@
 import jax
 import jax.numpy as jnp
 
-import popsim.simulators.comet_mirror.scenarios.sparc_prd as sparc_prd_cm
+import popsim.simulators.td_popcon.scenarios.sparc_prd as sparc_prd_td_popcon
 from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData
 from popsim.simulate import simulate, SimInput
 
 
 def generate_sim_and_checks(only_return_final: bool = True):
     # Test that the simulator runs and compare against a reference solution.
-    model, state, inputs = sparc_prd_cm.build_comet_mirror_config()
+    model, state, inputs = sparc_prd_td_popcon.build_td_popcon_config()
     ts = jnp.linspace(0, 1.0, 10)
     sol = simulate(model, SimInput(time=ts, initial_state=state, inputs=inputs), return_xarray=False)
 
@@ -54,7 +54,7 @@ def generate_sim_and_checks(only_return_final: bool = True):
         return checks, sol, ts
 
 
-def test_comet_mirror_prd():
+def test_td_popcon_prd():
 
     def percent_error(expected, actual):
         return 100 * jnp.abs(expected - actual) / expected
@@ -70,5 +70,5 @@ def test_comet_mirror_prd():
 
 
 
-def test_comet_mirror_configuration_modes():
+def test_td_popcon_configuration_modes():
     pass

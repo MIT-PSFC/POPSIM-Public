@@ -4,12 +4,12 @@ import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
 from popsim.enums import FuelSpecies
 from popsim.physics.geometry import GeometryCFSPopcon
-from popsim.simulators.comet_mirror.model import CometMirror
-from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_comet_mirror
+from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_td_popcon
+from popsim.simulators.td_popcon.model import TdPopcon
 
 
-def build_comet_mirror_config():
-    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_comet_mirror("SPARC_PRD")
+def build_td_popcon_config():
+    input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_td_popcon("SPARC_PRD")
 
     # Assumptions that aren't provided by the CFSPOPCON scenario.
     additional_assumptions = {
@@ -24,14 +24,14 @@ def build_comet_mirror_config():
         "hl_threshold_scalar": 0.8,  # Assumed ratio of PHL/PLH
     }
 
-    config = CometMirror.Config(
+    config = TdPopcon.Config(
         species=species_container,
         density_profile_form=input_parameters["density_profile_form"],
         temp_profile_form=input_parameters["temp_profile_form"],
         rho=np.linspace(0, 1, 30),
     )
 
-    model = CometMirror(config=config)
+    model = TdPopcon(config=config)
 
     geom = GeometryCFSPopcon(
         major_radius=input_parameters["major_radius"],
@@ -59,7 +59,7 @@ def build_comet_mirror_config():
     fueling19[FuelSpecies.Deuterium] = additional_assumptions["deuterium_fueling19"]
     fueling19[FuelSpecies.Tritium] = additional_assumptions["tritium_fueling19"]
 
-    inputs = CometMirror.Inputs(
+    inputs = TdPopcon.Inputs(
         magnetic_field_on_axis=input_parameters["magnetic_field_on_axis"],
         plasma_current=input_parameters["plasma_current"],
         fraction_of_external_power_coupled=input_parameters["fraction_of_external_power_coupled"],
@@ -77,7 +77,7 @@ def build_comet_mirror_config():
         hl_threshold_scalar=additional_assumptions["hl_threshold_scalar"],
     )
 
-    state = CometMirror.State(
+    state = TdPopcon.State(
         stored_energy=additional_assumptions["stored_energy"],
         density_state=density_model.Density.State(vol_avg_ion=density_states),
         hmode_state=hmode.HmodeDynamics.State(hmode=1.0),
