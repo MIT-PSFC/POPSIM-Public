@@ -65,6 +65,7 @@ def build_tensorized_dataset(
 
     # Iterate over the identifiers and process them one by one to build the dataset.
     bytes_per_ds = []
+
     for it in tqdm(identifiers, desc="Building the dataset..."):
         ds = get_and_preprocess(it)
         if ds is not None:
@@ -120,9 +121,8 @@ def add_to_zarr_store(
     # We need to reset all the non-index coordinates to make sure they get vary across episodes.
     ds = ds.reset_coords()
 
-    # If there is still a coordinate with the same name as the time dimension, we need to reset it.
     if time_dim in ds.coords:
-        ds = ds.reset_index(time_dim).reset_coords()
+        ds = ds.drop_vars(time_dim)
 
     # If the episode dimension is not present, expand the dataset to include it.
     if episode_dim not in ds.dims:
