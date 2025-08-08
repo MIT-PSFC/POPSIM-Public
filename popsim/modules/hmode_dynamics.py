@@ -68,7 +68,6 @@ class HmodeDynamics(TimeDepModule):
         return HmodeDynamics.State(hmode=hmode_dot), HmodeDynamics.Output()
 
 
-# TODO: This is only here to keep cometmirror working for now
 def dynamics(state: HmodeDynamics.State, inputs: HmodeDynamics.Inputs) -> HmodeDynamics.State:
     """Compute the time derivative of the H-mode state.
 
