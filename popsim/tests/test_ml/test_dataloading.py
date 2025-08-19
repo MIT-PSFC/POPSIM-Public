@@ -129,3 +129,50 @@ def test_prepped_ds_error(reduced_cmod_test_dataset):
 
     with pytest.raises(ValueError):
         dataset = XarrayPreppedDataset(ds, train_meta)
+
+@pytest.mark.parametrize("batch_size", [1024])
+@pytest.mark.parametrize("time_dependent", [True])
+def test_dl_limit_dim(reduced_cmod_test_dataset, batch_size, time_dependent):
+    """Tests for limiting dimensions in the dataloader"""
+    ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
+
+    convert_xr = True
+    shuffle = True
+
+    if time_dependent:
+        dl = make_time_dep_dataloader(
+            ds=ds,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=state_init_vars,
+            input_vars=input_vars,
+            target_vars=target_vars,
+            batch_size=batch_size,
+            convert_xr_to_jnp=convert_xr,
+            shuffle=shuffle
+        )
+    else:
+        dl = make_time_indep_dataloader(
+            ds=ds,
+            time_coord="time",
+            episode_coord="shot",
+            input_vars=input_vars,
+            target_vars=target_vars,
+            batch_size=batch_size,
+            convert_xr_to_jnp=convert_xr,
+            shuffle=shuffle
+        )
+
+    # Check that we can't limit by dimensions that don't exist
+    with pytest.raises(ValueError):
+        dl.limit_size(size=10, episode_coord="non_existent_coord")
+
+    # Check that we can limit by all dimensions from the original dataset
+    for dim in ds.dims.keys():
+        lim_dl = dl.limit_dim(size=10, dim=dim)
+        _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
+
+    if time_dependent:
+        # Check that we can limit by the time segment dimension
+        lim_dl = dl.limit_dim(size=10, dim="time_slice_input")
+        _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
