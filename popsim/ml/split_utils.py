@@ -72,7 +72,7 @@ def split_dataset_by_fracs(
     fracs: Sequence[float],
     dim: str,
     seed: int,
-    ordered: Optional[bool] = False,
+    sortby: Optional[str] = None,
 ) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
@@ -80,8 +80,8 @@ def split_dataset_by_fracs(
         ds (xr.Dataset): dataset to be split.
         fracs (Sequence[float]): fractions of splits to be produced.
         dim (str): dimension to split the dataset along.
-        seed (int): seed for psuedo-random number generation.
-        ordered (bool, optional): whether the datasets should be sorted chronologically, with the the first dataset containing the earliest data. Defaults to False.
+        seed (int): seed for pseudo-random number generation.
+        sortby (str, optional): If provided, the dataset will be sorted in ascending order according to maximum value within each dimension. e.g. if sortby='betap' low-performance shots will come before high-performance shots.
 
     Returns:
         Sequence[xr.Dataset]: sequence of datasets.
@@ -90,8 +90,12 @@ def split_dataset_by_fracs(
     n_data = ds.sizes[dim]
     lengths = fracs_to_lengths(n_data, fracs)
 
-    if ordered:
-        ds = ds.sortby(dim)
+    if sortby:
+        # Sort dataset by maximum value of sortby variable along the specified dimension
+        sort_values = ds[sortby].max(dim=[d for d in ds[sortby].dims if d != dim], skipna=True)
+        sorted_indices = np.argsort(sort_values.values)
+        ds = ds.isel({dim: sorted_indices})
+
         split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
     else:

@@ -101,48 +101,54 @@ def test_split_dataset_by_vals(cmod_test_dataset):
         split_dataset_by_vals(ds, split_vals, "shot")
 
 @pytest.mark.parametrize("pre_split_idxs", [None, [[], [], []], [[0, 10, 20], [], []], [[1], [3], [2]]])
-@pytest.mark.parametrize("ordered", [True, False])
-def test_split_dataset_pre_split_and_ordered(cmod_test_dataset: xr.Dataset, pre_split_idxs, ordered):
+@pytest.mark.parametrize("sortby", [None, 'shot', 'beta_p'])
+def test_split_dataset_pre_split_and_sorted(cmod_test_dataset: xr.Dataset, pre_split_idxs, sortby):
     ds = cmod_test_dataset
+    episode_coord = "shot"
 
     if pre_split_idxs:
-        pre_split_vals = [ds["shot"].values[idxs] for idxs in pre_split_idxs]
+        pre_split_vals = [ds[episode_coord].values[idxs] for idxs in pre_split_idxs]
     else:
         pre_split_vals = None
 
     split_fracs = [0.68, 0.21, 0.11]
 
-    def check_splits_ordered(split_datasets, dim, pre_split_vals):
-        # Ordered except for the pre_split values
+    def check_splits_sorted(split_datasets, sortby, pre_split_vals):
+        # Sorted except for the pre_split values
         if pre_split_vals:
             for i in range(len(pre_split_vals)):
                 if len(pre_split_vals[i]) > 0:
-                    split_datasets[i] = split_datasets[i].drop_sel({dim: jnp.asarray(pre_split_vals[i])})
+                    split_datasets[i] = split_datasets[i].drop_sel({episode_coord: jnp.asarray(pre_split_vals[i])})
 
         for i in range(1, len(split_datasets)):
-            max_prev = split_datasets[i - 1][dim].values.max()
-            min_curr = split_datasets[i][dim].values.min()
-            assert max_prev < min_curr
+            # To ensure the splits are sorted correctly, compare the following two values:
+            # The highest maximum value of the previous split (just the max)
+            # The lowest maximum value of the current split
+            max_prev = jnp.nanmax(split_datasets[i - 1][sortby].values)
+            curr_maxes = split_datasets[i][sortby].max(dim=[d for d in split_datasets[i][sortby].dims if d != episode_coord], skipna=True)
+            min_of_curr_maxes = jnp.nanmin(curr_maxes.values)
+            
+            assert max_prev <= min_of_curr_maxes
 
     def check_splits_contain_pre_split_vals(split_datasets, pre_split_vals):
         for split, split_vals in zip(split_datasets, pre_split_vals):
-            assert jnp.all(jnp.isin(split_vals, split["shot"].values))
+            assert jnp.all(jnp.isin(split_vals, split[episode_coord].values))
 
     if pre_split_vals:
-        pre_split_datasets, reduced_dataset = split_dataset_by_vals(ds, pre_split_vals, "shot")
-        random_split_datasets = split_dataset_by_fracs(reduced_dataset, split_fracs, "shot", 42, ordered=ordered)
+        pre_split_datasets, reduced_dataset = split_dataset_by_vals(ds, pre_split_vals, episode_coord)
+        random_split_datasets = split_dataset_by_fracs(reduced_dataset, split_fracs, episode_coord, 42, sortby=sortby)
         split_datasets = [
-            xr.concat([pre_split_dataset, random_split_dataset], dim="shot") if len(pre_split_dataset["shot"]) > 0 else random_split_dataset
+            xr.concat([pre_split_dataset, random_split_dataset], dim=episode_coord) if len(pre_split_dataset[episode_coord]) > 0 else random_split_dataset
             for pre_split_dataset, random_split_dataset in zip(pre_split_datasets, random_split_datasets)
         ]
     else:
-        split_datasets = split_dataset_by_fracs(ds, split_fracs, "shot", 42, ordered=ordered)
+        split_datasets = split_dataset_by_fracs(ds, split_fracs, episode_coord, 42, sortby=sortby)
 
-    num_shots_original = len(ds["shot"])
-    num_shots_split = sum(len(split["shot"]) for split in split_datasets)
-    assert num_shots_original == num_shots_split
+    num_episodes_original = len(ds[episode_coord])
+    num_episodes_split = sum(len(split[episode_coord]) for split in split_datasets)
+    assert num_episodes_original == num_episodes_split
 
     if pre_split_vals:
         check_splits_contain_pre_split_vals(split_datasets, pre_split_vals)
-    if ordered:
-        check_splits_ordered(split_datasets, "shot", pre_split_vals)
+    if sortby:
+        check_splits_sorted(split_datasets, sortby, pre_split_vals)
