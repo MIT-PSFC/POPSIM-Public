@@ -9,7 +9,7 @@ import os
 
 
 def test_add_to_zarr_store():
-    dummy_iterator = dummy.generate_simple_scalar_dataset(3)
+    dummy_generator = dummy.generate_simple_scalar_dataset(3)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
@@ -18,7 +18,7 @@ def test_add_to_zarr_store():
         assert not os.path.exists(zarr_path)
         
         # Add datasets to zarr store
-        for ds in dummy_iterator:
+        for ds in dummy_generator:
             success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
             assert success
             assert os.path.exists(zarr_path)

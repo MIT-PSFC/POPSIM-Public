@@ -23,11 +23,11 @@ pytestmark = pytest.mark.skipif(
 
 def test_generate_defuse_h5_paths():
     """Test that generate_defuse_h5_paths returns an generator and yields valid paths."""
-    path_iterator = generate_defuse_h5_paths()
-    assert isinstance(path_iterator, Generator)
+    path_generator = generate_defuse_h5_paths()
+    assert isinstance(path_generator, Generator)
     
     # Test first few paths if available
-    for i, path in enumerate(path_iterator):
+    for i, path in enumerate(path_generator):
         assert isinstance(path, str)
         assert path.endswith('.h5')
         assert os.path.isfile(path)
@@ -39,11 +39,11 @@ def test_generate_defuse_h5_paths():
 
 def test_generate_fbte_nc_paths():
     """Test that generate_fbte_nc_paths returns an generator and yields valid paths."""
-    path_iterator = generate_fbte_nc_paths()
-    assert isinstance(path_iterator, Generator)
+    path_generator = generate_fbte_nc_paths()
+    assert isinstance(path_generator, Generator)
     
     # Test first few paths if available
-    for i, path in enumerate(path_iterator):
+    for i, path in enumerate(path_generator):
         assert isinstance(path, str)
         assert path.endswith('.nc')
         assert os.path.isfile(path)
@@ -55,11 +55,11 @@ def test_generate_fbte_nc_paths():
 
 def test_generate_fbte_mat_paths():
     """Test that generate_fbte_mat_paths returns an generator and yields valid paths."""
-    path_iterator = generate_fbte_mat_paths()
-    assert isinstance(path_iterator, Generator)
+    path_generator = generate_fbte_mat_paths()
+    assert isinstance(path_generator, Generator)
     
     # Test first few paths if available
-    for i, path in enumerate(path_iterator):
+    for i, path in enumerate(path_generator):
         assert isinstance(path, str)
         assert path.endswith('.mat')
         assert os.path.isfile(path)
