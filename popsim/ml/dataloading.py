@@ -140,20 +140,12 @@ class DataLoader:
         self.key, subkey = jax.random.split(self.key)
         return subkey
 
-    def limit_size(self, size: int, episode_coord: str):
-        """Create a copy of the present dataloader but with a restricted number of samples along the specified coordinate."""
+    def limit_size(self, size: int, coord: str):
+        """Create a copy of the present dataloader but with a restricted size along the specified coordinate."""
 
-        # Check if dim exists as either a dimension or coordinate
-        if episode_coord not in self.ds.coords:
-            raise ValueError(
-                f"Dimension or coordinate '{episode_coord}' does not exist. Available dimensions: {list(self.ds.dims.keys())}, available coordinates: {list(self.ds.coords.keys())}"
-            )
-
-        lim_ds = self.ds.sel({episode_coord: slice(0, size)})
-
-        # Create a new XarrayPreppedDataset with the limited dataset
-        lim_dataset = XarrayPreppedDataset(lim_ds, self.dataset.training_metadata)
-        lim_dl = DataLoader(lim_dataset, self.batch_size, self.shuffle, self.drop_last, key=self.key)
+        lim_ds = self.ds.sel({coord: slice(0, size)})
+        prep_ds = XarrayPreppedDataset(lim_ds, self.dataset.training_metadata)
+        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=self.key)
 
         return lim_dl
 
