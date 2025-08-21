@@ -2,6 +2,10 @@ from pathlib import Path
 
 import yaml
 
+"""
+This module provides mappings between MEQ variable names and their corresponding dimensions.
+"""
+
 
 # Define a custom constructor for Python tuples
 def construct_python_tuple(loader, node):
@@ -15,5 +19,5 @@ yaml.SafeLoader.add_constructor("tag:yaml.org,2002:python.tuple", construct_pyth
 with open(Path(__file__).parent / "dim_map.yaml") as stream:
     DIM_TO_VARS_MAP = yaml.load(stream, Loader=yaml.SafeLoader)
 
-# Inverting the dictionary
+# Inverting the dictionary to get a mapping from variable names to their dimensions
 VARS_TO_DIM_MAP = {var: key for key, vars_list in DIM_TO_VARS_MAP.items() for var in vars_list}

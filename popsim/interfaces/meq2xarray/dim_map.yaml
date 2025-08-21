@@ -1,3 +1,4 @@
+# Mapping of the dimensions of meq variables. See also dim_map.py.
 !!python.tuple ["time",]:
   - LY.rB
   - LY.zB
