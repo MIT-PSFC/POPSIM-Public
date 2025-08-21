@@ -1,15 +1,15 @@
 import pytest
-from collections.abc import Iterator
+from collections.abc import Generator
 import os
 import xarray as xr
 
 from popsim.data._paths import get_path_to_ml_data_dump
-from popsim.data.tcv.data_iterators import (
-    iterate_defuse_h5_paths,
-    iterate_fbte_nc_paths,
-    iterate_fbte_mat_paths,
-    iterate_defuse_h5s,
-    iterate_fbte_datasets,
+from popsim.data.tcv.data_generators import (
+    generate_defuse_h5_paths,
+    generate_fbte_nc_paths,
+    generate_fbte_mat_paths,
+    generate_defuse_h5s,
+    generate_fbte_datasets,
 )
 
 
@@ -21,10 +21,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_iterate_defuse_h5_paths():
-    """Test that iterate_defuse_h5_paths returns an iterator and yields valid paths."""
-    path_iterator = iterate_defuse_h5_paths()
-    assert isinstance(path_iterator, Iterator)
+def test_generate_defuse_h5_paths():
+    """Test that generate_defuse_h5_paths returns an generator and yields valid paths."""
+    path_iterator = generate_defuse_h5_paths()
+    assert isinstance(path_iterator, Generator)
     
     # Test first few paths if available
     for i, path in enumerate(path_iterator):
@@ -37,10 +37,10 @@ def test_iterate_defuse_h5_paths():
             break
 
 
-def test_iterate_fbte_nc_paths():
-    """Test that iterate_fbte_nc_paths returns an iterator and yields valid paths."""
-    path_iterator = iterate_fbte_nc_paths()
-    assert isinstance(path_iterator, Iterator)
+def test_generate_fbte_nc_paths():
+    """Test that generate_fbte_nc_paths returns an generator and yields valid paths."""
+    path_iterator = generate_fbte_nc_paths()
+    assert isinstance(path_iterator, Generator)
     
     # Test first few paths if available
     for i, path in enumerate(path_iterator):
@@ -53,10 +53,10 @@ def test_iterate_fbte_nc_paths():
             break
 
 
-def test_iterate_fbte_mat_paths():
-    """Test that iterate_fbte_mat_paths returns an iterator and yields valid paths."""
-    path_iterator = iterate_fbte_mat_paths()
-    assert isinstance(path_iterator, Iterator)
+def test_generate_fbte_mat_paths():
+    """Test that generate_fbte_mat_paths returns an generator and yields valid paths."""
+    path_iterator = generate_fbte_mat_paths()
+    assert isinstance(path_iterator, Generator)
     
     # Test first few paths if available
     for i, path in enumerate(path_iterator):
@@ -69,13 +69,13 @@ def test_iterate_fbte_mat_paths():
             break
 
 
-def test_iterate_defuse_h5s():
-    """Test that iterate_defuse_h5s returns an iterator and yields dictionaries of datasets."""
-    iterator = iterate_defuse_h5s()
-    assert isinstance(iterator, Iterator)
+def test_generate_defuse_h5s():
+    """Test that generate_defuse_h5s returns an generator and yields dictionaries of datasets."""
+    generator = generate_defuse_h5s()
+    assert isinstance(generator, Generator)
     
     # Test first item if available
-    first_item = next(iterator)
+    first_item = next(generator)
     assert isinstance(first_item, dict)
     # Values should be xarray datasets
     for key, value in first_item.items():
@@ -83,19 +83,19 @@ def test_iterate_defuse_h5s():
         assert isinstance(value, xr.Dataset)
 
 
-def test_iterate_fbte_datasets():
-    """Test that iterate_fbte_datasets returns an iterator and yields xarray datasets."""
-    iterator = iterate_fbte_datasets()
-    assert isinstance(iterator, Iterator)
+def test_generate_fbte_datasets():
+    """Test that generate_fbte_datasets returns an generator and yields xarray datasets."""
+    generator = generate_fbte_datasets()
+    assert isinstance(generator, Generator)
     
     # Test first item if available
-    first_item = next(iterator)
+    first_item = next(generator)
     assert isinstance(first_item, xr.Dataset)
 
 @pytest.mark.slow
 def test_defuse_datasets_load_successfully():
     """Test that all DEFUSE datasets can be loaded without errors."""
-    for i, dataset_dict in enumerate(iterate_defuse_h5s()):
+    for i, dataset_dict in enumerate(generate_defuse_h5s()):
         # Just verify we can load and access basic properties
         assert isinstance(dataset_dict, dict)
         assert len(dataset_dict) > 0
@@ -108,7 +108,7 @@ def test_defuse_datasets_load_successfully():
 @pytest.mark.slow
 def test_fbte_datasets_load_successfully():
     """Test that all FBTE datasets can be loaded without errors."""
-    for i, dataset in enumerate(iterate_fbte_datasets()):
+    for i, dataset in enumerate(generate_fbte_datasets()):
         # Just verify we can load and access basic properties
         assert isinstance(dataset, xr.Dataset)
         assert hasattr(dataset, 'dims')

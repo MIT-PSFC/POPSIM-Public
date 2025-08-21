@@ -1,13 +1,13 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import numpy as np
 import xarray as xr
 
 
-def iterate_simple_scalar_dataset(n_dataset: int) -> Iterator[xr.Dataset]:
+def generate_simple_scalar_dataset(n_dataset: int) -> Generator[xr.Dataset]:
     """Build a sequence of datasets with a single scalar variable with increasing length over time.
     Example usage and printout:
-        >>> for ds in iterate_simple_scalar_dataset(3):
+        >>> for ds in generate_simple_scalar_dataset(3):
         ...     print(ds)
         ...
         <xarray.Dataset> Size: 24B
@@ -43,5 +43,20 @@ def iterate_simple_scalar_dataset(n_dataset: int) -> Iterator[xr.Dataset]:
         ds = xr.Dataset(
             {"var": (("time_idx",), np.arange(n_time, dtype=float))},
             coords={"time": ("time_idx", np.arange(n_time, dtype=float)), "episode": ("episode", [i])},
+        )
+        yield ds
+
+
+def generate_dataset_with_spatial_var(episode_identifiers) -> Generator[xr.Dataset]:
+    """Build a sequence of datasets with a variable that has a spatial dimension in addition to time."""
+    for eps in episode_identifiers:
+        nt = np.random.randint(1, 50)
+        data = np.random.rand(nt, 5)
+        time_series = np.random.rand(nt)
+        times = np.random.choice(np.arange(100, dtype=float), size=nt, replace=False)
+        times.sort()
+        ds = xr.Dataset(
+            {"data": (("time_idx", "space"), data), "time_series": (("time_idx"), time_series)},
+            coords={"time": ("time_idx", times), "space": ("space", np.arange(5)), "episode": eps},
         )
         yield ds

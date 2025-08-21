@@ -1,6 +1,6 @@
 import os
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterable
 from typing import Any, Callable, Optional
 
 import loguru
@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 def build_tensorized_dataset(
     process_fn: Callable[[Any], xr.Dataset],
-    identifiers: Sequence[Any],
+    identifiers: Iterable[Any],
     zarr_path: os.PathLike,
     time_dim: str,
     episode_dim: str,
@@ -23,8 +23,8 @@ def build_tensorized_dataset(
     The user provides a function that processes data for a single episode, which returns an xarray Dataset for a single episode. This function will then build up the multi-episode dataset. This function was built with the intention of only needing to load a single episode at a time, allowing us to build up a dataset that is too large to fit in memory.
 
     Args:
-        process_fn (Callable[[Any], xr.Dataset]): A function that takes in a episode identifier (e.g. a file path or a pulse number) and returns an xarray Dataset for a single episode.
-        identifiers (Sequence[Any]): A sequence of iterables (e.g. file paths or pulse numbers) that will be processed by the process_fn to create the dataset.
+        process_fn (Callable[[Any], xr.Dataset]): A function that takes in a episode identifier (e.g. a file path, a pulse number, or even a xarray Dataset) and returns an xarray Dataset for a single episode.
+        identifiers (Iterable[Any]): An iterable that will be looped over, with each item being passed to process_fn to build up the dataset.
         zarr_path (os.PathLike): path to the zarr store where the dataset will be saved.
         time_dim (str): The name of the time dimension in the dataset.
         episode_dim (str): The name of the episode dimension in the dataset.
