@@ -75,16 +75,12 @@ def test_iterate_defuse_h5s():
     assert isinstance(iterator, Iterator)
     
     # Test first item if available
-    try:
-        first_item = next(iterator)
-        assert isinstance(first_item, dict)
-        # Values should be xarray datasets
-        for key, value in first_item.items():
-            assert isinstance(key, str)
-            assert isinstance(value, xr.Dataset)
-    except StopIteration:
-        # No files available, which is ok for testing
-        pass
+    first_item = next(iterator)
+    assert isinstance(first_item, dict)
+    # Values should be xarray datasets
+    for key, value in first_item.items():
+        assert isinstance(key, str)
+        assert isinstance(value, xr.Dataset)
 
 
 def test_iterate_fbte_datasets():
@@ -93,12 +89,8 @@ def test_iterate_fbte_datasets():
     assert isinstance(iterator, Iterator)
     
     # Test first item if available
-    try:
-        first_item = next(iterator)
-        assert isinstance(first_item, xr.Dataset)
-    except StopIteration:
-        # No files available, which is ok for testing
-        pass
+    first_item = next(iterator)
+    assert isinstance(first_item, xr.Dataset)
 
 @pytest.mark.slow
 def test_defuse_datasets_load_successfully():
