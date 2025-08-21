@@ -1,12 +1,51 @@
-from popsim.interfaces import build_tensorized_dataset
+from popsim.interfaces.dataset_utils import build_tensorized_dataset, add_to_zarr_store
 from popsim.tests.fixtures import tcv_fbt_test_dataset
+from popsim.data.data_iterators import dummy
 import xarray as xr
 import numpy as np
 import tempfile
 import pytest
 import os
 
-def test_build_dataset():
+
+def test_add_to_zarr_store():
+    dummy_iterator = dummy.iterate_simple_scalar_dataset(3)
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+        
+        # There should be no zarr store initially
+        assert not os.path.exists(zarr_path)
+        
+        # Add datasets to zarr store
+        for ds in dummy_iterator:
+            success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
+            assert success
+            assert os.path.exists(zarr_path)
+
+        # Open the zarr store and check its contents.
+        ds_store = xr.open_zarr(zarr_path).load()
+        expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
+        assert ds_store["episode"].equals(expected_episodes)
+        
+        # Check that the "var" variable has the expected values.
+        expected_var = xr.DataArray(np.array([[0.0, np.nan, np.nan],
+                                              [0.0, 1.0, np.nan],
+                                              [0.0, 1.0, 2.0]]),
+                                      dims=["episode", "time_idx"],
+                                      coords = {"episode": ("episode", [0, 1, 2])})
+        assert ds_store["var"].equals(expected_var)
+
+        # Expect that time is a variable.
+        expected_time = xr.DataArray(np.array([[0.0, np.nan, np.nan],
+                                                  [0.0, 1.0, np.nan],
+                                                    [0.0, 1.0, 2.0]]),
+                                        dims=["episode", "time_idx"],
+                                        coords={"episode": ("episode", [0, 1, 2])})
+        assert ds_store["time"].equals(expected_time)
+
+
+def test_build_tensorized_dataset():
     def build_fn(path: str) -> xr.Dataset:
         # Create some random data for testing
         nt = np.random.randint(1, 50)
@@ -75,7 +114,7 @@ def test_build_dataset():
 
 
 
-def test_build_dataset_time_dim_equals_time_coord():
+def test_build_tensorized_dataset_time_dim_equals_time_coord():
     def build_fn(path: str) -> xr.Dataset:
         # Create some random data for testing
         nt = np.random.randint(1, 50)
@@ -112,7 +151,7 @@ def test_build_dataset_time_dim_equals_time_coord():
         assert np.abs(ds["time"].diff("shot")).max().compute() > 0
 
 
-def test_build_dataset_tcv_fbt(tcv_fbt_test_dataset):
+def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
     """Test build_tensorized_dataset with the TCV FBT dataset."""
     ds = tcv_fbt_test_dataset
     
