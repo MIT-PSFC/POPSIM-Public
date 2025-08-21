@@ -39,18 +39,15 @@ def build_tensorized_dataset(
         xr.Dataset: The xarray Dataset that was built up.
     """
 
-    def _validate_inputs() -> None:
-        if not zarr_path.endswith(".zarr"):
-            raise ValueError(f"Provided zarr_path must end with .zarr, but got {zarr_path}")
+    if not zarr_path.endswith(".zarr"):
+        raise ValueError(f"Provided zarr_path must end with .zarr, but got {zarr_path}")
 
-        if os.path.exists(zarr_path) and extend_existing is False:
-            raise ValueError(
-                f"Zarr store at {zarr_path} already exists and extend_existing is False. Please remove it or set extend_existing to True."
-            )
-        if mb_per_chunk is not None and episodes_per_chunk is not None:
-            raise ValueError("Please specify either mb_per_chunk or episodes_per_chunk, not both.")
-
-    _validate_inputs()
+    if os.path.exists(zarr_path) and extend_existing is False:
+        raise ValueError(
+            f"Zarr store at {zarr_path} already exists and extend_existing is False. Please remove it or set extend_existing to True."
+        )
+    if mb_per_chunk is not None and episodes_per_chunk is not None:
+        raise ValueError("Please specify either mb_per_chunk or episodes_per_chunk, not both.")
 
     def get_and_preprocess(identifier: Any) -> Optional[xr.Dataset]:
         try:
