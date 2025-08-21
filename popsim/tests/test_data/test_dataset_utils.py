@@ -1,4 +1,4 @@
-from popsim.interfaces.dataset_utils import build_tensorized_dataset, add_to_zarr_store
+from popsim.data.dataset_utils import build_tensorized_dataset, add_to_zarr_store
 from popsim.tests.fixtures import tcv_fbt_test_dataset
 from popsim.data.data_iterators import dummy
 import xarray as xr
