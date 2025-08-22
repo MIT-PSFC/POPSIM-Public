@@ -99,16 +99,9 @@ def generate_dataset_with_changing_spatial_var(n_dataset) -> Generator[xr.Datase
     times = np.arange(n_time, dtype=float)
     for i in range(n_dataset):
         n_space = i + 1
-        data = np.arange(n_space, dtype=float)
-        data = np.tile(data, (n_time, 1))
+        data = np.tile(np.arange(n_space, dtype=float), (n_time, 1))
         ds = xr.Dataset(
             data_vars={"var": (("time_idx", "space_idx"), data)},
             coords={"time": ("time_idx", times), "episode": ("episode", [i]), "space": ("space_idx", np.arange(n_space, dtype=float))},
         )
         yield ds
-
-
-if __name__ == "__main__":
-    # Example usage
-    for ds in generate_dataset_with_changing_spatial_var(3):
-        print(ds)

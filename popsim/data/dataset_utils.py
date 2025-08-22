@@ -113,7 +113,7 @@ def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> No
 def add_to_zarr_store(  # noqa: PLR0912
     ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: Optional[int] = None
 ) -> bool:
-    """Helper function to add a single xarray Dataset to a zarr store."""
+    """Helper function to add a single xarray Dataset to a zarr store. Requires that the zarr store either doesn't exist or already contains all the dimensions in the provided Dataset."""
 
     # We need to reset all the non-index coordinates to make sure they get vary across episodes.
     ds = ds.reset_coords()
@@ -150,8 +150,9 @@ def add_to_zarr_store(  # noqa: PLR0912
         extend_dims = {}
 
         # Check all other dimensions that exist in both datasets
-        for dim in ds.dims:
-            if dim != episode_dim and dim in ds_store.dims:
+        considered_dims = set(ds.dims) - {episode_dim}
+        for dim in considered_dims:
+            if dim in ds_store.dims:
                 if dim == time_dim and store_time_dim_size is not None:
                     store_dim_size = store_time_dim_size
                 else:
@@ -163,6 +164,8 @@ def add_to_zarr_store(  # noqa: PLR0912
                     pad_dims[dim] = (0, store_dim_size - ds_dim_size)
                 elif ds_dim_size > store_dim_size:
                     extend_dims[dim] = ds_dim_size - store_dim_size
+            else:
+                raise ValueError(f"Dimension {dim} is not present in the zarr store.")
 
         # Extend the zarr store for any dimensions that need to grow
         for dim, n_extend in extend_dims.items():

@@ -96,6 +96,39 @@ def test_add_to_zarr_store_changing_spatial():
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["space"].equals(expected_space)
 
+def test_add_to_zarr_store_mismatch_dims():
+    """Test trying to add a dataset with different dimensions to the zarr store raises an error"""
+    dummy_generator = dummy.generate_simple_scalar_dataset(2)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+        
+        # There should be no zarr store initially
+        assert not os.path.exists(zarr_path)
+        
+        # Add datasets to zarr store
+        for ds in dummy_generator:
+            success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
+            assert success
+            assert os.path.exists(zarr_path)
+
+        # Add a dataset with a new dimension
+        data = np.tile(np.arange(3, dtype=float), (3, 1))
+        ds = xr.Dataset(
+            data_vars={
+                "new_var": (("time_idx", "space_idx"), data),
+                "var": (("time_idx"), np.arange(3, dtype=float)),
+            },
+            coords={
+                "time": ("time_idx", np.arange(3, dtype=float)),
+                "space": ("space_idx", np.arange(3, dtype=float)),
+                "episode": ("episode", [2])
+            }
+        )
+        # Ensure this throws a value error
+        with pytest.raises(ValueError):
+            add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
+
 
 def test_build_tensorized_dataset():
     def build_fn(path: str) -> xr.Dataset:
@@ -163,7 +196,6 @@ def test_build_tensorized_dataset():
             extend_existing=True
         )
         assert ds.sizes["shot"] == 4
-
 
 
 def test_build_tensorized_dataset_time_dim_equals_time_coord():
