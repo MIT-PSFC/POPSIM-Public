@@ -110,7 +110,7 @@ def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> No
     ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=False)
 
 
-def add_to_zarr_store(
+def add_to_zarr_store(  # noqa: PLR0912
     ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: Optional[int] = None
 ) -> bool:
     """Helper function to add a single xarray Dataset to a zarr store."""
@@ -143,15 +143,35 @@ def add_to_zarr_store(
         ds.to_zarr(zarr_path, mode="w", consolidated=False)
         return True
     else:
-        if store_time_dim_size is None:
-            ds_store = xr.open_zarr(zarr_path)
-            store_time_dim_size = ds_store.sizes[time_dim]
-        if ds.sizes[time_dim] < store_time_dim_size:
-            # If the new dataset is smaller than the store, we need to pad it before adding it to the store.
-            ds = ds.pad({time_dim: (0, store_time_dim_size - ds.sizes[time_dim])})
-        elif ds.sizes[time_dim] > store_time_dim_size:
-            # We need to extend the existing zarr store along the time dimension.
-            extend_zarr_along_dim(zarr_path, time_dim, ds.sizes[time_dim] - store_time_dim_size)
+        ds_store = xr.open_zarr(zarr_path)
+
+        # Handle dimension size changes for all dimensions except episode_dim
+        pad_dims = {}
+        extend_dims = {}
+
+        # Check all other dimensions that exist in both datasets
+        for dim in ds.dims:
+            if dim != episode_dim and dim in ds_store.dims:
+                if dim == time_dim and store_time_dim_size is not None:
+                    store_dim_size = store_time_dim_size
+                else:
+                    store_dim_size = ds_store.sizes[dim]
+
+                ds_dim_size = ds.sizes[dim]
+
+                if ds_dim_size < store_dim_size:
+                    pad_dims[dim] = (0, store_dim_size - ds_dim_size)
+                elif ds_dim_size > store_dim_size:
+                    extend_dims[dim] = ds_dim_size - store_dim_size
+
+        # Extend the zarr store for any dimensions that need to grow
+        for dim, n_extend in extend_dims.items():
+            extend_zarr_along_dim(zarr_path, dim, n_extend)
+
+        # Pad the dataset for any dimensions that are too small
+        if pad_dims:
+            ds = ds.pad(pad_dims)
+
         # Append the new dataset to the existing zarr store.
         # a- means we append only to variables that have episode_dim.
         ds.to_zarr(zarr_path, mode="a-", append_dim=episode_dim, consolidated=False)
