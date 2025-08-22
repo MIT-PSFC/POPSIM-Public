@@ -17,9 +17,7 @@ from popsim.array_utils import jax_to_numpy_array
 # A tuple of the name of the extra dimension and the coordinates corresponding to that dimension.
 # Currently,
 ExtraDimAndCoord = tuple[str, typing.Union[Array, np.ndarray]]
-ExtraDimAndCoordSpec = typing.Union[
-    ExtraDimAndCoord, typing.Sequence[ExtraDimAndCoord], None
-]
+ExtraDimAndCoordSpec = typing.Union[ExtraDimAndCoord, typing.Sequence[ExtraDimAndCoord], None]
 
 DEFAULT_SIM_DIM_NAME = "simulation"
 DEFAULT_TIME_DIM_NAME = "time"
@@ -58,9 +56,7 @@ def make_data_array(
 
         # Auto-generate names for the extra dimensions.
         extra_generated_dims = [f"{name}_extra_dim_{i}" for i in range(n_missing_dims)]
-        return xr.DataArray(
-            array, dims=dims + extra_generated_dims, coords=coords, name=name
-        )
+        return xr.DataArray(array, dims=dims + extra_generated_dims, coords=coords, name=name)
     else:
         warnings.warn(
             f"Skipping variable {name} due to mismatch between the number of dimensions of the array ({array.ndim}) and the number of specified dimensions ({len(dims)}).",
@@ -69,9 +65,7 @@ def make_data_array(
         return None
 
 
-def solution_to_xarray(
-    sol: diffrax.Solution, multi_simulation: bool = False
-) -> xr.Dataset:
+def solution_to_xarray(sol: diffrax.Solution, multi_simulation: bool = False) -> xr.Dataset:
     """Convert a diffrax.Solution to an xarray. Thin wrapper around time_and_pytree_to_xarray.
 
     Args:
@@ -84,9 +78,7 @@ def solution_to_xarray(
     return time_and_pytree_to_xarray(sol.ts, sol.ys, multi_simulation)
 
 
-def _handle_xr_types(
-    data: xr.DataArray | xr.Variable, base_coords, name
-) -> xr.DataArray:
+def _handle_xr_types(data: xr.DataArray | xr.Variable, base_coords, name) -> xr.DataArray:
     if isinstance(data, xr.Variable):
         da = xr.DataArray(data, coords=base_coords, name=name)
         return da
@@ -123,26 +115,20 @@ def pytree_to_xarray(
     if base_dims is None:
         base_dims = []
 
-    def process_tree_leaf(
-        path, data: np.ndarray | ArrayLike | xr.DataArray | xr.Variable
-    ) -> xr.DataArray:
+    def process_tree_leaf(path, data: np.ndarray | ArrayLike | xr.DataArray | xr.Variable) -> xr.DataArray:
         name = ptu.keypath_to_string(path)
         if isinstance(data, (xr.Variable, xr.DataArray, xr.Dataset)):
             return _handle_xr_types(data, base_coords, name)
         elif eqx.is_array_like(data):
             data = np.asarray(data) if not eqx.is_array(data) else data
-            return make_data_array(
-                name=name, array=jnp.asarray(data), dims=base_dims, coords=base_coords
-            )
+            return make_data_array(name=name, array=jnp.asarray(data), dims=base_dims, coords=base_coords)
         else:
             raise ValueError("Expected ArrayLike, xr.Variable, or xr.DataArray.")
 
     # Construct a tree of DataArrays.
     paths_and_leaves = jax.tree_util.tree_leaves_with_path(
         tree,
-        is_leaf=lambda x: isinstance(
-            x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike)
-        ),
+        is_leaf=lambda x: isinstance(x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike)),
     )
 
     das_and_ds = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
@@ -185,17 +171,13 @@ def time_and_pytree_to_xarray(
         nsims_tree = jax.tree.map(lambda x: x.shape[0], tree)
         tree_leaves = jax.tree.leaves(nsims_tree)
         if len(set(tree_leaves)) > 1:
-            raise ValueError(
-                "In multi-simulation mode, all arrays must have the same number of simulations."
-            )
+            raise ValueError("In multi-simulation mode, all arrays must have the same number of simulations.")
         nsims = tree_leaves[0]
 
         # Build the time and simulation coordinates and the list of dimensions.
         time_coord = xr.DataArray(
             time,
-            dims=(DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME)
-            if time.ndim == 2
-            else (DEFAULT_TIME_DIM_NAME),
+            dims=(DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME) if time.ndim == 2 else (DEFAULT_TIME_DIM_NAME),
         )
         sim_coord = xr.DataArray(
             np.arange(nsims),
@@ -264,9 +246,7 @@ def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
     )
 
 
-def run_function_with_dim_removed(
-    fun: typing.Callable[..., typing.Any], fun_inputs: tuple, dim_remove: int
-) -> typing.Any:
+def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inputs: tuple, dim_remove: int) -> typing.Any:
     """
     Runs a function with a specified dimension removed from its variables, then adds the dimension back
     to the output variables after execution as the leading dimension.
@@ -337,6 +317,4 @@ def scramble_xr(
         return obj.map_over_datasets(scramble_xr)
 
     else:
-        raise TypeError(
-            f"Unsupported type {type(obj)}; expected xr.DataArray, xr.Dataset, or xarray.DataTree"
-        )
+        raise TypeError(f"Unsupported type {type(obj)}; expected xr.DataArray, xr.Dataset, or xarray.DataTree")

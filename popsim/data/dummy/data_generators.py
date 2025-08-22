@@ -60,3 +60,55 @@ def generate_dataset_with_spatial_var(episode_identifiers) -> Generator[xr.Datas
             coords={"time": ("time_idx", times), "space": ("space", np.arange(5)), "episode": eps},
         )
         yield ds
+
+
+def generate_dataset_with_changing_spatial_var(n_dataset) -> Generator[xr.Dataset]:
+    """Build a sequence of datasets with a variable that has a spatial dimension which is different for each episode.
+    Example usage and printout:
+    for ds in generate_dataset_with_changing_spatial_var(3):
+    ...     print(ds)
+    <xarray.Dataset> Size: 64B
+    Dimensions:  (time_idx: 3, space_idx: 1, episode: 1)
+    Coordinates:
+        time     (time_idx) float64 24B 0.0 1.0 2.0
+    * episode  (episode) int64 8B 0
+        space    (space_idx) float64 8B 0.0
+    Dimensions without coordinates: time_idx, space_idx
+    Data variables:
+        var      (time_idx, space_idx) float64 24B 0.0 0.0 0.0
+    <xarray.Dataset> Size: 96B
+    Dimensions:  (time_idx: 3, space_idx: 2, episode: 1)
+    Coordinates:
+        time     (time_idx) float64 24B 0.0 1.0 2.0
+    * episode  (episode) int64 8B 1
+        space    (space_idx) float64 16B 0.0 1.0
+    Dimensions without coordinates: time_idx, space_idx
+    Data variables:
+        var      (time_idx, space_idx) float64 48B 0.0 1.0 0.0 1.0 0.0 1.0
+    <xarray.Dataset> Size: 128B
+    Dimensions:  (time_idx: 3, space_idx: 3, episode: 1)
+    Coordinates:
+        time     (time_idx) float64 24B 0.0 1.0 2.0
+    * episode  (episode) int64 8B 2
+        space    (space_idx) float64 24B 0.0 1.0 2.0
+    Dimensions without coordinates: time_idx, space_idx
+    Data variables:
+        var      (time_idx, space_idx) float64 72B 0.0 1.0 2.0 0.0 ... 0.0 1.0 2.0
+    """
+    n_time = 3
+    times = np.arange(n_time, dtype=float)
+    for i in range(n_dataset):
+        n_space = i + 1
+        data = np.arange(n_space, dtype=float)
+        data = np.tile(data, (n_time, 1))
+        ds = xr.Dataset(
+            data_vars={"var": (("time_idx", "space_idx"), data)},
+            coords={"time": ("time_idx", times), "episode": ("episode", [i]), "space": ("space_idx", np.arange(n_space, dtype=float))},
+        )
+        yield ds
+
+
+if __name__ == "__main__":
+    # Example usage
+    for ds in generate_dataset_with_changing_spatial_var(3):
+        print(ds)

@@ -44,6 +44,58 @@ def test_add_to_zarr_store():
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["time"].equals(expected_time)
 
+def test_add_to_zarr_store_changing_spatial():
+    dummy_generator = dummy.generate_dataset_with_changing_spatial_var(3)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+        
+        # There should be no zarr store initially
+        assert not os.path.exists(zarr_path)
+        
+        # Add datasets to zarr store
+        for ds in dummy_generator:
+            success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
+            assert success
+            assert os.path.exists(zarr_path)
+
+        # Open the zarr store and check its contents.
+        ds_store = xr.open_zarr(zarr_path).load()
+        expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
+        assert ds_store["episode"].equals(expected_episodes)
+        
+        # Check that the "var" variable has the expected values.
+        expected_var = xr.DataArray(
+            np.array([
+                [   # Episode 0
+                    [0.0, np.nan, np.nan],  # Timestep 0
+                    [0.0, np.nan, np.nan],  # Timestep 1
+                    [0.0, np.nan, np.nan],  # Timestep 2
+                ],
+                [   # Episode 1
+                    [0.0, 1.0, np.nan],
+                    [0.0, 1.0, np.nan],
+                    [0.0, 1.0, np.nan],
+                ],
+                [   # Episode 2
+                    [0.0, 1.0, 2.0],
+                    [0.0, 1.0, 2.0],
+                    [0.0, 1.0, 2.0],
+                ],
+            ]),
+            dims=["episode", "time_idx", "space_idx"],
+            coords={"episode": ("episode", [0, 1, 2])}
+        )
+        assert ds_store["var"].equals(expected_var)
+
+        # Expect that space is a variable.
+        expected_space = xr.DataArray(np.array([[0.0, np.nan, np.nan],
+                                                  [0.0, 1.0, np.nan],
+                                                    [0.0, 1.0, 2.0]]),
+                                        dims=["episode", "space_idx"],
+                                        coords={"episode": ("episode", [0, 1, 2])})
+        assert ds_store["space"].equals(expected_space)
+
 
 def test_build_tensorized_dataset():
     def build_fn(path: str) -> xr.Dataset:
