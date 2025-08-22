@@ -143,9 +143,34 @@ class DataLoader:
     def limit_size(self, size: int, coord: str):
         """Create a copy of the present dataloader but with a restricted size along the specified coordinate."""
 
-        lim_ds = self.ds.sel({coord: slice(0, size)})
+        if coord in self.ds.dims:
+            # If coord is a dimension it can be accessed directly
+            lim_ds = self.ds.isel({coord: slice(0, size)})
+        elif coord in self.ds.coords:
+            # Check if coord is a level in any MultiIndex
+            multiindex_dim = None
+            for dim_name, index in self.ds.indexes.items():
+                if hasattr(index, "names") and coord in index.names:
+                    multiindex_dim = dim_name
+                    break
+
+            if multiindex_dim:
+                # Get unique values of the coordinate and limit them
+                coord_vals = np.unique(self.ds[coord].values)[:size]
+                # Create boolean mask for the MultiIndex
+                mask = self.ds[coord].isin(coord_vals)
+                lim_ds = self.ds.isel({multiindex_dim: mask})
+            else:
+                # Regular coordinate case
+                coord_vals = self.ds[coord].values[:size]
+                lim_ds = self.ds.sel({coord: coord_vals})
+        else:
+            raise ValueError(f"Coordinate '{coord}' not found in dataset dimensions or coordinates")
+
         prep_ds = XarrayPreppedDataset(lim_ds, self.dataset.training_metadata)
-        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=self.key)
+        # Extract integer from PRNG key if needed
+        key_val = int(self.key[0]) if hasattr(self.key, "__getitem__") else self.key
+        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=key_val)
 
         return lim_dl
 

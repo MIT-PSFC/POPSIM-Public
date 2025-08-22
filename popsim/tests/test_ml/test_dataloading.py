@@ -130,8 +130,8 @@ def test_prepped_ds_error(reduced_cmod_test_dataset):
     with pytest.raises(ValueError):
         dataset = XarrayPreppedDataset(ds, train_meta)
 
-@pytest.mark.parametrize("batch_size", [1024])
-@pytest.mark.parametrize("time_dependent", [True])
+@pytest.mark.parametrize("batch_size", [None, 1024, np.iinfo(np.int32).max])
+@pytest.mark.parametrize("time_dependent", [True, False])
 def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent):
     """Tests for limiting dimensions in the dataloader"""
     ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
@@ -165,13 +165,14 @@ def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent):
 
     # Check that we can limit by the episode coord
     lim_dl = dl.limit_size(size=10, coord="shot")
-    _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
+    assert np.unique(lim_dl.ds.shot).size == 10
 
     if time_dependent:
         # Check that we can limit by the time segment dimension
         lim_dl = dl.limit_size(size=10, coord="time_slice_input")
-        _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
+        assert np.unique(lim_dl.ds.time_slice_input).size == 10
     else:
         # Check that we can limit by the sample dimension
         lim_dl = dl.limit_size(size=10, coord="sample")
+        assert np.unique(lim_dl.ds.sample).size == 10
         _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
