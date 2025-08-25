@@ -140,8 +140,17 @@ class DataLoader:
         self.key, subkey = jax.random.split(self.key)
         return subkey
 
-    def limit_size(self, size: int, coord: str):
-        """Create a copy of the present dataloader but with a restricted size along the specified coordinate."""
+    def limit_size(self, size: int, coord: str) -> "DataLoader":
+        """Create a copy of the present DataLoader but with a restricted size along the specified coordinate.
+        The resulting DataLoader's dataset has every entry corresponding to the first N unique values of this coordinate.
+
+        Args:
+            size (int): The size to limit the dataset to.
+            coord (str): The coordinate along which to limit the dataset.
+
+        Returns:
+            DataLoader: A new DataLoader instance with the limited dataset.
+        """
 
         if coord in self.ds.dims:
             # If coord is a dimension it can be accessed directly
@@ -162,7 +171,7 @@ class DataLoader:
                 lim_ds = self.ds.isel({multiindex_dim: mask})
             else:
                 # Regular coordinate case
-                coord_vals = self.ds[coord].values[:size]
+                coord_vals = np.unique(self.ds[coord].values[:size])
                 lim_ds = self.ds.sel({coord: coord_vals})
         else:
             raise ValueError(f"Coordinate '{coord}' not found in dataset dimensions or coordinates")

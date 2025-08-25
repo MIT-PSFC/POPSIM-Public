@@ -132,7 +132,8 @@ def test_prepped_ds_error(reduced_cmod_test_dataset):
 
 @pytest.mark.parametrize("batch_size", [None, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("time_dependent", [True, False])
-def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent):
+@pytest.mark.parametrize("segment_length", [None, 100])
+def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent, segment_length):
     """Tests for limiting dimensions in the dataloader"""
     ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
 
@@ -149,6 +150,7 @@ def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent):
             target_vars=target_vars,
             batch_size=batch_size,
             convert_xr_to_jnp=convert_xr,
+            segment_length=segment_length,
             shuffle=shuffle
         )
     else:
@@ -168,6 +170,10 @@ def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent):
     assert np.unique(lim_dl.ds.shot).size == 10
 
     if time_dependent:
+        # If a short segment length is provided, there should be more samples than shots
+        if segment_length and (segment_length <= lim_dl.ds.sizes["time_slice_input"]):
+            assert lim_dl.ds.sizes["sample"] > 10
+
         # Check that we can limit by the time segment dimension
         lim_dl = dl.limit_size(size=10, coord="time_slice_input")
         assert np.unique(lim_dl.ds.time_slice_input).size == 10
