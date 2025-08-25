@@ -9,16 +9,14 @@ build:
   tools:
     python: "3.10"
   jobs:
-    post_create_environment:
-      # Install poetry with specific version to avoid dependency conflicts
-      # https://python-poetry.org/docs/#installing-manually
-      - pip install poetry==1.8.3
-      # distlib is sometimes not available in the readthedocs build environment.
-      - pip install distlib
     post_install:
+      # Install poetry
+      # https://python-poetry.org/docs/#installing-manually
+      - pip install poetry
+      # Install dependencies with 'dev' dependency group  
       # VIRTUAL_ENV needs to be set manually for now.
       # See https://github.com/readthedocs/readthedocs.org/pull/11152/
-      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --with dev --no-root
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --with dev
 
 mkdocs:
   configuration: mkdocs.yml
