@@ -133,8 +133,8 @@ def test_prepped_ds_error(reduced_cmod_test_dataset):
 @pytest.mark.parametrize("batch_size", [None, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("time_dependent", [True, False])
 @pytest.mark.parametrize("segment_length", [None, 100])
-def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent, segment_length):
-    """Tests for limiting dimensions in the dataloader"""
+def test_dl_limit_size_cmod(reduced_cmod_test_dataset, batch_size, time_dependent, segment_length):
+    """Tests for limiting dimensions in the dataloader in a typical workflow"""
     ds, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
 
     convert_xr = True
@@ -182,3 +182,58 @@ def test_dl_limit_size(reduced_cmod_test_dataset, batch_size, time_dependent, se
         lim_dl = dl.limit_size(size=10, coord="sample")
         assert np.unique(lim_dl.ds.sample).size == 10
         _run_dl_checks(lim_dl, batch_size=batch_size, expected_n_samps=10, shuffle=shuffle, segment_length=None, convert_xr=convert_xr)
+
+@pytest.mark.parametrize("time_dependent", [True, False])
+def test_dl_limit_size_constructed(time_dependent):
+    """More rigorous testing of the limit_size method, covering limit by every coordinate and dimension"""
+    num_shots = 4
+    num_times = 30
+    ds = xr.Dataset(
+        {
+            "p_rad": (("shot", "time_slice"), np.random.rand(num_shots, num_times)),
+            "ip": (("shot", "time_slice"), np.random.rand(num_shots, num_times)),
+            "n_e": (("shot", "time_slice"), np.random.rand(num_shots, num_times)),
+            "Wmhd": (("shot", "time_slice"), np.random.rand(num_shots, num_times)),
+        },
+        coords={
+            "shot": np.arange(num_shots),
+            "time_slice": np.arange(num_times),
+            "time": (("shot", "time_slice"), np.tile(np.arange(num_times)*0.001, (num_shots, 1))),
+        }
+    )
+    state_init_vars = ["Wmhd"]
+    target_vars = ["p_rad"]
+    input_vars = ["ip", "n_e"]
+
+    convert_xr = True
+    shuffle = False
+    segment_length = 10
+    batch_size = None
+
+    if time_dependent:
+        dl = make_time_dep_dataloader(
+            ds=ds,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=state_init_vars,
+            input_vars=input_vars,
+            target_vars=target_vars,
+            convert_xr_to_jnp=convert_xr,
+            segment_length=segment_length,
+            batch_size=batch_size,
+            shuffle=shuffle
+        )
+    else:
+        dl = make_time_indep_dataloader(
+            ds=ds,
+            time_coord="time",
+            episode_coord="shot",
+            input_vars=input_vars,
+            target_vars=target_vars,
+            convert_xr_to_jnp=convert_xr,
+            shuffle=shuffle
+        )
+
+    for coord in list(dl.ds.coords) + list(dl.ds.dims):
+        lim_dl = dl.limit_size(size=2, coord=coord)
+        assert np.unique(lim_dl.ds[coord]).size == 2

@@ -152,10 +152,7 @@ class DataLoader:
             DataLoader: A new DataLoader instance with the limited dataset.
         """
 
-        if coord in self.ds.dims:
-            # If coord is a dimension it can be accessed directly
-            lim_ds = self.ds.isel({coord: slice(0, size)})
-        elif coord in self.ds.coords:
+        if coord in self.ds.coords or coord in self.ds.dims:
             # Check if coord is a level in any MultiIndex
             multiindex_dim = None
             for dim_name, index in self.ds.indexes.items():
@@ -163,15 +160,15 @@ class DataLoader:
                     multiindex_dim = dim_name
                     break
 
-            if multiindex_dim:
-                # Get unique values of the coordinate and limit them
-                coord_vals = np.unique(self.ds[coord].values)[:size]
-                # Create boolean mask for the MultiIndex
+            # Get unique values of the coordinate and limit them
+            coord_vals = np.unique(self.ds[coord].values)[:size]
+
+            if multiindex_dim or coord not in self.ds.indexes:
+                # Create boolean mask to handle multi-index or non-indexed coord
                 mask = self.ds[coord].isin(coord_vals)
-                lim_ds = self.ds.isel({multiindex_dim: mask})
+                lim_ds = self.ds.where(mask, drop=True)
             else:
-                # Regular coordinate case
-                coord_vals = np.unique(self.ds[coord].values[:size])
+                # Regular dimension or indexed coordinate case
                 lim_ds = self.ds.sel({coord: coord_vals})
         else:
             raise ValueError(f"Coordinate '{coord}' not found in dataset dimensions or coordinates")
