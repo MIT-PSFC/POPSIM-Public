@@ -1,13 +1,16 @@
+import gc
 import os
 import shutil
 from collections.abc import Iterable
 from typing import Any, Callable, Optional
 
+import jax
 import loguru
 import xarray as xr
 import zarr
 from tqdm import tqdm
 
+GC_INTERVAL = 40 # Force garbage collection every 40 shots
 
 def build_tensorized_dataset(
     process_fn: Callable[[Any], xr.Dataset],
@@ -17,7 +20,7 @@ def build_tensorized_dataset(
     episode_dim: str,
     extend_existing: bool = False,
     episodes_per_chunk: Optional[int] = None,
-    mb_per_chunk: Optional[int] = 100,
+    mb_per_chunk: Optional[int] = 10,
 ) -> xr.Dataset:
     """Build a tensorized multi-episode dataset that can then be used for training or evaluation.
     The user provides a function that processes data for a single episode, which returns an xarray Dataset for a single episode. This function will then build up the multi-episode dataset. This function was built with the intention of only needing to load a single episode at a time, allowing us to build up a dataset that is too large to fit in memory.
@@ -63,17 +66,24 @@ def build_tensorized_dataset(
     # Iterate over the identifiers and process them one by one to build the dataset.
     bytes_per_ds = []
 
-    for it in tqdm(identifiers, desc="Building the dataset..."):
+    for i, it in enumerate(tqdm(identifiers, desc="Building the dataset...")):
         ds = get_and_preprocess(it)
         if ds is not None:
             bytes_per_ds.append(ds.nbytes)
             success = add_to_zarr_store(ds, zarr_path, time_dim, episode_dim, store_time_dim_size=store_time_dim_size)
             if success and not store_time_dim_size:
-                store_time_dim_size = xr.open_zarr(zarr_path).sizes[time_dim]
+                store_time_dim_size = xr.open_zarr(zarr_path, consolidated=False).sizes[time_dim]
             else:
                 store_time_dim_size = max(store_time_dim_size, ds.sizes[time_dim])
 
             atleast_one_success = True if success else atleast_one_success
+        
+        del ds
+        if (i > 0) and (i % GC_INTERVAL == 0):
+            loguru.logger.debug(f"Forcing garbage collection after {i} processed shots")
+            jax.clear_backends()
+            jax.clear_caches()
+            gc.collect()
 
     if atleast_one_success:
         if mb_per_chunk is not None:
@@ -104,7 +114,7 @@ def build_tensorized_dataset(
 
 def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> None:
     """Extend an existing zarr store along a specified dimension by padding it with nans."""
-    ds = xr.open_zarr(zarr_path)
+    ds = xr.open_zarr(zarr_path, consolidated=False)
     ds = ds.pad({dim: (0, n_extend)})
     ds_padding = ds.isel({dim: slice(-n_extend, None)})
     ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=False)
@@ -123,6 +133,7 @@ def add_to_zarr_store(  # noqa: PLR0912
 
     # If the episode dimension is not present, expand the dataset to include it.
     if episode_dim not in ds.dims:
+        ds = ds.set_coords(episode_dim)
         ds = ds.expand_dims(episode_dim)
 
     if ds.sizes[episode_dim] > 1:
@@ -143,7 +154,8 @@ def add_to_zarr_store(  # noqa: PLR0912
         ds.to_zarr(zarr_path, mode="w", consolidated=False)
         return True
     else:
-        ds_store = xr.open_zarr(zarr_path)
+        # Don't try to read consolidated data during intermediate steps, can be consolidated later.
+        ds_store = xr.open_zarr(zarr_path, consolidated=False)
 
         # Handle dimension size changes for all dimensions except episode_dim
         pad_dims = {}
