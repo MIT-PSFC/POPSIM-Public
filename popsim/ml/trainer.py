@@ -5,6 +5,7 @@ from os import PathLike
 
 import equinox as eqx
 import jax
+import loguru
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
@@ -14,6 +15,7 @@ from tqdm import tqdm
 from popsim.ml._types import TrainableModel
 from popsim.ml.checkpointing import TrainState, create_default_checkpoint_manager, restore_train_state, save_train_state
 from popsim.ml.dataloading import DataLoader
+from popsim.ml.debug_utils import diagnose_nans
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import EvalData, EvaluationSuite, batch_loss, make_val_loss_eval_fn, run_evals
 from popsim.ml.loggers import ConsoleLogger, LoggerBase
@@ -71,6 +73,12 @@ def train_epoch(
     for batch in train_dl:
         tstart_prep = time.time()
         inputs, targets = batch.get_inputs_and_targets()
+        if any_nans(inputs):
+            warnings.warn("NaN values found in inputs. Stopping training.", stacklevel=2)
+            return None
+        if any_nans(targets):
+            warnings.warn("NaN values found in targets, this will cause further NaNs on backpropagation. Stopping training.", stacklevel=2)
+            return None
         tend_prep = time.time()
 
         tstart_step = time.time()
@@ -89,7 +97,8 @@ def train_epoch(
         )
 
         if step_nan_check(model, opt_state, loss_value):
-            warnings.warn("NaN values found in model, optimizer state, or loss value. Stopping training.", stacklevel=2)
+            warnings.warn("NaN values found in model, optimizer state, or loss value after train_step. Stopping training.", stacklevel=2)
+            diagnose_nans(train_state.model, batch)
             return None
 
         tend_step = time.time()
@@ -161,7 +170,9 @@ class Trainer:
         self,
         train_dl: DataLoader,
         val_dl: typing.Optional[DataLoader] = None,
+        test_dl: typing.Optional[DataLoader] = None,
         eval_suite: typing.Optional[EvaluationSuite] = None,
+        test_eval_suite: typing.Optional[EvaluationSuite] = None,
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
         logger: typing.Optional[LoggerBase] = None,
@@ -186,8 +197,6 @@ class Trainer:
 
         # Log summary metrics of the dataloaders.
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
-
-        val_loss_history = np.array([])
 
         # epoch_range accounts for restarting training from a checkpoint.
         epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs + 1)
@@ -217,7 +226,6 @@ class Trainer:
                 tend_val = time.time()
 
                 val_loss = np.asarray(eval_results["loss"]).item()
-                val_loss_history = np.append(val_loss_history, val_loss)
 
                 # Pre-pend "val/" to the keys in the eval_results dictionary.
                 eval_results = {f"val/{k}": v for k, v in eval_results.items()}
@@ -232,6 +240,17 @@ class Trainer:
 
                 if self.checkpoint_manager:
                     save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=float(val_loss["mean"]))
+
+        if self.checkpoint_manager is None or test_dl is None or test_eval_suite is None:
+            loguru.logger.info("No checkpoint manager or test DataLoader provided. Skipping test evaluation.")
+            return None
+        else:
+            loguru.logger.info("Training completed. Restoring the best checkpoint and evaluating on the test set.")
+            self.restore_best_checkpoint()
+            test_results = self.run_evals(test_dl, eval_suite=test_eval_suite)
+            test_results = {f"test/{k}": v for k, v in test_results.items()}
+            logger.log(test_results)
+            return test_results
 
     def restore_best_checkpoint(self, path: typing.Optional[PathLike] = None):
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
