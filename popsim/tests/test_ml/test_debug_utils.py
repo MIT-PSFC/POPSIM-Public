@@ -1,7 +1,4 @@
-import os
 import pytest
-import xarray as xr
-import zarr
 import jax
 import jax.numpy as jnp
 import equinox as eqx

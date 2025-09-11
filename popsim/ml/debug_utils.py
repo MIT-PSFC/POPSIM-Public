@@ -22,18 +22,19 @@ def check_large_model_weights(model, threshold: Optional[float] = 1e3) -> list[s
     Returns:
         List of paths (as strings) to weights with large values.
     """
+
+    def _large_weights(leaf):
+        return eqx.is_array(leaf) and jnp.any(jnp.abs(leaf) > threshold)
+
+    large_weights_tree = eqx.filter(model, _large_weights)
+    large_weights_leaves_with_paths = jax.tree_util.tree_leaves_with_path(large_weights_tree)
+
     error_paths = []
-
-    # Filter to get only arrays (weights)
-    arrays = eqx.filter(model, eqx.is_array)
-    leaves_with_path = jax.tree_util.tree_leaves_with_path(arrays)
-
-    for path, leaf in leaves_with_path:
-        if jnp.any(jnp.abs(leaf) > threshold):
-            path_str = keypath_to_string(path)
-            max_val = jnp.max(jnp.abs(leaf))
-            loguru.logger.warning(f"Large weight in {path_str}: max |weight| = {max_val}")
-            error_paths.append(path_str)
+    for path, leaf in large_weights_leaves_with_paths:
+        path_str = keypath_to_string(path)
+        max_val = jnp.max(jnp.abs(leaf))
+        error_paths.append(path_str)
+        loguru.logger.warning(f"Large weight in {path_str}: max |weight| = {max_val}")
 
     return error_paths
 
@@ -49,17 +50,21 @@ def check_zero_variance_variables(data) -> list[str]:
     Returns:
         List of paths (as strings) to variables with zero variance.
     """
-    error_paths = []
-    leaves_with_path = jax.tree_util.tree_leaves_with_path(data)
 
-    for path, leaf in leaves_with_path:
+    def _zero_variance(leaf):
         if jnp.isscalar(leaf) or leaf.ndim == 0:
-            continue  # Skip scalars
-        var = jnp.var(leaf)
-        if var == 0:
-            path_str = keypath_to_string(path)
-            loguru.logger.warning(f"Zero variance in {path_str}")
-            error_paths.append(path_str)
+            return False  # Skip scalars
+        else:
+            return jnp.var(leaf) == 0
+
+    zero_variance_tree = eqx.filter(data, _zero_variance)
+    zero_variance_leaves_with_paths = jax.tree_util.tree_leaves_with_path(zero_variance_tree)
+
+    error_paths = []
+    for path, _ in zero_variance_leaves_with_paths:
+        path_str = keypath_to_string(path)
+        error_paths.append(path_str)
+        loguru.logger.warning(f"Zero variance in {path_str}")
 
     return error_paths
 
@@ -76,20 +81,25 @@ def check_large_values(data, threshold: Optional[float] = 1e3) -> list[str]:
     Returns:
         List of paths (as strings) to variables with large values.
     """
-    error_paths = []
-    leaves_with_path = jax.tree_util.tree_leaves_with_path(data)
 
-    for path, leaf in leaves_with_path:
+    def _large_values(leaf):
         if jnp.isscalar(leaf) or leaf.ndim == 0:
-            if jnp.abs(leaf) > threshold:
-                path_str = keypath_to_string(path)
-                loguru.logger.warning(f"Large value in {path_str}: {leaf}")
-                error_paths.append(path_str)
-        elif jnp.any(jnp.abs(leaf) > threshold):
-            path_str = keypath_to_string(path)
+            return jnp.abs(leaf) > threshold
+        else:
+            return jnp.any(jnp.abs(leaf) > threshold)
+
+    large_values_tree = eqx.filter(data, _large_values)
+    large_values_leaves_with_paths = jax.tree_util.tree_leaves_with_path(large_values_tree)
+
+    error_paths = []
+    for path, leaf in large_values_leaves_with_paths:
+        path_str = keypath_to_string(path)
+        error_paths.append(path_str)
+        if jnp.isscalar(leaf) or leaf.ndim == 0:
+            loguru.logger.warning(f"Large value in {path_str}: {leaf}")
+        else:
             max_val = jnp.max(jnp.abs(leaf))
             loguru.logger.warning(f"Large value in {path_str}: max |value| = {max_val}")
-            error_paths.append(path_str)
 
     return error_paths
 
