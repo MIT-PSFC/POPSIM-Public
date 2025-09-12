@@ -36,6 +36,7 @@ zarr = "^2.18.3"
 omas = "^0.94.1"
 ipdb = "^0.13.13"
 pydantic = "^2.11.5"
+fire = "^0.7.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
