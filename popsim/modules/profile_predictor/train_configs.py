@@ -1,8 +1,9 @@
 from popsim.modules.profile_predictor.module import ShapeType
+from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
 
 SPARC_CONFIG = {
     "project": "sparc_profile_predictor",
-    "train_run_builder_class_path": "popsim.modules.profile_predictor.training_run_builder.ProfilePredictorTrainRunBuilder",
+    "train_run_builder": ProfilePredictorTrainRunBuilder,
     "max_epochs": 500,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
