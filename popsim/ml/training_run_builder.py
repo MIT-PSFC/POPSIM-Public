@@ -11,8 +11,8 @@ from popsim.ml.dataloading import DataLoader
 from popsim.ml.eval import EvaluationSuite
 
 
-class TrainingSpec(ABC):
-    """Abstract base class for defining training specifications."""
+class TrainRunBuilder(ABC):
+    """Abstract base class for defining training run builders."""
 
     @staticmethod
     @abstractmethod

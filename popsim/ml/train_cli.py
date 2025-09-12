@@ -7,7 +7,7 @@ import loguru
 from popsim.ml import Trainer
 from popsim.ml.loggers import NullLogger, WandbLogger
 from popsim.ml.train_cli_config import TrainingConfigSchema, load_config_dict, load_training_config
-from popsim.ml.train_spec import TrainingSpec
+from popsim.ml.training_run_builder import TrainRunBuilder
 
 
 @click.group()
@@ -72,16 +72,16 @@ def _agent(sweep_id: str, training_config_schema: TrainingConfigSchema):
     wandb.agent(sweep_id, function=train_sweep, project=training_config_schema.project)
 
 
-def get_training_spec_class(train_spec_class_path: str) -> TrainingSpec:
-    """Get the training specification class from a string path."""
-    module_path, class_name = train_spec_class_path.rsplit(".", 1)
+def get_train_run_builder_class(train_run_builder_class_path: str) -> TrainRunBuilder:
+    """Get the training run builder class from a string path."""
+    module_path, class_name = train_run_builder_class_path.rsplit(".", 1)
     if not importlib.util.find_spec(module_path):
         raise ImportError(f"Module {module_path} not found. Please check the config path.")
     module = importlib.import_module(module_path)
-    train_spec_cls = getattr(module, class_name)
-    if not issubclass(train_spec_cls, TrainingSpec):
-        raise TypeError(f"{train_spec_cls} is not a subclass of TrainingSpec.")
-    return train_spec_cls
+    train_run_builder_cls = getattr(module, class_name)
+    if not issubclass(train_run_builder_cls, TrainRunBuilder):
+        raise TypeError(f"{train_run_builder_cls} is not a subclass of TrainRunBuilder.")
+    return train_run_builder_cls
 
 
 def run_train(
@@ -99,16 +99,16 @@ def run_train(
     else:
         logger = NullLogger()
 
-    train_spec = get_training_spec_class(training_config.training_spec_class_path)
+    train_run_builder = get_train_run_builder_class(training_config.train_run_builder_class_path)
     loguru.logger.info("Loading the dataset and creating dataloaders...")
-    ds, train_dl, val_dl, test_dl = train_spec.get_dataloaders(training_config.dataloader_config)
+    ds, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
     loguru.logger.info("Dataset and dataloaders created.")
     loguru.logger.info("Initializing the module...")
-    model = train_spec.model_init(train_dl, training_config.model_init_config)
+    model = train_run_builder.model_init(train_dl, training_config.model_init_config)
     loguru.logger.info("Initializing the loss function...")
-    loss_fn = train_spec.get_loss_fn(training_config.loss_config)
+    loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
     loguru.logger.info("Initializing the optimizer...")
-    opt = train_spec.get_optimizer(training_config.optimizer_config)
+    opt = train_run_builder.get_optimizer(training_config.optimizer_config)
     loguru.logger.info("Building the trainer...")
     trainer = Trainer(
         model=model,
@@ -125,7 +125,7 @@ def run_train(
         max_epochs=training_config.max_epochs,
         epochs_per_val=training_config.epochs_per_val,
         logger=logger or NullLogger(),
-        eval_suite=train_spec.get_val_eval_suite(training_config.val_eval_suite_config),
+        eval_suite=train_run_builder.get_val_eval_suite(training_config.val_eval_suite_config),
     )
     loguru.logger.info("Training completed.")
     return trainer, train_dl, val_dl, test_dl, test_results

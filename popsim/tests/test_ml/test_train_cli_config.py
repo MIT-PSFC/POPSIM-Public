@@ -5,7 +5,7 @@ import pytest
 
 VALID_INPUT_EXAMPLE = {
     "project": "test_project",
-    "training_spec_class_path": "foo",
+    "train_run_builder_class_path": "foo",
     "max_epochs": 10,
     "epochs_per_val": 2,
     "checkpoint_dir": None,

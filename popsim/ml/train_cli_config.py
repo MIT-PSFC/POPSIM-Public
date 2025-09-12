@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 class TrainingConfigSchema(BaseModel):
     project: str
-    training_spec_class_path: str
+    train_run_builder_class_path: str
     max_epochs: int
     epochs_per_val: int
     checkpoint_dir: Optional[str] = None

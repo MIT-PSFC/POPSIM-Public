@@ -6,13 +6,13 @@ import jax.numpy as jnp
 import optax
 import xarray as xr
 
-from popsim.ml import DataLoader, TrainingSpec, make_standard_dataloaders
+from popsim.ml import DataLoader, TrainRunBuilder, make_standard_dataloaders
 from popsim.modules.profile_predictor import evals
 from popsim.modules.profile_predictor.data import get_ds
 from popsim.modules.profile_predictor.module import ProfilePredictor, ShapeType, kmeans_initial_guess, pca_initial_guess
 
 
-class ProfilePredictorTrainSpec(TrainingSpec):
+class ProfilePredictorTrainRunBuilder(TrainRunBuilder):
     @staticmethod
     def get_dataloaders(config: dict) -> tuple[xr.Dataset, tuple[DataLoader, DataLoader, DataLoader]]:
         """

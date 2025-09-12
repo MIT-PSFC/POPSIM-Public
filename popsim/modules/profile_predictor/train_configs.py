@@ -1,11 +1,8 @@
-import os
-
-from popsim.modules.profile_predictor.evals import compute_integrated_error
 from popsim.modules.profile_predictor.module import ShapeType
 
 SPARC_CONFIG = {
     "project": "sparc_profile_predictor",
-    "training_spec_class_path": "popsim.modules.profile_predictor.train_spec.ProfilePredictorTrainSpec",
+    "train_run_builder_class_path": "popsim.modules.profile_predictor.training_run_builder.ProfilePredictorTrainRunBuilder",
     "max_epochs": 500,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
