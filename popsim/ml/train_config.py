@@ -6,31 +6,31 @@ from typing import Optional, Union
 import yaml
 from pydantic import BaseModel
 
-from popsim.ml.training_run_builder import TrainRunBuilder
+from popsim.ml.train_run_builder import TrainRunBuilder
 
 
-class TrainingConfig(BaseModel):
-    project: str
-    train_run_builder: Union[str, type[TrainRunBuilder]]
-    max_epochs: int
-    epochs_per_val: int
-    checkpoint_dir: Optional[str] = None
-    dataloader_config: dict
-    model_init_config: dict
-    loss_config: dict
-    optimizer_config: dict
-    trainable_getter_config: Optional[dict] = None
-    val_eval_suite_config: Optional[dict] = None
-    test_eval_suite_config: Optional[dict] = None
+class TrainConfig(BaseModel):
+    project: str  # The name of the project, primarily for logging purposes.
+    train_run_builder: Union[str, type[TrainRunBuilder]]  # A string path to the TrainRunBuilder class or the class itself.
+    max_epochs: int  # Maximum number of training epochs.
+    epochs_per_val: int  # Number of epochs between each validation.
+    checkpoint_dir: Optional[str] = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
+    dataloader_config: dict  # Configuration dictionary for building the dataloaders.
+    model_init_config: dict  # Configuration dictionary for initializing the model.
+    loss_config: dict  # Configuration dictionary used to initialize the loss function.
+    optimizer_config: dict  # Configuration dictionary used to initialize the optimizer.
+    trainable_getter_config: Optional[dict] = None  # Configuration dictionary used in the function that gets trainable parameters.
+    val_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the validation evaluation suite.
+    test_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the test evaluation suite.
 
     @classmethod
-    def load(cls, config_or_path: str | os.PathLike[str] | dict) -> "TrainingConfig":
+    def load(cls, config_or_path: str | os.PathLike[str] | dict) -> "TrainConfig":
         """Load a configuration from a yaml file, a Python module path, or directly from a dictionary.
 
         Example usages:
-            config: TrainingConfig = TrainingConfig.load("path/to/config.yaml")
-            config: TrainingConfig = TrainingConfig.load("popsim.modules.fun_module.TRAIN_CONFIG")
-            config: TrainingConfig = TrainingConfig.load({"project": "test", ...})
+            config: TrainConfig = TrainConfig.load("path/to/config.yaml")
+            config: TrainConfig = TrainConfig.load("popsim.modules.fun_module.TRAIN_CONFIG")
+            config: TrainConfig = TrainConfig.load({"project": "test", ...})
 
         Args:
             config_or_path (str | os.PathLike[str] | dict): Path to the configuration file or module, or the config dictionary itself.
@@ -41,7 +41,7 @@ class TrainingConfig(BaseModel):
             ValidationError: If the loaded configuration doesn't match the schema.
 
         Returns:
-            The loaded configuration as a TrainingConfig instance.
+            The loaded configuration as a TrainConfig instance.
         """
         config_or_path = load_dict(config_or_path)
         out = cls(**config_or_path)

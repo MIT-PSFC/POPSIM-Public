@@ -8,8 +8,8 @@ import loguru
 
 from popsim.ml import Trainer
 from popsim.ml.loggers import NullLogger, WandbLogger
-from popsim.ml.training_config import TrainingConfig, load_dict
-from popsim.ml.training_run_builder import TrainRunBuilder
+from popsim.ml.train_config import TrainConfig, load_dict
+from popsim.ml.train_run_builder import TrainRunBuilder
 
 
 def launch_train(config: str | os.PathLike[str] | dict, use_wandb: bool = False):
@@ -18,7 +18,7 @@ def launch_train(config: str | os.PathLike[str] | dict, use_wandb: bool = False)
     config_path (str): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
     use_wandb (bool): Whether to use Weights & Biases for logging. Defaults to False.
     """
-    training_config = TrainingConfig.load(config)
+    training_config = TrainConfig.load(config)
 
     _run_train(training_config, use_wandb=use_wandb)
 
@@ -32,7 +32,7 @@ def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: 
     """
     import wandb
 
-    training_config = TrainingConfig.load(config_path)
+    training_config = TrainConfig.load(config_path)
     sweep_config = load_dict(sweep_config_path)
     sweep_id = wandb.sweep(sweep_config, project=training_config.project)
     launch_agent(sweep_id, training_config)
@@ -42,7 +42,7 @@ def launch_agent(config_path: str | os.PathLike[str] | dict, sweep_id: str):
     """Launch a Weights & Biases agent as a part of a hyperparameter sweep."""
     import wandb
 
-    training_config = TrainingConfig.load(config_path)
+    training_config = TrainConfig.load(config_path)
 
     def _train_fn():
         return _run_train(training_config, use_wandb=True)
@@ -67,7 +67,7 @@ def _get_train_run_builder_class(train_run_builder: Union[str, type]) -> TrainRu
 
 
 def _run_train(
-    training_config: TrainingConfig,
+    training_config: TrainConfig,
     use_wandb: bool = False,
 ):
     if use_wandb:
@@ -77,7 +77,7 @@ def _run_train(
         run.config.update({"checkpoint_dir": run.dir}, allow_val_change=True)
         logger = WandbLogger(run)
         training_config = dict(run.config)
-        training_config = TrainingConfig(**training_config)
+        training_config = TrainConfig(**training_config)
     else:
         logger = NullLogger()
 
@@ -108,6 +108,8 @@ def _run_train(
         epochs_per_val=training_config.epochs_per_val,
         logger=logger or NullLogger(),
         eval_suite=train_run_builder.get_val_eval_suite(training_config.val_eval_suite_config),
+        test_dl=test_dl,
+        test_eval_suite=train_run_builder.get_test_eval_suite(training_config.test_eval_suite_config),
     )
     loguru.logger.info("Training completed.")
     return trainer, train_dl, val_dl, test_dl, test_results

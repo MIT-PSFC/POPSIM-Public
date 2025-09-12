@@ -4,8 +4,8 @@ from popsim.ml.dataloading import DataLoader, make_standard_dataloaders, make_ti
 from popsim.ml.eval import EvalData
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.split_utils import split_dataset_by_fracs
+from popsim.ml.train_run_builder import TrainRunBuilder
 from popsim.ml.trainer import Trainer
-from popsim.ml.training_run_builder import TrainRunBuilder
 
 DEFAULT_SAMPLE_DIM = "sample"
 

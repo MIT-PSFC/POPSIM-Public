@@ -52,11 +52,13 @@ def test_eval_and_loss(simple_model):
     assert batch_loss(trainable, static, loss_fn, simple_input, simple_target) == expected_loss
 
 def test_eval():
-    from popsim.modules.profile_predictor.train import get_training_objs
+    from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
     from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
 
-    trainer, train_dl, val_dl, _ = get_training_objs(SPARC_CONFIG)
-    model = trainer.train_state.model
+
+    _, train_dl, val_dl, _ = ProfilePredictorTrainRunBuilder.get_dataloaders(SPARC_CONFIG['dataloader_config'])
+    model = ProfilePredictorTrainRunBuilder.model_init(train_dl, SPARC_CONFIG['model_init_config'])
+    loss_fn = ProfilePredictorTrainRunBuilder.get_loss_fn(SPARC_CONFIG['loss_config'])
 
     # Test that we can evaluate the model on the training data.
     eval_data = eval_model_on_data(
@@ -68,7 +70,6 @@ def test_eval():
     assert eval_data.input_ds.sample.size == eval_data.output_ds.sample.size
 
     # Test that we can make a validation loss evaluation function and run it.
-    loss_fn = trainer.loss_fn
     val_loss_eval_fn = make_val_loss_eval_fn(loss_fn)
     val_loss = val_loss_eval_fn(eval_data)
 

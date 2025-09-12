@@ -1,6 +1,6 @@
 from popsim.modules.profile_predictor.module import ProfileShape
 from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG, TCV_CONFIG
-from popsim.modules.profile_predictor.train import train
+from popsim.ml.launch import launch_train
 from popsim.basis import BSplineBasis, InterpedLinearBasis
 import jax.numpy as jnp
 import pytest
@@ -37,4 +37,4 @@ def test_train():
     config["max_epochs"] = 10
     config["epochs_per_val"] = 5
     config["debug"] = True
-    train(config)
+    launch_train(config, use_wandb=False)
