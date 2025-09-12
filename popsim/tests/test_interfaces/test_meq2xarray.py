@@ -4,7 +4,6 @@ import os
 from popsim import DATA_DIR
 import xarray as xr
 import tempfile
-from click.testing import CliRunner
 
 
 @pytest.fixture
@@ -25,15 +24,8 @@ def test_loadmat(file_path):
 
 def test_mat_to_xr_cli(file_path):
     with tempfile.TemporaryDirectory() as temp_dir:
-        runner = CliRunner()
-        result = runner.invoke(mat_to_xr_cli, [
-            file_path,
-            temp_dir,
-            "db",
-        ])
+        mat_to_xr_cli(file_path, temp_dir, "db")
         
-        assert result.exit_code == 0, f"CLI failed with error: {result.output}"
-
         file_out = os.path.join(temp_dir, "TCV_meqdb_template.nc")
         dt = xr.open_datatree(file_out)
         assert isinstance(dt, xr.DataTree)

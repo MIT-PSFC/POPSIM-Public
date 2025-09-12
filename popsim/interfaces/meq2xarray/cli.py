@@ -2,25 +2,22 @@ import glob
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-import click
+import fire
 from tqdm import tqdm
 
 from popsim.interfaces.meq2xarray.meq2xarray import tcv_db_to_xr, tcv_fbt_to_xr
 
 
-@click.command()
-@click.argument("paths", type=click.STRING)
-@click.argument(
-    "output_dir",
-    type=click.Path(),
-)
-@click.argument(
-    "file_type",
-    type=click.STRING,
-)
-@click.option("--use-zarr", is_flag=True, help="Save files in Zarr format instead of NetCDF.")
-@click.option("--workers", default=1, type=int, help="Number of workers for parallel processing.")
-def mat_to_xr_cli(paths, output_dir, file_type, use_zarr, workers):
+def mat_to_xr_cli(paths: str, output_dir: str, file_type: str, use_zarr: bool = False, workers: int = 1):
+    """Convert .mat files to xarray format.
+
+    Args:
+        paths: Glob pattern or path to .mat files
+        output_dir: Output directory for converted files
+        file_type: Type of file ('db' or 'fbt')
+        use_zarr: Save files in Zarr format instead of NetCDF
+        workers: Number of workers for parallel processing
+    """
     if isinstance(paths, str):
         paths = glob.glob(paths)
 
@@ -63,4 +60,4 @@ def mat_to_xr_cli(paths, output_dir, file_type, use_zarr, workers):
 
 
 if __name__ == "__main__":
-    mat_to_xr_cli()
+    fire.Fire()
