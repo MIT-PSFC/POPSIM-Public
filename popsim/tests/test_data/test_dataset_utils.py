@@ -6,6 +6,7 @@ import numpy as np
 import tempfile
 import pytest
 import os
+import shutil
 
 
 def test_add_to_zarr_store():
@@ -24,7 +25,7 @@ def test_add_to_zarr_store():
             assert os.path.exists(zarr_path)
 
         # Open the zarr store and check its contents.
-        ds_store = xr.open_zarr(zarr_path).load()
+        ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
         expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
         assert ds_store["episode"].equals(expected_episodes)
         
@@ -60,7 +61,7 @@ def test_add_to_zarr_store_changing_spatial():
             assert os.path.exists(zarr_path)
 
         # Open the zarr store and check its contents.
-        ds_store = xr.open_zarr(zarr_path).load()
+        ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
         expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
         assert ds_store["episode"].equals(expected_episodes)
         
@@ -196,6 +197,31 @@ def test_build_tensorized_dataset():
             extend_existing=True
         )
         assert ds.sizes["shot"] == 4
+        
+        # Delete the zarr store and try with episodes_per_chunk instead of mb_per_chunk.
+        shutil.rmtree(zarr_path)
+        ds = build_tensorized_dataset(
+            process_fn=build_fn,
+            zarr_path=zarr_path,
+            identifiers=["test1", "test2", "test3"],
+            time_dim="time_idx",
+            episode_dim="shot",
+            episodes_per_chunk=2,
+            mb_per_chunk=None
+        )
+        assert ds.chunks["shot"] == (2, 1)
+        
+        # By default, mb_per_chunk is specified and we should get an error if the user tries to set both.
+        with pytest.raises(ValueError):
+            ds = build_tensorized_dataset(
+                process_fn=build_fn,
+                zarr_path=zarr_path,
+                identifiers=["test1", "test2", "test3"],
+                time_dim="time_idx",
+                episode_dim="shot",
+                episodes_per_chunk=2,
+                mb_per_chunk=10
+            )
 
 
 def test_build_tensorized_dataset_time_dim_equals_time_coord():

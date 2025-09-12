@@ -10,7 +10,8 @@ import xarray as xr
 import zarr
 from tqdm import tqdm
 
-GC_INTERVAL = 40 # Force garbage collection every 40 shots
+GC_INTERVAL = 40  # Force garbage collection every 40 shots
+
 
 def build_tensorized_dataset(
     process_fn: Callable[[Any], xr.Dataset],
@@ -64,12 +65,9 @@ def build_tensorized_dataset(
     store_time_dim_size = None  # Keep track of the size of the time dimension in the zarr store.
 
     # Iterate over the identifiers and process them one by one to build the dataset.
-    bytes_per_ds = []
-
     for i, it in enumerate(tqdm(identifiers, desc="Building the dataset...")):
         ds = get_and_preprocess(it)
         if ds is not None:
-            bytes_per_ds.append(ds.nbytes)
             success = add_to_zarr_store(ds, zarr_path, time_dim, episode_dim, store_time_dim_size=store_time_dim_size)
             if success and not store_time_dim_size:
                 store_time_dim_size = xr.open_zarr(zarr_path, consolidated=False).sizes[time_dim]
@@ -77,7 +75,7 @@ def build_tensorized_dataset(
                 store_time_dim_size = max(store_time_dim_size, ds.sizes[time_dim])
 
             atleast_one_success = True if success else atleast_one_success
-        
+
         del ds
         if (i > 0) and (i % GC_INTERVAL == 0):
             loguru.logger.debug(f"Forcing garbage collection after {i} processed shots")
@@ -85,31 +83,35 @@ def build_tensorized_dataset(
             jax.clear_caches()
             gc.collect()
 
-    if atleast_one_success:
-        if mb_per_chunk is not None:
-            loguru.logger.info(f"Successfully processed at least some of the files. Chunking and consolidating metadata for {zarr_path}.")
-            ds = xr.open_zarr(zarr_path, consolidated=False)
-
-            # Compute the number of episodes per chunk based on the average size of per-episode datasets.
-            n_episodes = ds.sizes[episode_dim]
-            mean_mb_per_episode = sum(bytes_per_ds) / len(bytes_per_ds) / (1024 * 1024)
-            episodes_per_chunk = min(max(1, int(mb_per_chunk / mean_mb_per_episode)), n_episodes)
-
-            # Chunk the dataset along the episode dimension.
-            ds = zarr_chunk(ds, chunk_spec={episode_dim: episodes_per_chunk})
-
-            # Save the chunked dataset to a temporary path and then rename it to the final zarr path.
-            tmp_path = zarr_path + ".tmp"
-            ds.to_zarr(tmp_path, mode="w", consolidated=True)
-            shutil.rmtree(zarr_path)  # Remove the old zarr store if it exists.
-            os.rename(tmp_path, zarr_path)
-        else:
-            loguru.logger.info(f"Successfully processed at least some of the files. Consolidating metadata for {zarr_path}.")
-            zarr.consolidate_metadata(zarr_path)
-        return xr.open_zarr(zarr_path, consolidated=True)
-    else:
+    # Exit if no datasets were successfully processed.
+    if not atleast_one_success:
         loguru.logger.warning(f"No successful datasets were processed. Returning an empty dataset for {zarr_path}.")
         return xr.Dataset()
+
+    # Now that the store has been built, we can consolidate the metadata and rechunk if necessary.
+    loguru.logger.info(f"Successfully processed at least some of the files. Chunking and consolidating metadata for {zarr_path}.")
+    ds = xr.open_zarr(zarr_path, consolidated=False)
+
+    if mb_per_chunk is not None:
+        # Compute the number of episodes per chunk based on the average size of per-episode datasets.
+        n_episodes = ds.sizes[episode_dim]
+        bytes_per_episode = ds.isel({episode_dim: 0}).nbytes
+        mean_mb_per_episode = bytes_per_episode / (1024 * 1024)
+        episodes_per_chunk = min(max(1, int(mb_per_chunk / mean_mb_per_episode)), n_episodes)
+
+    if episodes_per_chunk is not None:
+        loguru.logger.info(f"Chunking the dataset with {episodes_per_chunk} episodes per chunk.")
+        ds = zarr_chunk(ds, chunk_spec={episode_dim: episodes_per_chunk})
+
+        # Save the chunked dataset to a temporary path and then rename it to the final zarr path.
+        tmp_path = zarr_path + ".tmp"
+        ds.to_zarr(tmp_path, mode="w", consolidated=True)
+        shutil.rmtree(zarr_path)  # Remove the old zarr store if it exists.
+        os.rename(tmp_path, zarr_path)
+
+    loguru.logger.info(f"Successfully processed at least some of the files. Consolidating metadata for {zarr_path}.")
+    zarr.consolidate_metadata(zarr_path)
+    return xr.open_zarr(zarr_path, consolidated=True)
 
 
 def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> None:
