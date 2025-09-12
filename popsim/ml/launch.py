@@ -2,7 +2,6 @@ import importlib
 import importlib.util
 import inspect
 import os
-from typing import Union
 
 import loguru
 
@@ -15,7 +14,7 @@ from popsim.ml.train_run_builder import TrainRunBuilder
 def launch_train(config: str | os.PathLike[str] | dict, use_wandb: bool = False):
     """Launch a training run from a configuration dictionary.
 
-    config_path (str): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
+    config_path (str | os.PathLike[str] | dict): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
     use_wandb (bool): Whether to use Weights & Biases for logging. Defaults to False.
     """
     training_config = TrainConfig.load(config)
@@ -23,12 +22,12 @@ def launch_train(config: str | os.PathLike[str] | dict, use_wandb: bool = False)
     _run_train(training_config, use_wandb=use_wandb)
 
 
-def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: str):
+def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: str | os.PathLike[str] | dict):
     """Launch a hyperparameter sweep using Weights & Biases.
 
     Args:
-        config_path (str): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
-        sweep_config_path (str): "Path to a yaml file, toml file, or a python module path pointing to a sweep config dict (e.g. `popsim.modules.fun_module.SWEEP_CONFIG)"
+        config_path (str | os.PathLike[str] | dict): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
+        sweep_config_path (str | os.PathLike[str] | dict): "Path to a yaml file, toml file, or a python module path pointing to a sweep config dict (e.g. `popsim.modules.fun_module.SWEEP_CONFIG)"
     """
     import wandb
 
@@ -39,7 +38,13 @@ def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: 
 
 
 def launch_agent(config_path: str | os.PathLike[str] | dict, sweep_id: str):
-    """Launch a Weights & Biases agent as a part of a hyperparameter sweep."""
+    """Launch a Weights & Biases agent as a part of a hyperparameter sweep.
+
+    Args:
+        config_path (str | os.PathLike[str] | dict): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
+        sweep_id (str): The ID of the sweep to join.
+
+    """
     import wandb
 
     training_config = TrainConfig.load(config_path)
@@ -50,8 +55,8 @@ def launch_agent(config_path: str | os.PathLike[str] | dict, sweep_id: str):
     wandb.agent(sweep_id, function=_train_fn, project=training_config.project)
 
 
-def _get_train_run_builder_class(train_run_builder: Union[str, type]) -> TrainRunBuilder:
-    """Get the training run builder class from a string path."""
+def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
+    """Get the training run builder class from a string, path, or class."""
     if inspect.isclass(train_run_builder):
         if not issubclass(train_run_builder, TrainRunBuilder):
             raise TypeError(f"Expect {train_run_builder} to be a subclass of TrainRunBuilder.")
