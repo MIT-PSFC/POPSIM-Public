@@ -238,7 +238,7 @@ class ProfilePredictor(eqx.Module):
     ne_shapes: list[ProfileShape]
 
     nn: RtdMLP
-    rhogrid: Array = eqx.field(static=True)  # The rho grid on which the profiles are evaluated
+    rhogrid: tuple = eqx.field(static=True)  # The rho grid on which the profiles are evaluated
     shape_type: ShapeType = eqx.field(static=True)
     softmax_temp: float = eqx.field(static=True, default=1.0)
     use_ne_edge: bool = eqx.field(static=True, default=False)
@@ -252,7 +252,7 @@ class ProfilePredictor(eqx.Module):
         softmax_temp: float,
         shape_type: ShapeType,
         use_ne_edge: bool,
-        rhogrid: Array,
+        rhogrid: tuple,
         key: jax.random.PRNGKey,
     ):
         self.te_shapes = te_shapes
@@ -285,7 +285,7 @@ class ProfilePredictor(eqx.Module):
                 Paux=inputs["Paux_MW"].data,
                 ne20_line_avg=inputs["ne20_line_avg"].data,
                 Wtot_MJ=inputs["Wtot_MJ"].data,
-                rho=self.rhogrid,
+                rho=jnp.array(self.rhogrid),
                 ne_edge=inputs["ne20_edge"].data if "ne20_edge" in inputs else None,
             )
 
@@ -328,8 +328,8 @@ class ProfilePredictor(eqx.Module):
             debug_info = None
 
         out = Outputs(
-            ne=xr.DataArray(data=ne, dims=("rho",), coords={"rho": ("rho", inputs.rho)}),
-            te=xr.DataArray(data=te, dims=("rho",), coords={"rho": ("rho", inputs.rho)}),
+            ne=xr.DataArray(data=ne, dims=("rho",), coords={"rho": list(self.rhogrid)}),
+            te=xr.DataArray(data=te, dims=("rho",), coords={"rho": list(self.rhogrid)}),
             debug_info=debug_info,
         )
 
@@ -347,8 +347,10 @@ class ProfilePredictor(eqx.Module):
         use_ne_edge: bool,
         prng_seed: int,
     ) -> "ProfilePredictor":
-        te_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid), grid=rhogrid, normalize=False) for _ in range(n_shapes)]
-        ne_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid), grid=rhogrid, normalize=False) for _ in range(n_shapes)]
+        rhogrid_jax = jnp.array(rhogrid)
+        rhogrid_tuple = tuple(rhogrid.tolist())
+        te_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)]
+        ne_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)]
         return cls(
             te_shapes=te_shapes,
             ne_shapes=ne_shapes,
@@ -357,6 +359,6 @@ class ProfilePredictor(eqx.Module):
             softmax_temp=softmax_temp,
             shape_type=shape_type,
             use_ne_edge=use_ne_edge,
-            rhogrid=rhogrid,
+            rhogrid=rhogrid_tuple,
             key=jax.random.PRNGKey(prng_seed),
         )
