@@ -23,6 +23,14 @@ class TrainConfig(BaseModel):
     val_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the test evaluation suite.
 
+    class Config:
+        frozen = True  # Make the model immutable after creation.
+
+    def model_copy(self, *, update=None, deep=True, **kwargs):
+        if not deep:
+            raise Warning("Shallow copy of TrainConfig instances are forbidden to prevent side effects from mutable fields.")
+        return super().model_copy(update=update, deep=True, **kwargs)
+
     @classmethod
     def load(cls, config_or_path: str | os.PathLike[str] | dict) -> "TrainConfig":
         """Load a configuration from a yaml file, a Python module path, or directly from a dictionary.

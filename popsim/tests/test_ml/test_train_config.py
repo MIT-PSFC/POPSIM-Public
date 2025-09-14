@@ -2,6 +2,7 @@ from popsim.ml.train_config import TrainConfig, TrainConfig
 import tempfile
 import yaml
 import pytest
+from pydantic import ValidationError
 
 VALID_INPUT_EXAMPLE = {
     "project": "test_project",
@@ -55,3 +56,18 @@ def test_invalid_input():
 
     with pytest.raises(ValueError):
         TrainConfig.load(__name__ + ".INVALID_INPUT_EXAMPLE")
+
+def test_isolated_configs():
+    config_a = TrainConfig.load(VALID_INPUT_EXAMPLE)
+
+    with pytest.raises(ValidationError):
+        config_a.project = "modified_project"
+
+    config_b = config_a.model_copy()
+    assert config_a == config_b
+
+    config_a.dataloader_config.update({"new_key": "new_value"})
+    assert config_b.dataloader_config.get("new_key") is None
+
+    with pytest.raises(Warning):
+        config_a.model_copy(deep=False)
