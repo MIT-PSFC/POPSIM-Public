@@ -13,7 +13,7 @@ from tqdm import tqdm
 GC_INTERVAL = 40  # Force garbage collection every 40 shots
 
 
-def build_tensorized_dataset(
+def build_tensorized_dataset(  # noqa: PLR0912
     process_fn: Callable[[Any], xr.Dataset],
     identifiers: Iterable[Any],
     zarr_path: os.PathLike,
@@ -86,7 +86,10 @@ def build_tensorized_dataset(
     # Exit if no datasets were successfully processed.
     if not atleast_one_success:
         loguru.logger.warning(f"No successful datasets were processed. Returning an empty dataset for {zarr_path}.")
-        return xr.Dataset()
+        if extend_existing:
+            return xr.open_zarr(zarr_path, consolidated=None)  # Allow for both consolidated and non-consolidated zarr stores.
+        else:
+            return xr.Dataset()
 
     # Now that the store has been built, we can consolidate the metadata and rechunk if necessary.
     loguru.logger.info(f"Successfully processed at least some of the files. Chunking and consolidating metadata for {zarr_path}.")
