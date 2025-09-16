@@ -1,76 +1,88 @@
-[tool.poetry]
+[project]
 name = "popsim"
 version = "0.1.0"
 description = ""
-authors = ["Allen Wang <allenw@mit.edu>"]
+authors = [{ name = "Allen Wang", email = "allenw@mit.edu" }]
+requires-python = ">=3.11,<3.14"
 readme = "README.md"
-packages = [{include = "popsim"}]
+dependencies = [
+    "diffrax>=0.6.0,<0.7",
+    "equinox>=0.13.0,<0.14",
+    "jax>=0.7.0,<0.8",
+    "interpax>=0.3.4,<0.4",
+    "optimistix>=0.0.7,<0.0.8",
+    "chex>=0.1.84,<0.2",
+    "hvplot>=0.9.2,<0.10",
+    "panel==1.3.8",
+    "jupyter-bokeh>=4.0.1,<5",
+    "scipy>=1.13.0,<2",
+    "loguru>=0.7.2,<0.8",
+    "optax>=0.2.3,<0.3",
+    "orbax-checkpoint>=0.5.22,<0.6",
+    "xbatcher>=0.3.0,<0.4",
+    "flox>=0.9.9,<0.10",
+    "bottleneck>=1.4.0,<2",
+    "plotly>=5.24.1,<6",
+    "tabulate>=0.9.0,<0.10",
+    "xarray_jax",
+    "cfspopcon>=7.0.2,<8",
+    "certifi>=2024.8.30,<2025",
+    "torax",
+    "xeofs>=3.0.4,<4",
+    "zarr>=2.18.3,<3",
+    "omas>=0.94.1,<0.95",
+    "ipdb>=0.13.13,<0.14",
+    "pydantic>=2.11.5,<3",
+    "fire>=0.7.1,<0.8",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.12"
-diffrax = "^0.6.0"
-equinox = "^0.11.7"
-jax = "0.4.33"
-interpax = "^0.3.4"
-xarray = "^2024.10.0"
-optimistix = "^0.0.7"
-chex = "^0.1.84"
-hvplot = "^0.9.2"
-panel = "1.3.8"
-jupyter-bokeh = "^4.0.1"
-scipy = "^1.13.0"
-loguru = "^0.7.2"
-optax = "^0.2.3"
-orbax-checkpoint = "^0.5.22"
-xbatcher = "^0.3.0"
-flox = "^0.9.9"
-bottleneck = "^1.4.0"
-plotly = "^5.24.1"
-tabulate = "^0.9.0"
-xarray_jax = "0.0.5"
-cfspopcon = "^7.0.2"
-certifi = "^2024.8.30"
-torax = {git = "https://github.com/google-deepmind/torax.git"}
-xeofs = "^3.0.4"
-zarr = "^2.18.3"
-omas = "^0.94.1"
-ipdb = "^0.13.13"
-pydantic = "^2.11.5"
-fire = "^0.7.1"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.3"
-ruff = "^0.1.5"
-pre-commit = "^3.5.0"
-jupyter = "^1.0.0"
-pytest-cov = "^4.1.0"
-nbmake = "^1.4.6"
-pytest-xdist = "^3.6.1"
-mkdocs = "^1.6.0"
-pymdown-extensions = "^10.9"
-mkdocstrings = "^0.26.2"
-mknotebooks = "^0.8.0"
-mkdocs-material = "^9.5.30"
-mkdocs-include-exclude-files = "^0.0.1"
-black = "^24.8.0"
-mkdocstrings-python = "^1.12.1"
-
-[tool.poetry.group.gpu]
-optional = true
-
-[tool.poetry.group.gpu.dependencies]
-jax = {version = "0.4.33", extras=["cuda12"]}
-
-[tool.poetry.scripts]
+[project.scripts]
 setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
 
-[[tool.poetry.source]]
+[dependency-groups]
+dev = [
+    "pytest>=7.4.3,<8",
+    "ruff>=0.1.5,<0.2",
+    "pre-commit>=3.5.0,<4",
+    "jupyter>=1.0.0,<2",
+    "pytest-cov>=4.1.0,<5",
+    "nbmake>=1.4.6,<2",
+    "pytest-xdist>=3.6.1,<4",
+    "mkdocs>=1.6.0,<2",
+    "pymdown-extensions~=10.9",
+    "mkdocstrings>=0.26.2,<0.27",
+    "mknotebooks>=0.8.0,<0.9",
+    "mkdocs-material>=9.5.30,<10",
+    "mkdocs-include-exclude-files>=0.0.1,<0.0.2",
+    "black>=24.8.0,<25",
+    "mkdocstrings-python>=1.12.1,<2",
+]
+gpu = ["jax[cuda12]>=0.7.0,<0.8"]
+
+[tool.uv]
+default-groups = [
+    "dev",
+    "gpu",
+]
+
+[[tool.uv.index]]
 name = "PyPI"
-priority = "primary"
+url = "https://pypi.org/simple/"
+default = true
+
+[tool.uv.sources]
+xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", branch = "main" }
+torax = { git = "https://github.com/google-deepmind/torax.git" }
+
+[tool.hatch.build.targets.sdist]
+include = ["popsim"]
+
+[tool.hatch.build.targets.wheel]
+include = ["popsim"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 fix = true

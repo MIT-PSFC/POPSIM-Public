@@ -1,12 +1,10 @@
 name: Pytest
 
 on:
-  pull_request: []
+  pull_request: null
   push:
     branches:
       - "main"
-  workflow_dispatch:
-    tag: "Manual run"
 
 env:
   JAX_PLATFORMS: cpu
@@ -16,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.11", "3.12", "3.13"]
         os:
           [
             "runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}",
