@@ -8,7 +8,6 @@ import pytest
 import os
 import shutil
 
-
 def test_add_to_zarr_store():
     dummy_generator = dummy.generate_simple_scalar_dataset(3)
     
@@ -44,6 +43,7 @@ def test_add_to_zarr_store():
                                         dims=["episode", "time_idx"],
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["time"].equals(expected_time)
+
 
 def test_add_to_zarr_store_changing_spatial():
     dummy_generator = dummy.generate_dataset_with_changing_spatial_var(3)
@@ -96,6 +96,7 @@ def test_add_to_zarr_store_changing_spatial():
                                         dims=["episode", "space_idx"],
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["space"].equals(expected_space)
+
 
 def test_add_to_zarr_store_mismatch_dims():
     """Test trying to add a dataset with different dimensions to the zarr store raises an error"""
@@ -264,6 +265,7 @@ def test_build_tensorized_dataset_time_dim_equals_time_coord():
 def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
     """Test build_tensorized_dataset with the TCV FBT dataset."""
     ds = tcv_fbt_test_dataset
+    np.random.seed(42)
     
     def build_fn(identifier: str) -> xr.Dataset:
         # Randomly select time dimension length
@@ -278,7 +280,7 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
         zarr_path = f"{tmpdir}/tcv_test_zarr_store.zarr"
         
         # Use mock identifiers for testing
-        identifiers = [100000, 100001, 100002]
+        identifiers = [100000, 100001]
         
         # Build the tensorized dataset
         result_ds = build_tensorized_dataset(
@@ -296,7 +298,7 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
         result_ds = result_ds.load()
         
         # Now try appending more data
-        new_identifiers = [100003, 100004]
+        new_identifiers = [100002, 100003, 100004, 100005, 100006]
         result_ds2 = build_tensorized_dataset(
             process_fn=build_fn,
             zarr_path=zarr_path,
@@ -308,4 +310,10 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
         # Check that the new result has the right size.
         assert result_ds2.sizes["shot"] == len(identifiers) + len(new_identifiers)
         # Check that the new result first shot matches the old result.
-        assert result_ds2.isel(shot=0).load().equals(result_ds.isel(shot=0))
+        
+        
+        ds_shot = result_ds.sel(shot=100000)
+        
+        # ds2_shot may be larger because of padding in the time_idx dimension.
+        ds2_shot = result_ds2.load().sel(shot=100000).isel(time_idx=slice(0, ds_shot.sizes["time_idx"]))
+        assert ds_shot.equals(ds2_shot)
