@@ -3097,6 +3097,7 @@ dependencies = [
     { name = "equinox" },
     { name = "fire" },
     { name = "flox" },
+    { name = "h5netcdf" },
     { name = "hvplot" },
     { name = "interpax" },
     { name = "ipdb" },
@@ -3115,6 +3116,7 @@ dependencies = [
     { name = "xarray-jax" },
     { name = "xbatcher" },
     { name = "xeofs" },
+    { name = "xxhash" },
     { name = "zarr" },
 ]
 
@@ -3150,6 +3152,7 @@ requires-dist = [
     { name = "equinox", specifier = ">=0.13.0,<0.14" },
     { name = "fire", specifier = ">=0.7.1,<0.8" },
     { name = "flox", specifier = ">=0.9.9,<0.10" },
+    { name = "h5netcdf", specifier = ">=1.6.4" },
     { name = "hvplot", specifier = ">=0.9.2,<0.10" },
     { name = "interpax", specifier = ">=0.3.4,<0.4" },
     { name = "ipdb", specifier = ">=0.13.13,<0.14" },
@@ -3168,6 +3171,7 @@ requires-dist = [
     { name = "xarray-jax", git = "https://github.com/allen-adastra/xarray_jax.git?branch=main" },
     { name = "xbatcher", specifier = ">=0.3.0,<0.4" },
     { name = "xeofs", specifier = ">=3.0.4,<4" },
+    { name = "xxhash", specifier = ">=3.5.0" },
     { name = "zarr", specifier = ">=2.18.3,<3" },
 ]
 
@@ -4178,7 +4182,7 @@ wheels = [
 [[package]]
 name = "torax"
 version = "1.1.0"
-source = { git = "https://github.com/google-deepmind/torax.git#e7855a44ddf74862d505503433e104df373b0d2a" }
+source = { git = "https://github.com/google-deepmind/torax.git#a4dbe317867c86db4ed660fea2e178e35c7e3078" }
 dependencies = [
     { name = "absl-py" },
     { name = "chex" },

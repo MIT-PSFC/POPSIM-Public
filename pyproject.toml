@@ -33,6 +33,8 @@ dependencies = [
     "ipdb>=0.13.13,<0.14",
     "pydantic>=2.11.5,<3",
     "fire>=0.7.1,<0.8",
+    "xxhash>=3.5.0",
+    "h5netcdf>=1.6.4",
 ]
 
 [project.scripts]
@@ -113,10 +115,10 @@ lint.ignore = [
   "PLC0415", # It is helpful to do function level imports for optional deps.
 ]
 
-extend-exclude = ["submodules", "tests"]
-
 lint.pyupgrade.keep-runtime-typing=true
 lint.pydocstyle.convention = "google"
+
+extend-exclude = ["submodules", "tests"]
 target-version = "py311"
 line-length = 140
 
