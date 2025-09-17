@@ -236,28 +236,6 @@ def test_add_remove_nonexistent_dim():
 
     chex.assert_trees_all_equal(tree, modified_tree)
 
-def test_pytree_to_xarray_torax():
-    # Check that we can convert a filtered Torax config dictionary to an xarray Dataset.
-    from popsim.interfaces.torax import get_sparc_lmode_base_config
-
-    config = get_sparc_lmode_base_config()
-
-    config = eqx.filter(config, eqx.is_array_like)
-    ds = pytree_to_xarray(config)
-    assert isinstance(ds, xr.Dataset)
-
-    # Now try building an array of config dictionaries and building a dataset for two simulations.
-    configs = [config, config]
-    config_vec = tree_transpose(configs)
-    ds = pytree_to_xarray(config_vec, base_dims=["simulation"], base_coords={"simulation": xr.DataArray([0, 1], dims=["simulation"])})
-
-    assert ds.sizes["simulation"] == 2
-    assert isinstance(ds, xr.Dataset)
-    assert (ds["simulation"].values == np.array([0, 1])).all()
-
-
-
-
 @pytest.mark.parametrize("zero", [True, False])
 def test_scramble_xr_da(zero):
     #

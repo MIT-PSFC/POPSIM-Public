@@ -26,7 +26,6 @@ dependencies = [
     "xarray_jax",
     "cfspopcon>=7.0.2,<8",
     "certifi>=2024.8.30,<2025",
-    "torax",
     "xeofs>=3.0.4,<4",
     "zarr>=2.18.3,<3",
     "omas>=0.94.1,<0.95",
@@ -69,7 +68,6 @@ default = true
 
 [tool.uv.sources]
 xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", branch = "main" }
-torax = { git = "https://github.com/google-deepmind/torax.git" }
 
 [tool.hatch.build.targets.sdist]
 include = ["popsim"]
