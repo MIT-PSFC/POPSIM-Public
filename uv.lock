@@ -3027,6 +3027,7 @@ dev = [
     { name = "pymdown-extensions" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-repeat" },
     { name = "pytest-xdist" },
     { name = "ruff" },
 ]
@@ -3059,7 +3060,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5,<3" },
     { name = "scipy", specifier = ">=1.13.0,<2" },
     { name = "tabulate", specifier = ">=0.9.0,<0.10" },
-    { name = "xarray-jax", git = "https://github.com/allen-adastra/xarray_jax.git?branch=main" },
+    { name = "xarray-jax", git = "https://github.com/allen-adastra/xarray_jax.git?tag=v0.0.8" },
     { name = "xbatcher", specifier = ">=0.3.0,<0.4" },
     { name = "xeofs", specifier = ">=3.0.4,<4" },
     { name = "xxhash", specifier = ">=3.5.0" },
@@ -3081,6 +3082,7 @@ dev = [
     { name = "pymdown-extensions", specifier = "~=10.9" },
     { name = "pytest", specifier = ">=7.4.3,<8" },
     { name = "pytest-cov", specifier = ">=4.1.0,<5" },
+    { name = "pytest-repeat", specifier = ">=0.9.4" },
     { name = "pytest-xdist", specifier = ">=3.6.1,<4" },
     { name = "ruff", specifier = ">=0.1.5,<0.2" },
 ]
@@ -3316,6 +3318,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7a/15/da3df99fd551507694a9b01f512a2f6cf1254f33601605843c3775f39460/pytest-cov-4.1.0.tar.gz", hash = "sha256:3904b13dfbfec47f003b8e77fd5b589cd11904a21ddf1ab38a64f204d6a10ef6", size = 63245, upload-time = "2023-05-24T18:44:56.845Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/4b/8b78d126e275efa2379b1c2e09dc52cf70df16fc3b90613ef82531499d73/pytest_cov-4.1.0-py3-none-any.whl", hash = "sha256:6ba70b9e97e69fcc3fb45bfeab2d0a138fb65c4d0d6a41ef33983ad114be8c3a", size = 21949, upload-time = "2023-05-24T18:44:54.079Z" },
+]
+
+[[package]]
+name = "pytest-repeat"
+version = "0.9.4"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/d4/69e9dbb9b8266df0b157c72be32083403c412990af15c7c15f7a3fd1b142/pytest_repeat-0.9.4.tar.gz", hash = "sha256:d92ac14dfaa6ffcfe6917e5d16f0c9bc82380c135b03c2a5f412d2637f224485", size = 6488, upload-time = "2025-04-07T14:59:53.077Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/d4/8b706b81b07b43081bd68a2c0359fe895b74bf664b20aca8005d2bb3be71/pytest_repeat-0.9.4-py3-none-any.whl", hash = "sha256:c1738b4e412a6f3b3b9e0b8b29fcd7a423e50f87381ad9307ef6f5a8601139f3", size = 4180, upload-time = "2025-04-07T14:59:51.492Z" },
 ]
 
 [[package]]
@@ -4318,8 +4332,8 @@ wheels = [
 
 [[package]]
 name = "xarray-jax"
-version = "0.0.7"
-source = { git = "https://github.com/allen-adastra/xarray_jax.git?branch=main#98c56015c1e3ee200350c8c60a4047e5fd4eeb8d" }
+version = "0.0.8"
+source = { git = "https://github.com/allen-adastra/xarray_jax.git?tag=v0.0.8#c14bc33e50faab487974e215f3dd163a5ea9042e" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },

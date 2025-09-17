@@ -309,11 +309,9 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
         )
         # Check that the new result has the right size.
         assert result_ds2.sizes["shot"] == len(identifiers) + len(new_identifiers)
-        # Check that the new result first shot matches the old result.
         
-        
-        ds_shot = result_ds.sel(shot=100000)
-        
+        # Perform a check that the data in result_ds for the same shot is the same as the data in result_ds2.
         # ds2_shot may be larger because of padding in the time_idx dimension.
+        ds_shot = result_ds.sel(shot=100000)
         ds2_shot = result_ds2.load().sel(shot=100000).isel(time_idx=slice(0, ds_shot.sizes["time_idx"]))
         assert ds_shot.equals(ds2_shot)
