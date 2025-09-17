@@ -1,4 +1,5 @@
 """Routines to calculate the upstream (unmitigated) parallel heat flux density."""
+
 from cfspopcon.unit_handling import Unitfull
 from numpy import pi
 

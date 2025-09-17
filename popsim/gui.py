@@ -1,5 +1,3 @@
-import typing
-
 import holoviews as hv
 import hvplot.xarray  # noqa: F401
 import panel as pn
@@ -16,8 +14,8 @@ class PopsimGUI(param.Parameterized):
         self,
         ds,
         time_dim: str,
-        rho_dim: typing.Optional[str] = None,
-        simulation_dim: typing.Optional[str] = None,
+        rho_dim: str | None = None,
+        simulation_dim: str | None = None,
         max_sims_for_legend: int = 5,
         search_option_limit: int = 10,
         **inputs,

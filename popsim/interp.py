@@ -17,7 +17,7 @@ class InterpType(IntEnum):
 
 def interp(
     times: Array, tree: PyTree[Array], interp_type: InterpType = InterpType.LINEAR
-) -> typing.Union[diffrax.LinearInterpolation, diffrax.CubicInterpolation]:
+) -> diffrax.LinearInterpolation | diffrax.CubicInterpolation:
     """Thin wrapper around diffrax.LinearInterpolation and diffrax.CubicInterpolation.
 
     Args:
@@ -45,7 +45,7 @@ def interp(
 
 def interp_time_dic(
     dic_trees: dict[float, PyTree[ArrayLike]], interp_type: InterpType
-) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
+) -> PyTree[diffrax.LinearInterpolation] | PyTree[diffrax.CubicInterpolation]:
     """Given a dictionary where keys are times and values are trees, interpolate the trees at the times.
 
     Args:
@@ -66,7 +66,7 @@ def interp_time_dic(
 
 def interp_tree_seq(
     times: Array, trees: typing.Sequence[PyTree[ArrayLike]], interp_type: InterpType
-) -> typing.Union[PyTree[diffrax.LinearInterpolation], PyTree[diffrax.CubicInterpolation]]:
+) -> PyTree[diffrax.LinearInterpolation] | PyTree[diffrax.CubicInterpolation]:
     """Given a sequence of times and a list of trees, interpolate the trees at the times.
 
     Args:
@@ -88,7 +88,7 @@ def interp_tree_seq(
     return jax.tree.map(interp_f, trees_transposed)
 
 
-def resolve_paths(tree: PyTree[typing.Union[ArrayLike, diffrax.AbstractPath]], t0: float, *args) -> PyTree[ArrayLike]:
+def resolve_paths(tree: PyTree[ArrayLike | diffrax.AbstractPath], t0: float, *args) -> PyTree[ArrayLike]:
     """Resolve any AbstractPath objects in a PyTree to their values at time t0.
 
     Args:

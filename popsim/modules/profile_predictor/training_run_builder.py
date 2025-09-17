@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import equinox as eqx
 import jax
@@ -101,7 +102,7 @@ class ProfilePredictorTrainRunBuilder(TrainRunBuilder):
         return opt
 
     @staticmethod
-    def get_trainable_getter(config: dict) -> Optional[Callable[[Any], Any]]:
+    def get_trainable_getter(config: dict) -> Callable[[Any], Any] | None:
         """Optionally return a function that takes in the trainable parameters of your model and returns the trainable parameters."""
         freeze_shapes = config["freeze_shapes"]
 

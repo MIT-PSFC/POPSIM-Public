@@ -1,7 +1,6 @@
 import dataclasses
 import json
 from enum import IntEnum
-from typing import Optional
 
 import chex
 import jax.numpy as jnp
@@ -84,7 +83,7 @@ def find_nearest(array, value):
 
 
 def generate_disruption_phase_trajectory(
-    trigger_time: float, tq_to_cq_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
+    trigger_time: float, tq_to_cq_dur: float, time_base: np.ndarray, dt: float | None = 1e-4 / 3
 ) -> dict[float, DisruptionPhase]:
     # TODO(allenw): we want a rectilinear interpolation scheme.
     disrupt_phase_dict = {
@@ -101,7 +100,7 @@ def generate_disruption_phase_trajectory(
 
 
 def generate_tearing_phase_trajectory(
-    trigger_time: float, rot_dur: float, locking_dur: float, time_base: np.ndarray, dt: Optional[float] = 1e-4 / 3
+    trigger_time: float, rot_dur: float, locking_dur: float, time_base: np.ndarray, dt: float | None = 1e-4 / 3
 ):
     # TODO(allenw): we want a rectilinear interpolation scheme.
     rot_phase_dict = {
@@ -286,7 +285,7 @@ class Tearing(TimeDepModule):
         )
 
         tearing_initial_state = Tearing.State(
-            W={mode: 0.0 for mode in modes}, F={mode: 0.0 for mode in modes}, mode_phase={mode: 0.0 for mode in modes}
+            W=dict.fromkeys(modes, 0.0), F=dict.fromkeys(modes, 0.0), mode_phase=dict.fromkeys(modes, 0.0)
         )
 
         dt = 1e-4 / 3  # s
@@ -388,8 +387,7 @@ def load_active_circuit_overlaps(
 
             overlaps_single[coil_name] = overlaps_single.get(coil_name, 0) + source_overlap
 
-        for key, value in overlaps_single.items():
-            overlaps[key] = value
+        overlaps.update(dict(overlaps_single.items()))
 
     return overlaps
 
@@ -541,9 +539,9 @@ class ErrorFieldLocking(TimeDepModule):
     @chex.dataclass
     class State:
         tearing_phase: TearingPhase = discrete_time_field()
-        W: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
-        F: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
-        mode_phase: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: {mode: 0.0 for mode in [(2, 1)]})
+        W: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: dict.fromkeys([(2, 1)], 0.0))
+        F: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: dict.fromkeys([(2, 1)], 0.0))
+        mode_phase: dict[tuple[int, int], float] = dataclasses.field(default_factory=lambda: dict.fromkeys([(2, 1)], 0.0))
 
     @chex.dataclass
     class Inputs:
@@ -551,7 +549,9 @@ class ErrorFieldLocking(TimeDepModule):
         scaling_law_inputs: dict[str, float]  # Values for each parameter in the scaling law
         active_circuit_currents: dict[str, float]  # Current in active circuits [A]
         active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source [delta per A]
-        rational_surface_exists: int  # Placeholder. Must have some term (be it q90 or something) that indicates the existence of a rational surface
+        rational_surface_exists: (
+            int  # Placeholder. Must have some term (be it q90 or something) that indicates the existence of a rational surface
+        )
         cur_per_W: float = 1e3 / 1e-2  # Perturbed current per island width [A/m] TODO(ZanderKeith) a guess for now
 
     @chex.dataclass
@@ -588,9 +588,9 @@ class ErrorFieldLocking(TimeDepModule):
         for mode in self.config.modes:
             state.W[mode] = jnp.where(new_tearing_phase == TearingPhase.LOCKED, 1e-2, 0)
 
-        Wdot = {mode: 0.0 for mode in self.config.modes}
-        Fdot = {mode: 0.0 for mode in self.config.modes}
-        mode_phase_dot = {mode: 0.0 for mode in self.config.modes}
+        Wdot = dict.fromkeys(self.config.modes, 0.0)
+        Fdot = dict.fromkeys(self.config.modes, 0.0)
+        mode_phase_dot = dict.fromkeys(self.config.modes, 0.0)
 
         state_dot = ErrorFieldLocking.State(W=Wdot, F=Fdot, mode_phase=mode_phase_dot, tearing_phase=new_tearing_phase)
 

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import jax.numpy as jnp
 import optax
@@ -52,6 +53,6 @@ class TrainRunBuilder(ABC):
         return None
 
     @staticmethod
-    def get_trainable_getter(config: dict) -> Optional[Callable[[TrainableModel], PyTree]]:
+    def get_trainable_getter(config: dict) -> Callable[[TrainableModel], PyTree] | None:
         """Optionally return a function that takes in the trainable parameters of your model and returns the trainable parameters."""
         return None

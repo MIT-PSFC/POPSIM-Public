@@ -23,62 +23,58 @@ prompt_user() {
     echo "$user_input"
 }
 
-# Check if Poetry is installed and its version. Install if not present or update if version is less than the minimum required version.
-echo "Checking for Poetry installation..."
-if command -v poetry >/dev/null 2>&1; then
-    POETRY_VERSION=$(poetry --version | awk '{print $3}')
-    MINIMUM_VERSION="1.6.1"
-    if [ "$(printf '%s\n' "$MINIMUM_VERSION" "$POETRY_VERSION" | sort -V | head -n1)" != "$MINIMUM_VERSION" ]; then 
-        echo "Poetry version $POETRY_VERSION is less than the minimum required version $MINIMUM_VERSION."
-        NEED_POETRY_INSTALL=y
+# Check if uv is installed and its version. Install if not present or update if version is less than the minimum required version.
+echo "Checking for uv installation..."
+if command -v uv >/dev/null 2>&1; then
+    UV_VERSION=$(uv --version | awk '{print $2}')
+    MINIMUM_VERSION="0.4.0"
+    if [ "$(printf '%s\n' "$MINIMUM_VERSION" "$UV_VERSION" | sort -V | head -n1)" != "$MINIMUM_VERSION" ]; then
+        echo "uv version $UV_VERSION is less than the minimum required version $MINIMUM_VERSION."
+        NEED_UV_INSTALL=y
     else
-        echo "Poetry version $POETRY_VERSION meets the requirement."
-        NEED_POETRY_INSTALL=n
+        echo "uv version $UV_VERSION meets the requirement."
+        NEED_UV_INSTALL=n
     fi
 else
-    echo "Poetry is not installed. Need to install Poetry."
-    NEED_POETRY_INSTALL=y
+    echo "uv is not installed. Need to install uv."
+    NEED_UV_INSTALL=y
 fi
 
-# Prompt the user to install Poetry if not present or update if version is less than the minimum required version.
-install_poetry=$(prompt_user "Do you want to install Poetry? (y/n):" "y")
-if [[ "$install_poetry" =~ ^[yY] ]]; then
-    echo "Installing the latest Poetry..."
-    curl -sSL https://install.python-poetry.org | python3 -
+# Prompt the user to install uv if not present or update if version is less than the minimum required version.
+install_uv=$(prompt_user "Do you want to install uv? (y/n):" "y")
+if [[ "$install_uv" =~ ^[yY] ]]; then
+    echo "Installing the latest uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
-
-
-# Ensure the correct version of Poetry is in PATH
-export PATH="$HOME/.local/bin:$PATH"
 
 # Navigate to the root of the repository
 cd "$(dirname "$0")"
 
-# Check if VIRTUAL_ENV is set. We should exit the virtual environment before doing a poetry install.
+# Check if VIRTUAL_ENV is set. We should exit the virtual environment before doing a uv install.
 if [[ -n "$VIRTUAL_ENV" ]]; then
     echo "Virtual environment detected. Unsetting VIRTUAL_ENV."
     unset VIRTUAL_ENV
 fi
 
 # Install dependencies
-echo "Installing dependencies with Poetry..."
-poetry install
-poetry run setup-radas # Install radas
+echo "Installing dependencies with uv..."
+uv sync
+uv run setup-radas # Install radas
 
 # Optional installations
 install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "$INSTALL_GPU")
 # If install_gpu starts with y or Y then install.
 if [[ "$install_gpu" =~ ^[yY] ]]; then
     echo "Installing with GPU support..."
-    poetry install --with gpu
+    uv sync --group gpu
 fi
 
 install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "$INSTALL_DEV")
 # If install_dev starts with y or Y then install.
 if [[ "$install_dev" =~ ^[yY] ]]; then
     echo "Installing development dependencies..."
-    poetry install --with dev
-    poetry run pre-commit install # Install pre-commit hooks
+    uv sync --group dev
+    uv run pre-commit install # Install pre-commit hooks
 fi
 
 # Check for git lfs and install if not present
@@ -118,4 +114,4 @@ git lfs install
 git lfs pull
 
 echo "Installation complete."
-echo "Remember to use 'poetry shell' or prefix your commands with 'poetry run'. For more information, refer to the Poetry documentation."
+echo "Remember to use 'uv run' to execute commands in the virtual environment. For more information, refer to the uv documentation."

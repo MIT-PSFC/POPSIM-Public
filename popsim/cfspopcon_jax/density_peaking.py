@@ -1,4 +1,5 @@
 """Estimate the density peaking based on scaling from C. Angioni."""
+
 import jax.numpy as np
 from cfspopcon.unit_handling import Unitfull
 

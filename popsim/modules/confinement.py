@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 import chex
 import jax
@@ -86,10 +86,10 @@ class Confinement:
             * lh_threshold_MW,  # Assume the h->l transition is some fraction of the l->h transition.
         )
 
-        hmode_dot, hmode_out = self.hmode_dynamics(state.hmode_state, hmode_inputs)
+        hmode_dot, _hmode_out = self.hmode_dynamics(state.hmode_state, hmode_inputs)
 
         in_hmode = state.hmode_state.in_hmode
-        tau_E, P_tau_MW = jnp.where(
+        tau_E, _P_tau_MW = jnp.where(
             in_hmode,
             calc_with_scaling_law_fun(self.hmode_tau_e_and_P, state, inputs),
             calc_with_scaling_law_fun(self.lmode_tau_e_and_P, state, inputs),

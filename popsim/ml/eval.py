@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import equinox as eqx
 import jax
@@ -103,9 +104,7 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     return eval_fn_input
 
 
-def run_evals(
-    model: TrainableModel, dataloader: DataLoader, evaluation_suite: Optional[EvaluationSuite] = None
-) -> Union[dict[str, Any], EvalData]:
+def run_evals(model: TrainableModel, dataloader: DataLoader, evaluation_suite: EvaluationSuite | None = None) -> dict[str, Any] | EvalData:
     """Given a model, a dataloader, and an evaluation suite, run the evaluation suite on the model and return the results.
 
     Args:

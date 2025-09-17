@@ -31,10 +31,9 @@ ConstantOrPath = typing.Any | diffrax.AbstractPath
 Inputspec = PyTree[ConstantOrPathSpec]
 
 # Type alias for a Jax PyTree key.
-PyTreeKey = typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]
+PyTreeKey = tu.SequenceKey | tu.DictKey | tu.GetAttrKey
 
 
 @typing.runtime_checkable
 class StaticSamplerFn(typing.Protocol):
-    def __call__(self, key: PRNGKeyArray) -> Array:
-        ...
+    def __call__(self, key: PRNGKeyArray) -> Array: ...

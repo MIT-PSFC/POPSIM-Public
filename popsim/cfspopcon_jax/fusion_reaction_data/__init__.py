@@ -1,6 +1,7 @@
 """Reactions rates and power densities for various fusion reactions."""
+
+from collections.abc import Callable
 from enum import IntEnum
-from typing import Callable, Union
 
 from numpy import float64
 from numpy.typing import NDArray
@@ -8,18 +9,19 @@ from numpy.typing import NDArray
 from .reaction_energies import reaction_energy_DD, reaction_energy_DHe3, reaction_energy_DT
 from .reaction_rate_coefficients import sigmav_DD, sigmav_DD_BoschHale, sigmav_DHe3, sigmav_DT, sigmav_DT_BoschHale
 
-SIGMAV_FUNC = Union[
-    Callable[[NDArray[float64]], NDArray[float64]],
-    Callable[[NDArray[float64]], tuple[NDArray[float64], NDArray[float64], NDArray[float64]]],
-]
+SIGMAV_FUNC = (
+    Callable[[NDArray[float64]], NDArray[float64]]
+    | Callable[[NDArray[float64]], tuple[NDArray[float64], NDArray[float64], NDArray[float64]]]
+)
 
-ENERGY_FUNC = Union[
-    Callable[[NDArray[float64], float], tuple[float, float, float, NDArray[float64], NDArray[float64], NDArray[float64]]],
-    Callable[
+
+ENERGY_FUNC = (
+    Callable[[NDArray[float64], float], tuple[float, float, float, NDArray[float64], NDArray[float64], NDArray[float64]]]
+    | Callable[
         [tuple[NDArray[float64], NDArray[float64], NDArray[float64]]],
         tuple[NDArray[float64], float, NDArray[float64], NDArray[float64], NDArray[float64], NDArray[float64]],
-    ],
-]
+    ]
+)
 
 
 class ReactionType(IntEnum):
@@ -49,14 +51,14 @@ ENERGY: dict[
 }
 
 __all__ = [
-    "SIGMAV",
     "ENERGY",
+    "SIGMAV",
     "reaction_energy_DD",
     "reaction_energy_DHe3",
     "reaction_energy_DT",
+    "sigmav_DD",
     "sigmav_DD_BoschHale",
     "sigmav_DHe3",
     "sigmav_DT",
-    "sigmav_DD",
     "sigmav_DT_BoschHale",
 ]

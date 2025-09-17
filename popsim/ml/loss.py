@@ -64,7 +64,7 @@ class IntegralLoss(eqx.Module):
         return _integral_loss(predictions, targets, time, self.instantaneous_loss, self.nan_strategy)
 
 
-LossFunction = typing.Union[InstantaneousLoss, IntegralLoss]
+LossFunction = InstantaneousLoss | IntegralLoss
 
 
 def _integral_loss(

@@ -1,4 +1,5 @@
 """Calculate the thermal gain factor (Q, Q_plasma, Q_thermal)."""
+
 import jax.numpy as np
 
 _IGNITED_THRESHOLD = 1e3

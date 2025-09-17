@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Optional
 
 import numpy as np
 import xarray as xr
@@ -99,7 +98,7 @@ def meqstructs2xarray(mat_contents: dict, debug: bool = False, non_arrays_as_att
             return None
 
     # Convert lists to numpy arrays
-    arrays = {k: _handle(v) for k, v in data_dict.items() if isinstance(v, (list, np.ndarray))}
+    arrays = {k: _handle(v) for k, v in data_dict.items() if isinstance(v, list | np.ndarray)}
 
     # Remove items that have been added to the dataset as coordinates
     arrays = {k: v for k, v in arrays.items() if k not in coords.keys()}
@@ -245,7 +244,7 @@ def build_coordinates(data_dict: dict) -> dict[str, xr.DataArray]:
     return coords
 
 
-def _auto_array_to_dims(arr: np.ndarray, ds: xr.Dataset) -> Optional[xr.Variable]:
+def _auto_array_to_dims(arr: np.ndarray, ds: xr.Dataset) -> xr.Variable | None:
     """Given an array and a dataset, try to identify what dimensions map to the array.
 
     Return None if the dimensions are ambiguous or don't exist in the dataset.

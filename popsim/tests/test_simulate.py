@@ -8,8 +8,6 @@ from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, D
 from popsim.simulate import SimInput
 import xarray as xr
 from jaxtyping import Array
-from jaxlib.xla_extension import XlaRuntimeError
-import equinox as eqx
 
 class ContinuousTimeModule(TimeDepModule):
     @chex.dataclass

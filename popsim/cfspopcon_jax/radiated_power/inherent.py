@@ -1,5 +1,6 @@
 """Calculate the inherent (Bremsstrahlung and Synchrotron) radiated power."""
-from typing import Callable
+
+from collections.abc import Callable
 
 import jax.numpy as np
 from numpy import float64

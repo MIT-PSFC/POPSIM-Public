@@ -1,7 +1,6 @@
 import importlib
 import importlib.util
 import os
-from typing import Optional, Union
 
 import yaml
 from pydantic import BaseModel
@@ -11,17 +10,17 @@ from popsim.ml.train_run_builder import TrainRunBuilder
 
 class TrainConfig(BaseModel):
     project: str  # The name of the project, primarily for logging purposes.
-    train_run_builder: Union[str, type[TrainRunBuilder]]  # A string path to the TrainRunBuilder class or the class itself.
+    train_run_builder: str | type[TrainRunBuilder]  # A string path to the TrainRunBuilder class or the class itself.
     max_epochs: int  # Maximum number of training epochs.
     epochs_per_val: int  # Number of epochs between each validation.
-    checkpoint_dir: Optional[str] = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
+    checkpoint_dir: str | None = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
     dataloader_config: dict  # Configuration dictionary for building the dataloaders.
     model_init_config: dict  # Configuration dictionary for initializing the model.
     loss_config: dict  # Configuration dictionary used to initialize the loss function.
     optimizer_config: dict  # Configuration dictionary used to initialize the optimizer.
-    trainable_getter_config: Optional[dict] = None  # Configuration dictionary used in the function that gets trainable parameters.
-    val_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the validation evaluation suite.
-    test_eval_suite_config: Optional[dict] = None  # Configuration dictionary used to build the test evaluation suite.
+    trainable_getter_config: dict | None = None  # Configuration dictionary used in the function that gets trainable parameters.
+    val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
+    test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
 
     class Config:
         frozen = True  # Make the model immutable after creation.

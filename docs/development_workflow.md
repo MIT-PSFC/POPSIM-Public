@@ -1,7 +1,7 @@
 ## Dev Install
 
-- Install development related packages with `poetry install --with dev`
-- Run `poetry run pre-commit install` to install pre-commit hooks
+- Install development related packages with `uv sync --group dev`
+- Run `uv run pre-commit install` to install pre-commit hooks
 
 ## Branching
 Create a branch off `main` to commit your changes to. For those new to git workflows, [this tutorial](https://webtuu.com/blog/04/git-basics-branching-merging-push-to-github) may be helpful.
@@ -49,11 +49,11 @@ Ideally, every function and module would have automated test coverage. Tests are
 
 **Running Automated Tests**
 
-To run all of the automated tests, run `poetry run pytest popsim/`.
+To run all of the automated tests, run `uv run pytest popsim/`.
 
-You can run the tests for just a specific file, for example: `poetry run pytest popsim/tests/test_tree_util.py`
+You can run the tests for just a specific file, for example: `uv run pytest popsim/tests/test_tree_util.py`
 
-You can also run just one specific test, for example: `poetry run pytest popsim/tests/test_tree_util.py::test_tree_transpose`
+You can also run just one specific test, for example: `uv run pytest popsim/tests/test_tree_util.py::test_tree_transpose`
 
 
 ## Pull Requests
@@ -65,6 +65,6 @@ If you would like to indicate that you are not quite ready to merge your code in
 ## Building the Documentation
 To preview the documentation locally, you can simply run a:
 ```bash
-EXEC_MKNOTEBOOKS=false poetry run mkdocs serve
+EXEC_MKNOTEBOOKS=false uv run mkdocs serve
 ```
 where we recommend setting `EXEC_MKNOTEBOOKS=false` to avoid running the notebooks, which can be slow, until you want to check that the notebook outputs themselves. To see the full list of options for `mkdocs`, check out [their documentation](https://www.mkdocs.org/user-guide/cli/).

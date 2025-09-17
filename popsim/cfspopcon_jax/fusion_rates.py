@@ -1,6 +1,6 @@
 """Calculate fusion power and corresponding neutron wall loading."""
 
-from typing import Callable, Union
+from collections.abc import Callable
 
 from numpy import float64
 from numpy.typing import NDArray
@@ -58,9 +58,9 @@ def calc_fusion_reaction_rate(
     fusion_reaction: ReactionType, ion_temp_profile: NDArray[float64], heavier_fuel_species_fraction: float
 ) -> tuple[
     NDArray[float64],
-    Union[NDArray[float64], float],
+    NDArray[float64] | float,
     float,
-    Union[NDArray[float64], float],
+    NDArray[float64] | float,
     NDArray[float64],
     NDArray[float64],
     NDArray[float64],
@@ -90,9 +90,9 @@ def _calc_fusion_reaction_rate(
     fusion_reaction: ReactionType, ion_temp_profile: NDArray[float64], heavier_fuel_species_fraction: float
 ) -> tuple[
     NDArray[float64],
-    Union[NDArray[float64], float],
+    NDArray[float64] | float,
     float,
-    Union[NDArray[float64], float],
+    NDArray[float64] | float,
     NDArray[float64],
     NDArray[float64],
     NDArray[float64],

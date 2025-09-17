@@ -45,6 +45,10 @@ class XarrayPreppedDataset:
         ds_equals = self.ds.equals(other.ds)
         return ds_equals
 
+    def __hash__(self):
+        # Hash based on the id of the dataset and the training metadata
+        return hash((id(self.ds), id(self.training_metadata)))
+
     def get_inputs_and_targets(self):
         training_metadata, ds = self.training_metadata, self.ds
         if self.training_metadata.is_time_dependent:
@@ -217,9 +221,9 @@ def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, 
 
     time_var_dims_minus_episode = [d for d in time_var_dims if d != episode_var_dim]
 
-    assert (
-        len(time_var_dims_minus_episode) == 1
-    ), f"For time var {time_coord}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
+    assert len(time_var_dims_minus_episode) == 1, (
+        f"For time var {time_coord}, expected one dimension besides the episode dimension, got {time_var_dims_minus_episode}"
+    )
     time_var_dim = time_var_dims_minus_episode[0]
     return episode_var_dim, time_var_dim
 
@@ -233,13 +237,13 @@ def make_standard_dataloaders(
     split_fracs: typing.Sequence[float],
     key: int,
     convert_xr_to_jnp: bool = True,
-    extra_vars: typing.Optional[list[str]] = None,
-    state_init_vars: typing.Optional[list[str]] = None,
-    batch_size: typing.Optional[int] = None,
-    segment_length: typing.Optional[int] = None,
-    segment_overlap: typing.Optional[int] = 0,
+    extra_vars: list[str] | None = None,
+    state_init_vars: list[str] | None = None,
+    batch_size: int | None = None,
+    segment_length: int | None = None,
+    segment_overlap: int | None = 0,
 ) -> typing.Sequence[DataLoader]:
-    if state_init_vars is None and segment_length is not None or segment_overlap != 0:
+    if (state_init_vars is None and segment_length is not None) or segment_overlap != 0:
         raise ValueError("segment_length and segment_overlap are only valid when state_init_vars are provided")
     if state_init_vars is None:
 
@@ -278,7 +282,7 @@ def make_standard_dataloaders(
 
     # By default, only shuffle the first dataset.
     shuffle = (True if i == 0 else False for i in range(len(datasets)))
-    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle)]
+    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=False)]
 
 
 def make_time_indep_dataloader(
@@ -288,8 +292,8 @@ def make_time_indep_dataloader(
     input_vars: list[str],
     target_vars: list[str],
     convert_xr_to_jnp: bool = True,
-    extra_vars: typing.Optional[list[str]] = None,
-    batch_size: typing.Optional[int] = None,
+    extra_vars: list[str] | None = None,
+    batch_size: int | None = None,
     shuffle: bool = True,
 ) -> DataLoader:
     """Create a DataLoader for training tasks that do not require time dependence.
@@ -350,10 +354,10 @@ def make_time_dep_dataloader(
     input_vars: list[str],
     target_vars: list[str],
     convert_xr_to_jnp: bool = True,
-    extra_vars: typing.Optional[list[str]] = None,
-    segment_length: typing.Optional[int] = None,
+    extra_vars: list[str] | None = None,
+    segment_length: int | None = None,
     segment_overlap: int = 0,
-    batch_size: typing.Optional[int] = None,
+    batch_size: int | None = None,
     shuffle: bool = True,
 ) -> DataLoader:
     """Given a multi-episode time series dataset, generate a DataLoader. This function does some pre-processing, and you should expect the resultant data to have the following properties:

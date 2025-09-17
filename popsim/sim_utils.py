@@ -73,8 +73,8 @@ def make_time_base(t0: float, t1: float, dt: float) -> np.ndarray:
 
 
 def generate_cases(
-    tree: PyTree[typing.Union[typing.Any, MultiCases, CombinatorialCases]],
-) -> typing.Union[list[PyTree[typing.Any]], PyTree[typing.Any]]:
+    tree: PyTree[typing.Any | MultiCases | CombinatorialCases],
+) -> list[PyTree[typing.Any]] | PyTree[typing.Any]:
     """Given an input tree that may contain nodes that are MultiCases or CombinatorialCases, generate all possible cases.
 
     Args:
@@ -107,7 +107,7 @@ def generate_cases(
 
 def draw_sample(
     key: PRNGKeyArray,
-    tree: PyTree[typing.Union[typing.Any, StaticSampler]],
+    tree: PyTree[typing.Any | StaticSampler],
 ) -> PyTree[typing.Any]:
     """Sample from all instances of StaticSampler in the tree, using a different key for each StaticSampler.
 
@@ -131,7 +131,7 @@ def draw_sample(
 
     keys = jax.random.split(key, len(list_of_samplers))
 
-    sampled_samplers = [sampler(k) for sampler, k in zip(list_of_samplers, keys)]
+    sampled_samplers = [sampler(k) for sampler, k in zip(list_of_samplers, keys, strict=False)]
 
     reconstructed_samplers_tree = jax.tree.unflatten(treedef, sampled_samplers)
 
@@ -139,7 +139,7 @@ def draw_sample(
 
 
 def sample_samplers(
-    tree: PyTree[typing.Union[typing.Any, StaticSampler]],
+    tree: PyTree[typing.Any | StaticSampler],
     key: PRNGKeyArray,
     n_samples: int,
 ) -> list[PyTree[typing.Any]]:
@@ -159,7 +159,7 @@ def sample_samplers(
     return list_of_samples
 
 
-def generate_multi_cases(tree: PyTree[typing.Union[typing.Any, MultiCases]]) -> list[PyTree[typing.Any]]:
+def generate_multi_cases(tree: PyTree[typing.Any | MultiCases]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of MultiCases, generate all possible cases. Note that all instances of MultiCases must have the same length.
 
     Args:
@@ -192,7 +192,7 @@ def generate_multi_cases(tree: PyTree[typing.Union[typing.Any, MultiCases]]) -> 
 
     list_of_multi_cases_list = [x.cases for x in list_of_multi_cases]
 
-    cases = list(zip(*list_of_multi_cases_list))
+    cases = list(zip(*list_of_multi_cases_list, strict=False))
 
     def reconstruct_tree(case):
         reconstructed_multi_case_tree = jax.tree.unflatten(treedef, case)
@@ -202,7 +202,7 @@ def generate_multi_cases(tree: PyTree[typing.Union[typing.Any, MultiCases]]) -> 
     return reconstructed_trees
 
 
-def generate_combinatorial_cases(tree: PyTree[typing.Union[typing.Any, CombinatorialCases]]) -> list[PyTree[typing.Any]]:
+def generate_combinatorial_cases(tree: PyTree[typing.Any | CombinatorialCases]) -> list[PyTree[typing.Any]]:
     """Given a PyTree with instances of CombinatorialCases, generate all combinations of the fields of the CombinatorialCases.
 
     Args:

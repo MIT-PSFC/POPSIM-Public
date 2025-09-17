@@ -16,8 +16,8 @@ from popsim.array_utils import jax_to_numpy_array
 
 # A tuple of the name of the extra dimension and the coordinates corresponding to that dimension.
 # Currently,
-ExtraDimAndCoord = tuple[str, typing.Union[Array, np.ndarray]]
-ExtraDimAndCoordSpec = typing.Union[ExtraDimAndCoord, typing.Sequence[ExtraDimAndCoord], None]
+ExtraDimAndCoord = tuple[str, Array | np.ndarray]
+ExtraDimAndCoordSpec = ExtraDimAndCoord | typing.Sequence[ExtraDimAndCoord] | None
 
 DEFAULT_SIM_DIM_NAME = "simulation"
 DEFAULT_TIME_DIM_NAME = "time"
@@ -96,8 +96,8 @@ def _handle_xr_types(data: xr.DataArray | xr.Variable, base_coords, name) -> xr.
 
 def pytree_to_xarray(
     tree: PyTree[Array | xr.Variable | xr.DataArray | xr.Dataset],
-    base_dims: typing.Optional[list[str]] = None,
-    base_coords: typing.Optional[dict[str, xr.DataArray]] = None,
+    base_dims: list[str] | None = None,
+    base_coords: dict[str, xr.DataArray] | None = None,
 ) -> xr.Dataset:
     """Convert a PyTree of array-likes, xr.Variables, and xr.DataArrays to an xarray Dataset.
 
@@ -117,7 +117,7 @@ def pytree_to_xarray(
 
     def process_tree_leaf(path, data: np.ndarray | ArrayLike | xr.DataArray | xr.Variable) -> xr.DataArray:
         name = ptu.keypath_to_string(path)
-        if isinstance(data, (xr.Variable, xr.DataArray, xr.Dataset)):
+        if isinstance(data, xr.Variable | xr.DataArray | xr.Dataset):
             return _handle_xr_types(data, base_coords, name)
         elif eqx.is_array_like(data):
             data = np.asarray(data) if not eqx.is_array(data) else data
@@ -128,7 +128,7 @@ def pytree_to_xarray(
     # Construct a tree of DataArrays.
     paths_and_leaves = jax.tree_util.tree_leaves_with_path(
         tree,
-        is_leaf=lambda x: isinstance(x, (xr.Dataset, xr.DataArray, xr.Variable, ArrayLike)),
+        is_leaf=lambda x: isinstance(x, xr.Dataset | xr.DataArray | xr.Variable | ArrayLike),
     )
 
     das_and_ds = [process_tree_leaf(path, data) for path, data in paths_and_leaves]
@@ -268,9 +268,7 @@ def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inp
     return out
 
 
-def scramble_xr(
-    obj: typing.Union[xr.DataArray, xr.Dataset, xr.DataTree], zero: bool = False
-) -> typing.Union[xr.DataArray, xr.Dataset, xr.DataTree]:
+def scramble_xr(obj: xr.DataArray | xr.Dataset | xr.DataTree, zero: bool = False) -> xr.DataArray | xr.Dataset | xr.DataTree:
     """Scramble the data in an xarray object by replacing it with random values or zeros.
 
     Args:
@@ -314,7 +312,7 @@ def scramble_xr(
     # DataTree case: map over the datasets in the DataTree and apply the same randomization.
     elif xr.DataTree is not None and isinstance(obj, xr.DataTree):
         # map_over_datasets expects a function that takes a Dataset and returns a Dataset
-        return obj.map_over_datasets(scramble_xr)
+        return obj.map_over_datasets(lambda x: scramble_xr(x, zero=zero))
 
     else:
         raise TypeError(f"Unsupported type {type(obj)}; expected xr.DataArray, xr.Dataset, or xarray.DataTree")

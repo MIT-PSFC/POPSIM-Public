@@ -1,4 +1,5 @@
 """Plasma geometry (inside the last-closed-flux-surface)."""
+
 import jax.numpy as np
 from cfspopcon.unit_handling import Unitfull
 

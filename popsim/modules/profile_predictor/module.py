@@ -1,5 +1,4 @@
 from enum import IntEnum
-from typing import Optional, Union
 
 import chex
 import equinox as eqx
@@ -70,7 +69,7 @@ class ProfileShape(eqx.Module):
 
         # Create a new figure and axis if none are provided
         if ax is None:
-            fig, ax = plt.subplots()
+            _fig, ax = plt.subplots()
 
         # Plot the overall profile shape
         ax.plot(rho, profile_shape, label="Profile Shape", color="black", linewidth=2)
@@ -132,7 +131,7 @@ class Inputs:
     ne20_line_avg: float  # Electron density [10^20 m^-3]
     Wtot_MJ: float  # Thermal energy [MJ]
     rho: Array  # Toroidal flux coordinate to evaluate the profiles at
-    ne_edge: Optional[float] = None  # Edge electron density [10^20 m^-3]
+    ne_edge: float | None = None  # Edge electron density [10^20 m^-3]
 
     @property
     def epsilon(self):
@@ -190,7 +189,7 @@ class Inputs:
 class Outputs:
     ne: xr.DataArray  # Electron density profile [10^20 m^-3]
     te: xr.DataArray  # Electron temperature profile [keV]
-    debug_info: Optional[dict] = None
+    debug_info: dict | None = None
 
 
 class ShapeType(IntEnum):
@@ -273,7 +272,7 @@ class ProfilePredictor(eqx.Module):
         self.use_ne_edge = use_ne_edge
         self.rhogrid = rhogrid
 
-    def __call__(self, inputs: Union[Inputs, xr.Dataset], debug: bool = False) -> Outputs:
+    def __call__(self, inputs: Inputs | xr.Dataset, debug: bool = False) -> Outputs:
         if isinstance(inputs, xr.Dataset):
             inputs = Inputs(
                 R0=inputs["R0"].data,
@@ -307,8 +306,8 @@ class ProfilePredictor(eqx.Module):
             raise ValueError(f"Invalid shape type: {self.shape_type}")
 
         # Compute the shapes.
-        ne_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.ne_shapes, ne_coeffs)], axis=0)
-        te_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.te_shapes, te_coeffs)], axis=0)
+        ne_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.ne_shapes, ne_coeffs, strict=False)], axis=0)
+        te_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.te_shapes, te_coeffs, strict=False)], axis=0)
 
         # Compute the ne profile. If we are using the edge density as an input, we subtract out the predicted edge density and add the input edge density.
         ne = jnp.sum(ne_shapes, axis=0) * inputs.ne20_line_avg
@@ -336,6 +335,20 @@ class ProfilePredictor(eqx.Module):
         return out
 
     @classmethod
+    def load_latest_sparc(cls):
+        from popsim.ml import TrainConfig
+        from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
+        from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
+
+        config = TrainConfig.load(SPARC_CONFIG)
+
+        _, train_dl, val_dl, test_dl = ProfilePredictorTrainRunBuilder.get_dataloaders(config.dataloader_config)
+
+        model = ProfilePredictorTrainRunBuilder.model_init(train_dl, config.model_init_config)
+
+        return (model, train_dl, val_dl, test_dl)
+
+    @classmethod
     def init(
         cls,
         n_shapes: int,
@@ -349,8 +362,12 @@ class ProfilePredictor(eqx.Module):
     ) -> "ProfilePredictor":
         rhogrid_jax = jnp.array(rhogrid)
         rhogrid_tuple = tuple(rhogrid.tolist())
-        te_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)]
-        ne_shapes = [ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)]
+        te_shapes = [
+            ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)
+        ]
+        ne_shapes = [
+            ProfileShape.make_points(points=jnp.zeros_like(rhogrid_jax), grid=rhogrid_jax, normalize=False) for _ in range(n_shapes)
+        ]
         return cls(
             te_shapes=te_shapes,
             ne_shapes=ne_shapes,

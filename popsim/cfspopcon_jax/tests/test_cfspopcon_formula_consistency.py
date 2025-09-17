@@ -1,4 +1,5 @@
 """Basic tests that functions can be compiled with JAX."""
+
 import cfspopcon.formulas as formulas_og
 import cfspopcon.named_options as cfsno
 import chex

@@ -1,4 +1,5 @@
 """Reads PRF profiles using cfspopcon but with Jax compatible interpolators."""
+
 from functools import wraps
 
 import interpax

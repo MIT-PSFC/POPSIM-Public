@@ -1,5 +1,3 @@
-from typing import Optional
-
 import chex
 import interpax
 import jax.numpy as jnp
@@ -62,7 +60,7 @@ class PRFProfiles:
         nu_n: float,
         aLT: float = 2.0,
         width_ped: float = 0.05,
-        rho: Optional[NDArray[float64]] = None,
+        rho: NDArray[float64] | None = None,
     ) -> tuple[NDArray[float64], NDArray[float64], NDArray[float64]]:  # TODO: fill out docstring
         """Evaluate temperature-density profile fits."""
 

@@ -1,4 +1,3 @@
-import typing
 from dataclasses import dataclass
 
 import equinox as eqx
@@ -6,7 +5,7 @@ import equinox as eqx
 from popsim.ml.envs import ModuleTrainingEnv
 
 # Define models that are considered trainable.
-TrainableModel = typing.Union[eqx.Module, ModuleTrainingEnv]
+TrainableModel = eqx.Module | ModuleTrainingEnv
 
 
 @dataclass
@@ -24,7 +23,7 @@ class TrainingMetadata:
     input_vars: list[str]
     target_vars: list[str]
     convert_xr_to_jnp: bool
-    time_dep_metadata: typing.Optional[TimeDepMetadata] = None
+    time_dep_metadata: TimeDepMetadata | None = None
 
     @property
     def is_time_dependent(self) -> bool:

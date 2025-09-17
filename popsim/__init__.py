@@ -19,4 +19,4 @@ TORAX_QLKNN_MODEL_PATH = os.path.join(SUBMODULES_DIR, "qlknn-hyper")
 DATA_DIR = os.path.join(PACKAGE_ROOT, "data")
 ATOMIC_DATA_PATH = Path(os.path.join(PACKAGE_ROOT, "../atomic_data/output"))
 
-__all__ = ["TimeDepModule", "discrete_time_field", "config", "discrete_no_save_field", "no_save_field"]
+__all__ = ["TimeDepModule", "config", "discrete_no_save_field", "discrete_time_field", "no_save_field"]

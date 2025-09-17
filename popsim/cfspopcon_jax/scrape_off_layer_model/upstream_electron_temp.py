@@ -1,18 +1,16 @@
 """Routines to calculate the upstream electron temperature."""
 
-from typing import Union
-
 import xarray as xr
 from cfspopcon.unit_handling import Quantity
 
 
 def calc_upstream_electron_temp(
-    target_electron_temp: Union[Quantity, xr.DataArray],
-    parallel_heat_flux_density: Union[Quantity, xr.DataArray],
-    parallel_connection_length: Union[Quantity, xr.DataArray],
-    kappa_e0: Union[Quantity, xr.DataArray],
-    SOL_conduction_fraction: Union[float, xr.DataArray] = 1.0,
-) -> Union[Quantity, xr.DataArray]:
+    target_electron_temp: Quantity | xr.DataArray,
+    parallel_heat_flux_density: Quantity | xr.DataArray,
+    parallel_connection_length: Quantity | xr.DataArray,
+    kappa_e0: Quantity | xr.DataArray,
+    SOL_conduction_fraction: float | xr.DataArray = 1.0,
+) -> Quantity | xr.DataArray:
     """Calculate the upstream electron temperature.
 
     Equation 38 from :cite:`stangeby_2018`, keeping the dependence on target_electron_temp.

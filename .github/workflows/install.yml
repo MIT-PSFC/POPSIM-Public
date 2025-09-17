@@ -30,21 +30,21 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.13
         uses: actions/setup-python@v4
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Run installation
         run:  bash install.sh
 
       - name: Test installation
         run: |
-          poetry run python -c "import popsim; print('POPSIM imported successfully')"
+          uv run python -c "import popsim; print('POPSIM imported successfully')"
 
       - name: Test radas
         run: |
-          poetry run setup-radas
+          uv run setup-radas
           if [ ! -d "atomic_data/output" ]; then
             echo "Error: Directory atomic_data/output does not exist."
             exit 1

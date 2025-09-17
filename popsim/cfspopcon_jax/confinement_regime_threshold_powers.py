@@ -1,4 +1,5 @@
 """Threshold powers required to enter improved confinement regimes."""
+
 import jax.numpy as np
 from cfspopcon.named_options import ConfinementPowerScaling
 

@@ -46,8 +46,9 @@ ____________________________________________________________________
 """  # TODO: figure out valid regions of fits and print a warning when they are exceeded
 
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import jax.numpy as np
 import pandas as pd
@@ -56,7 +57,7 @@ from numpy.typing import NDArray
 from scipy.interpolate import RectBivariateSpline  # type: ignore[import]
 
 
-def load_dataframe(dataset: str, df_name: str, plasma_profiles_directory: Optional[Path] = None) -> pd.DataFrame:
+def load_dataframe(dataset: str, df_name: str, plasma_profiles_directory: Path | None = None) -> pd.DataFrame:
     """Load specified dataframe for given dataset."""
     if plasma_profiles_directory is None:
         plasma_profiles_directory = Path(__file__).parent
@@ -99,7 +100,7 @@ def evaluate_density_and_temperature_profile_fits(
     nu_n: float,
     aLT: float = 2.0,
     width_ped: float = 0.05,
-    rho: Optional[NDArray[np.float64]] = None,
+    rho: NDArray[np.float64] | None = None,
     dataset: str = "PRF",
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:  # TODO: fill out docstring
     """Evaluate temperature-density profile fits."""
@@ -122,7 +123,7 @@ def evaluate_profile(
     aLT_core: float,
     width_axis: float,
     width_ped: float = 0.05,
-    rho: Optional[NDArray[np.float64]] = None,
+    rho: NDArray[np.float64] | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
     r"""This function generates a profile from :math:`\langle T \rangle`, aLT and :math:`x_a`.
 
@@ -196,7 +197,7 @@ def evaluate_profile(
     return x, T, peaking
 
 
-def load_metadata(dataset: str, plasma_profiles_directory: Optional[Path] = None) -> dict[str, str]:
+def load_metadata(dataset: str, plasma_profiles_directory: Path | None = None) -> dict[str, str]:
     r"""Load dataset metadata from YAML file.
 
     Args:
@@ -214,7 +215,7 @@ def load_metadata(dataset: str, plasma_profiles_directory: Optional[Path] = None
     return metadata
 
 
-def get_datasets(plasma_profiles_directory: Optional[Path] = None) -> list[str]:
+def get_datasets(plasma_profiles_directory: Path | None = None) -> list[str]:
     """Get a list of names of valid datasets.
 
     Every immediate subdirectory of the source folder represents a dataset

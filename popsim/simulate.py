@@ -20,8 +20,8 @@ from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
-    SimInput,
-    make_time_base,  # noqa: F401. Import is used to allow the user to import this function from this module.
+    SimInput,  # noqa: F401. Import is used to allow the user to import this function from this module.
+    make_time_base,  # noqa: F401
 )
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
 from popsim.utils import time_epsilon
@@ -91,12 +91,12 @@ def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_s
 
 def simulate(
     module: TimeDepModule,
-    sim_inputs: typing.Union[SimInput, typing.Sequence[SimInput]],
+    sim_inputs: SimInput | typing.Sequence[SimInput],
     interp_type: InterpType = InterpType.LINEAR,
     return_xarray: bool = True,
     stepper_type: StepperType = StepperType.SIMPLE_EULER,
     record_state: bool = True,
-) -> typing.Union[diffrax.Solution, xr.Dataset]:
+) -> diffrax.Solution | xr.Dataset:
     """Public facing API for simulating a module.
 
     Args:

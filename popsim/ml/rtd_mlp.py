@@ -1,4 +1,5 @@
-from typing import Callable, Literal, Optional, Union
+from collections.abc import Callable
+from typing import Literal
 
 import equinox as eqx
 import jax
@@ -14,15 +15,15 @@ class RtdMLP(eqx.Module, strict=True):
     final_activation: Activation = eqx.field(static=True)
     use_bias: bool = eqx.field(static=True)
     use_final_bias: bool = eqx.field(static=True)
-    in_size: Union[int, Literal["scalar"]] = eqx.field(static=True)
-    out_size: Union[int, Literal["scalar"]] = eqx.field(static=True)
+    in_size: int | Literal["scalar"] = eqx.field(static=True)
+    out_size: int | Literal["scalar"] = eqx.field(static=True)
     width_size: int = eqx.field(static=True)
     depth: int = eqx.field(static=True)
 
     def __init__(
         self,
-        in_size: Union[int, Literal["scalar"]],
-        out_size: Union[int, Literal["scalar"]],
+        in_size: int | Literal["scalar"],
+        out_size: int | Literal["scalar"],
         width_size: int,
         depth: int,
         activation: Callable = Activation.RELU,
@@ -84,7 +85,7 @@ class RtdMLP(eqx.Module, strict=True):
         self.use_bias = use_bias
         self.use_final_bias = use_final_bias
 
-    def __call__(self, x: Array, *, key: Optional[PRNGKeyArray] = None, return_jacobian: bool = False) -> Array:
+    def __call__(self, x: Array, *, key: PRNGKeyArray | None = None, return_jacobian: bool = False) -> Array:
         if return_jacobian:
             jac = jnp.eye(x.size)  # Initialize Jacobian as identity
 

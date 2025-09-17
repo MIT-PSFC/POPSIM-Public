@@ -1,8 +1,8 @@
 import gc
 import os
 import shutil
-from collections.abc import Iterable
-from typing import Any, Callable, Optional
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import jax
 import loguru
@@ -20,8 +20,8 @@ def build_tensorized_dataset(  # noqa: PLR0912
     time_dim: str,
     episode_dim: str,
     extend_existing: bool = False,
-    episodes_per_chunk: Optional[int] = None,
-    mb_per_chunk: Optional[int] = 10,
+    episodes_per_chunk: int | None = None,
+    mb_per_chunk: int | None = 10,
 ) -> xr.Dataset:
     """Build a tensorized multi-episode dataset that can then be used for training or evaluation.
     The user provides a function that processes data for a single episode, which returns an xarray Dataset for a single episode. This function will then build up the multi-episode dataset. This function was built with the intention of only needing to load a single episode at a time, allowing us to build up a dataset that is too large to fit in memory.
@@ -53,7 +53,7 @@ def build_tensorized_dataset(  # noqa: PLR0912
     if mb_per_chunk is not None and episodes_per_chunk is not None:
         raise ValueError("Please specify either mb_per_chunk or episodes_per_chunk, not both.")
 
-    def get_and_preprocess(identifier: Any) -> Optional[xr.Dataset]:
+    def get_and_preprocess(identifier: Any) -> xr.Dataset | None:
         try:
             return process_fn(identifier)
         except Exception as e:
@@ -126,7 +126,7 @@ def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> No
 
 
 def add_to_zarr_store(  # noqa: PLR0912
-    ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: Optional[int] = None
+    ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: int | None = None
 ) -> bool:
     """Helper function to add a single xarray Dataset to a zarr store. Requires that the zarr store either doesn't exist or already contains all the dimensions in the provided Dataset."""
 

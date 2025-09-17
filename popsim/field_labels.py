@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields, is_dataclass, replace
-from typing import Callable
 
 import chex
 import equinox as eqx

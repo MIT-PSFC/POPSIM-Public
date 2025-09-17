@@ -1,4 +1,5 @@
 """Divertor loading and functions to calculate OMP pitch (for q_parallel calculation)."""
+
 import jax.numpy as np
 from scipy import constants
 

@@ -3,7 +3,7 @@ import typing
 import numpy as np
 import xarray as xr
 
-DatasetOrDataArray = typing.Union[xr.Dataset, xr.DataArray]
+DatasetOrDataArray = xr.Dataset | xr.DataArray
 
 
 def maybe_groupby_and_map(
@@ -77,7 +77,7 @@ def shift_time_to_not_nan(
     time_coord: str,
     time_dim: str,
     how: str = "any",
-    subset: typing.Optional[typing.Iterable[typing.Hashable]] = None,
+    subset: typing.Iterable[typing.Hashable] | None = None,
 ) -> xr.Dataset:
     """For each episode in a dataset, shift the time dimension so that the first time slice is not NaN. Each episode is end-padded with NaNs. To specify that only a subset of the variables should be considered when determining the first non-NaN time slice, pass a list of variable names to the `subset` argument.
 

@@ -54,7 +54,7 @@ def build_td_popcon_config():
         for k in species_container.species
     }
 
-    fueling19 = {k: 0.0 for k in species_container.species}
+    fueling19 = dict.fromkeys(species_container.species, 0.0)
     fueling19[FuelSpecies.Deuterium] = additional_assumptions["deuterium_fueling19"]
     fueling19[FuelSpecies.Tritium] = additional_assumptions["tritium_fueling19"]
 

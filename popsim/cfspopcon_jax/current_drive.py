@@ -1,6 +1,5 @@
 """Ohmic and bootstrap plasma current, loop resistivity & voltage, and current relaxation time."""
 
-
 from cfspopcon.unit_handling import Unitfull
 
 

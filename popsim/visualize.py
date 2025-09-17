@@ -1,6 +1,5 @@
 import typing
 from collections.abc import Sequence
-from typing import Optional, Union
 
 import holoviews as hv
 import hvplot.xarray  # noqa: F401
@@ -17,8 +16,8 @@ from popsim.tree_util import tree_transpose
 
 def visualize_time_series(
     dataset: xr.Dataset,
-    plot_spec: Optional[list[Union[str, Sequence[str]]]] = None,
-    hlines: Optional[dict[str, float]] = None,
+    plot_spec: list[str | Sequence[str]] | None = None,
+    hlines: dict[str, float] | None = None,
     max_cols: int = 3,
     fontsize: int = 10,
 ) -> pn.panel:
@@ -53,7 +52,7 @@ def visualize_time_series(
     return pn.panel(layout, sizing_mode="stretch_width")
 
 
-def create_plot(dataset: xr.Dataset, var: Union[str, Sequence[str]], show_legend: bool, fontsize: int) -> hv.Element:
+def create_plot(dataset: xr.Dataset, var: str | Sequence[str], show_legend: bool, fontsize: int) -> hv.Element:
     """Create a plot for single variable or multiple variables."""
     if isinstance(var, str):
         variables = [var]
@@ -83,7 +82,7 @@ def create_plot(dataset: xr.Dataset, var: Union[str, Sequence[str]], show_legend
         return hv.Overlay(plots).opts(title=title, ylabel="", fontsize=fontsize)
 
 
-def add_hlines(plot: hv.Element, var: Union[str, Sequence[str]], hlines: dict[str, float], dataset: xr.Dataset) -> hv.Overlay:
+def add_hlines(plot: hv.Element, var: str | Sequence[str], hlines: dict[str, float], dataset: xr.Dataset) -> hv.Overlay:
     """Add horizontal lines to the plot."""
     variables = [var] if isinstance(var, str) else var
     hline_plots = []
@@ -97,7 +96,7 @@ def add_hlines(plot: hv.Element, var: Union[str, Sequence[str]], hlines: dict[st
 
 
 def visualize_inputs(
-    pytrees: typing.Union[PyTree, typing.Sequence[PyTree]], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
+    pytrees: PyTree | typing.Sequence[PyTree], time_base: np.ndarray, interp_type: InterpType = InterpType.LINEAR
 ) -> pn.panel:
     """Visualize the inputs of the simulation. This builds it into vectorized form and converts it to a xr.Dataset for visualization.
 

@@ -1,7 +1,7 @@
 """Reads atomic data using cfspopcon but with Jax compatible interpolators."""
+
 import typing
 from functools import wraps
-from typing import Union
 
 import chex
 import interpax
@@ -34,7 +34,7 @@ def atleast1d_inputs(func):
     return wrapper
 
 
-def _build_interpolator(curve: xr.Dataset) -> Union[interpax.Interpolator2D, interpax.Interpolator3D]:
+def _build_interpolator(curve: xr.Dataset) -> interpax.Interpolator2D | interpax.Interpolator3D:
     # Strip away pint units as they are currently not working with Jax.
     # https://github.com/cfs-energy-internal/POPSIM/issues/3
     curve = curve.pint.dequantify()

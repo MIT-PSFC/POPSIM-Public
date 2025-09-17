@@ -1,5 +1,6 @@
 """Calculate the average fuel mass in atomic mass units."""
-from typing import Callable
+
+from collections.abc import Callable
 
 from .fusion_rates import ReactionType
 

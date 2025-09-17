@@ -20,13 +20,13 @@ def loadmat(filename: str) -> dict:
 
 
 def process_dict_from_matfile(d: dict) -> dict:
-    for key in d:
-        if isinstance(d[key], sio.matlab.mat_struct):
-            d[key] = matstruct_to_dict(d[key])
-        elif isinstance(d[key], dict):
-            d[key] = process_dict_from_matfile(d[key])
-        elif is_matstruct_array(d[key]):
-            d[key] = array_matstruct_to_list(d[key])
+    for key, val in d.items():
+        if isinstance(val, sio.matlab.mat_struct):
+            d[key] = matstruct_to_dict(val)
+        elif isinstance(val, dict):
+            d[key] = process_dict_from_matfile(val)
+        elif is_matstruct_array(val):
+            d[key] = array_matstruct_to_list(val)
     return d
 
 

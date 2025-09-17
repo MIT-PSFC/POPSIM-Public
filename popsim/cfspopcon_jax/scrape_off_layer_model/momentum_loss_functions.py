@@ -2,6 +2,7 @@
 
 See Figure 15 of :cite:`stangeby_2018`.
 """
+
 import jax.numpy as np
 from cfspopcon.named_options import MomentumLossFunction
 from cfspopcon.unit_handling import Quantity

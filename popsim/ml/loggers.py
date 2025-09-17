@@ -14,7 +14,7 @@ TODO(allenw): not much time was spent on this, it could use considerable improve
 
 
 def convert_val_to_serializable(val):
-    if isinstance(val, (Array, np.ndarray)):
+    if isinstance(val, Array | np.ndarray):
         return val.tolist()
     return val
 

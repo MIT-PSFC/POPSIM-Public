@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import tracemalloc
-from typing import Any, Optional, Union
+from typing import Any
 
 import equinox as eqx
 import jax
@@ -100,10 +100,10 @@ def save_result_to_zarr(ds: xr.Dataset, idx: int, output_zarr: str) -> None:
 
 
 def run_torax(
-    config: Union[dict[str, Any], list[dict[str, Any]]],
-    max_workers: Optional[int] = None,
-    output_zarr: Optional[str] = None,
-) -> Union[xr.Dataset, None]:
+    config: dict[str, Any] | list[dict[str, Any]],
+    max_workers: int | None = None,
+    output_zarr: str | None = None,
+) -> xr.Dataset | None:
     """
     Given a Torax config dictionary or a list of them, run the simulation(s) and either return the
     output as an xarray Dataset or save results incrementally to the specified Zarr file.
@@ -142,7 +142,7 @@ def run_torax(
         results = [] if not output_zarr else None
         with ctx.Pool(processes=num_workers) as pool:
             with tqdm(total=num_cases, desc="Processing", unit="task") as pbar:
-                for idx, result in enumerate(pool.imap(_safe_run, zip(configs, range(num_cases)))):
+                for idx, result in enumerate(pool.imap(_safe_run, zip(configs, range(num_cases), strict=False))):
                     if result is not None:
                         if output_zarr:
                             save_result_to_zarr(result, idx, output_zarr)

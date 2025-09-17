@@ -134,9 +134,9 @@ class Trainer:
         model: TrainableModel,
         loss_fn: LossFunction,
         optimizer: optax.GradientTransformation,
-        checkpoint_dir: typing.Optional[PathLike] = None,
-        trainable_getter: typing.Optional[typing.Callable[[TrainableModel], PyTree]] = None,
-        grad_clip: typing.Optional[optax.GradientTransformation] = None,
+        checkpoint_dir: PathLike | None = None,
+        trainable_getter: typing.Callable[[TrainableModel], PyTree] | None = None,
+        grad_clip: optax.GradientTransformation | None = None,
     ):
         """Initialize a Trainer object.
 
@@ -169,13 +169,13 @@ class Trainer:
     def train(
         self,
         train_dl: DataLoader,
-        val_dl: typing.Optional[DataLoader] = None,
-        test_dl: typing.Optional[DataLoader] = None,
-        eval_suite: typing.Optional[EvaluationSuite] = None,
-        test_eval_suite: typing.Optional[EvaluationSuite] = None,
+        val_dl: DataLoader | None = None,
+        test_dl: DataLoader | None = None,
+        eval_suite: EvaluationSuite | None = None,
+        test_eval_suite: EvaluationSuite | None = None,
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
-        logger: typing.Optional[LoggerBase] = None,
+        logger: LoggerBase | None = None,
     ):
         """Train the model with periodic validation.
 
@@ -252,7 +252,7 @@ class Trainer:
             logger.log(test_results)
             return test_results
 
-    def restore_best_checkpoint(self, path: typing.Optional[PathLike] = None):
+    def restore_best_checkpoint(self, path: PathLike | None = None):
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
 
         Args:
@@ -267,9 +267,7 @@ class Trainer:
                 raise ValueError("A path is not provided and the trainer doesn't have a checkpoint manager.")
             self.train_state = restore_train_state(self.checkpoint_manager, self.train_state)
 
-    def run_evals(
-        self, dataloader: DataLoader, eval_suite: typing.Optional[EvaluationSuite] = None
-    ) -> typing.Union[dict[str, typing.Any], EvalData]:
+    def run_evals(self, dataloader: DataLoader, eval_suite: EvaluationSuite | None = None) -> dict[str, typing.Any] | EvalData:
         """Run an evaluation suite on the given dataloader.
 
         Args:

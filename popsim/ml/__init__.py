@@ -4,22 +4,24 @@ from popsim.ml.dataloading import DataLoader, make_standard_dataloaders, make_ti
 from popsim.ml.eval import EvalData
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.split_utils import split_dataset_by_fracs
+from popsim.ml.train_config import TrainConfig
 from popsim.ml.train_run_builder import TrainRunBuilder
 from popsim.ml.trainer import Trainer
 
 DEFAULT_SAMPLE_DIM = "sample"
 
 __all__ = [
-    "split_dataset_by_fracs",
-    "split_dataset_by_vals",
+    "DEFAULT_SAMPLE_DIM",
+    "DataLoader",
+    "EvalData",
+    "IntegralLoss",
+    "TrainConfig",
+    "TrainRunBuilder",
+    "Trainer",
+    "export",
+    "make_standard_dataloaders",
     "make_time_dep_dataloader",
     "make_time_indep_dataloader",
-    "make_standard_dataloaders",
-    "Trainer",
-    "IntegralLoss",
-    "EvalData",
-    "DataLoader",
-    "DEFAULT_SAMPLE_DIM",
-    "export",
-    "TrainRunBuilder",
+    "split_dataset_by_fracs",
+    "split_dataset_by_vals",
 ]

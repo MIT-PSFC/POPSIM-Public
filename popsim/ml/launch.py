@@ -88,7 +88,7 @@ def _run_train(
 
     train_run_builder = _get_train_run_builder_class(training_config.train_run_builder)
     loguru.logger.info("Loading the dataset and creating dataloaders...")
-    ds, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
+    _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
     loguru.logger.info("Dataset and dataloaders created.")
     loguru.logger.info("Initializing the module...")
     model = train_run_builder.model_init(train_dl, training_config.model_init_config)

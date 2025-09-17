@@ -1,5 +1,6 @@
 """Calculate the impurity radiated power using the radas atomic_data."""
-from typing import Callable
+
+from collections.abc import Callable
 
 import jax.numpy as np
 from numpy import float64

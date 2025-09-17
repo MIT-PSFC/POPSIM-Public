@@ -1,7 +1,6 @@
 import math
 from collections.abc import Sequence
 from itertools import accumulate
-from typing import Optional, Union
 
 import jax
 import numpy as np
@@ -38,7 +37,7 @@ def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
     return segment_lengths
 
 
-def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], seed: int) -> list[jax.Array]:
+def random_split(n_data: int, lengths_or_fracs: Sequence[int | float], seed: int) -> list[jax.Array]:
     """Generate indicies to split a dataset into non-overlapping new datasets.
 
     Args:
@@ -64,7 +63,7 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[Union[int, float]], see
         jax.random.PRNGKey(seed),
         n_data,
     )
-    return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths)]
+    return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths, strict=False)]
 
 
 def split_dataset_by_fracs(
@@ -72,7 +71,7 @@ def split_dataset_by_fracs(
     fracs: Sequence[float],
     dim: str,
     seed: int,
-    sortby: Optional[str] = None,
+    sortby: str | None = None,
 ) -> Sequence[xr.Dataset]:
     """Split a dataset into disjoint datasets along a dimension. The most common use case is for splitting a dataset along a "sample" dimension into training, validation, and test sets.
 
@@ -96,7 +95,7 @@ def split_dataset_by_fracs(
         sorted_indices = np.argsort(sort_values.values)
         ds = ds.isel({dim: sorted_indices})
 
-        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths)]
+        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths, strict=False)]
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
     else:
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]

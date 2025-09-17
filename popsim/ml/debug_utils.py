@@ -1,5 +1,3 @@
-from typing import Optional
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -10,7 +8,7 @@ from popsim.ml.envs import ModuleTrainingEnv
 from popsim.tree_util import keypath_to_string
 
 
-def check_large_model_weights(model, threshold: Optional[float] = 1e3) -> list[str]:
+def check_large_model_weights(model, threshold: float | None = 1e3) -> list[str]:
     """
     Check if any model weights exceed a certain threshold.
     Prints list of such weights and the corresponding parameter names as logger warnings
@@ -69,7 +67,7 @@ def check_zero_variance_variables(data) -> list[str]:
     return error_paths
 
 
-def check_large_values(data, threshold: Optional[float] = 1e3) -> list[str]:
+def check_large_values(data, threshold: float | None = 1e3) -> list[str]:
     """
     Check if any values in the data exceed a certain threshold.
     Prints list of such variables as logger warnings
@@ -104,7 +102,7 @@ def check_large_values(data, threshold: Optional[float] = 1e3) -> list[str]:
     return error_paths
 
 
-def diagnose_nans(prev_model: Optional[ModuleTrainingEnv] = None, batch: Optional[XarrayPreppedDataset] = None):
+def diagnose_nans(prev_model: ModuleTrainingEnv | None = None, batch: XarrayPreppedDataset | None = None):
     """
     Utility function for helping figure out why NaNs are appearing during training.
 
@@ -121,7 +119,7 @@ def diagnose_nans(prev_model: Optional[ModuleTrainingEnv] = None, batch: Optiona
         loguru.logger.info("Diagnosing batch...")
         inputs, targets = batch.get_inputs_and_targets()
 
-        for name, data in zip(["inputs", "targets"], [inputs, targets]):
+        for name, data in zip(["inputs", "targets"], [inputs, targets], strict=False):
             loguru.logger.info(f"Checking {name} for zero variance...")
             check_zero_variance_variables(data)
             loguru.logger.info(f"Checking {name} for large values...")

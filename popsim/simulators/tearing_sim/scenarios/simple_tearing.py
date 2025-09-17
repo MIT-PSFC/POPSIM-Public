@@ -34,9 +34,9 @@ def build_simple_tearing_sim_config(simulated_modes: list[tuple[int, int]], reco
 
     # Define the initial state.
     tearing_initial_state = Tearing.State(
-        W={mode: 0.0 for mode in simulated_modes},
-        F={mode: 0.0 for mode in simulated_modes},
-        mode_phase={mode: 0.0 for mode in simulated_modes},
+        W=dict.fromkeys(simulated_modes, 0.0),
+        F=dict.fromkeys(simulated_modes, 0.0),
+        mode_phase=dict.fromkeys(simulated_modes, 0.0),
     )
 
     # Define the tearing inputs.

@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import Protocol
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -30,7 +30,7 @@ class Basis1DProtocol(Protocol):
 class BSplineBasis(eqx.Module):
     basis_fns: list[CubicHermiteSpline]
 
-    def __init__(self, n_comps: int, boundary_zero: Optional[str] = None):
+    def __init__(self, n_comps: int, boundary_zero: str | None = None):
         self.basis_fns = self.generate_bspline_basis(n_comps, boundary_zero)
 
     def __call__(self, coeffs: Array, rho: Array, return_components: bool = False) -> Array:
@@ -60,7 +60,7 @@ class BSplineBasis(eqx.Module):
         return len(self.basis_fns)
 
     @staticmethod
-    def generate_bspline_basis(n_comps: int, boundary_zero: Optional[str] = None) -> list[CubicHermiteSpline]:
+    def generate_bspline_basis(n_comps: int, boundary_zero: str | None = None) -> list[CubicHermiteSpline]:
         """Generate a basis of cubic B-splines on the interval [0, 1] using Cubic Hermite splines.
 
         Args:

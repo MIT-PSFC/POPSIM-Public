@@ -42,8 +42,8 @@ def test_generate_cases():
     sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs)
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs)
+    chex.assert_trees_all_equal(cases[0], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs))
+    chex.assert_trees_all_equal(cases[1],SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs))
 
     #
     # Try using MultiCases for both varying state and inputs.
@@ -52,8 +52,8 @@ def test_generate_cases():
     sim_input = SimInput(time=time_base, initial_state=initial_state_multi, inputs=inputs_multi)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": -3.0, "b": -4.0}))
+    chex.assert_trees_all_equal(cases[0], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[1], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": -3.0, "b": -4.0})))
 
     #
     # Check that an error is raised if MultiCases don't have the same length.
@@ -79,8 +79,8 @@ def test_generate_cases():
     sim_input = SimInput(time=time_base, initial_state=initial_state_comb, inputs=inputs)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 2
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs)
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs)
+    chex.assert_trees_all_equal(cases[0], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=inputs))
+    chex.assert_trees_all_equal(cases[1], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=inputs))
 
 
     #
@@ -91,12 +91,12 @@ def test_generate_cases():
     sim_input = SimInput(time=time_base, initial_state=initial_state_comb, inputs=inputs_comb)
     cases = sim_input.generate_sim_cases()
     assert len(cases) == 6
-    assert cases[0] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[1] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[2] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[3] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[4] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0}))
-    assert cases[5] == SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0}))
+    chex.assert_trees_all_equal(cases[0], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[1], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[2], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=1, b=2, c=3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[3], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=1.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[4], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=2.0, p1={"a": 3.0, "b": 4.0})))
+    chex.assert_trees_all_equal(cases[5], SimInput(time=time_base, initial_state=ExampleState(data=Data(a=-1, b=-2, c=-3), x=0.0), inputs=ExampleInputs(p0=3.0, p1={"a": 3.0, "b": 4.0})))
 
 def test_static_sampler():
     def sample_fn(key):

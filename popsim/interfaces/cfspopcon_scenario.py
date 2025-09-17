@@ -10,12 +10,12 @@ from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
 
 def load_cfspopcon_scenario(case_name: str = "SPARC_PRD"):
     case_path = os.path.join(PACKAGE_ROOT, f"cfspopcon_jax/example_cases/{case_name}")
-    input_parameters, algorithm, points, plots = cfspopcon.read_case(case_path)
+    input_parameters, algorithm, points, _ = cfspopcon.read_case(case_path)
     return input_parameters, algorithm, points
 
 
 def load_cfspopcon_scenario_for_td_popcon(case_name: str = "SPARC_PRD"):
-    input_parameters, algorithm, points = load_cfspopcon_scenario(case_name)
+    input_parameters, algorithm, _ = load_cfspopcon_scenario(case_name)
     # Strip units away from Pint quantities as we currently don't have Jax<->Pint compatibility.
     for k, v in input_parameters.items():
         if isinstance(v, Quantity):
@@ -44,6 +44,7 @@ def load_cfspopcon_scenario_for_td_popcon(case_name: str = "SPARC_PRD"):
         zip(
             impurity_types,
             input_parameters["intrinsic_impurity_concentration"].values,
+            strict=False,
         )
     )
 

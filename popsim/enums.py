@@ -1,4 +1,5 @@
 """Jax-compatible enums."""
+
 import typing
 from enum import IntEnum
 
@@ -30,7 +31,7 @@ class FuelSpecies(IntEnum):
 
 
 Impurity = enum_to_intenum(cfsno.AtomicSpecies)
-Species = typing.Union[FuelSpecies, Impurity]
+Species = FuelSpecies | Impurity
 ProfileForm = enum_to_intenum(cfsno.ProfileForm)
 
 

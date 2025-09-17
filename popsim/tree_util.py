@@ -40,9 +40,9 @@ def get_instances_from_tree_leaves(tree: PyTree[typing.Any], type_: type) -> lis
 
 
 def tree_transpose(
-    tree: typing.Union[list[PyTree[ArrayLike | xr.Variable | xr.DataArray]], PyTree[Array | xr.Variable | xr.DataArray]],
-    extra_dim_name: typing.Optional[str] = None,
-) -> typing.Union[PyTree[Array | xr.Variable | xr.DataArray], list[PyTree[ArrayLike | xr.Variable | xr.DataArray]]]:
+    tree: list[PyTree[ArrayLike | xr.Variable | xr.DataArray]] | PyTree[Array | xr.Variable | xr.DataArray],
+    extra_dim_name: str | None = None,
+) -> PyTree[Array | xr.Variable | xr.DataArray] | list[PyTree[ArrayLike | xr.Variable | xr.DataArray]]:
     """Transpose back and forth between a list of PyTrees and a single PyTree of arrays. This function handles both the forward and inverse cases:
 
         1. (Forward) A list of PyTrees -> PyTree of arrays
@@ -104,8 +104,8 @@ def tree_transpose(
 
 
 def _tree_transpose(
-    tree: typing.Union[list[PyTree[ArrayLike]], PyTree[Array]],
-) -> typing.Union[PyTree[Array], list[PyTree[ArrayLike]]]:
+    tree: list[PyTree[ArrayLike]] | PyTree[Array],
+) -> PyTree[Array] | list[PyTree[ArrayLike]]:
     # Check if the input is a sequence of PyTrees
     if isinstance(tree, list):
         if len(tree) == 0:
@@ -171,10 +171,10 @@ def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
     Returns:
         collections.OrderedDict: An ordered dictionary with keys and values.
     """
-    return collections.OrderedDict(zip(keys, vals))
+    return collections.OrderedDict(zip(keys, vals, strict=False))
 
 
-def get_key(key: typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]) -> typing.Union[int, typing.Hashable, str]:
+def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey) -> int | typing.Hashable | str:
     """The different key types in Jax have different accessors. This is a wrapper function to get the key value.
 
     Args:
@@ -235,7 +235,7 @@ def keypath_to_string(keypath: tuple[ptypes.PyTreeKey]) -> str:
 
     def string_func(x: ptypes.PyTreeKey) -> str:
         key = get_key(x)
-        if isinstance(key, (Enum, IntEnum)):
+        if isinstance(key, Enum | IntEnum):
             # For enums, return the name of the class of the enum and the name of the enum value.
             # For example, an instance of Impurity.Tungsten would return "Impurity.Tungsten".
             type_name = key.__class__.__name__
@@ -279,7 +279,7 @@ def to_json_compatible(tree: PyTree) -> dict:
             return x.tolist()
         elif isinstance(x, ArrayLike):
             return np.asarray(x).tolist()
-        elif isinstance(x, (str, int, float, bool, type(None))):
+        elif isinstance(x, str | int | float | bool | type(None)):
             return x
         elif isinstance(x, Enum):
             return x.value
