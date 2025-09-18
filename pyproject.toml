@@ -24,6 +24,7 @@ dependencies = [
     "plotly>=5.24.1,<6",
     "tabulate>=0.9.0,<0.10",
     "xarray_jax",
+    "disruption_py",
     "cfspopcon>=7.0.2,<8",
     "certifi>=2024.8.30,<2025",
     "xeofs>=3.0.4,<4",
@@ -70,6 +71,7 @@ default = true
 
 [tool.uv.sources]
 xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", rev = "a857c610134d195d975dbc43be72c8c661714ced" }
+disruption_py = { git = "https://github.com/MIT-PSFC/disruption-py.git", rev = "zk/popsim" }
 
 [tool.hatch.build.targets.sdist]
 include = ["popsim"]
