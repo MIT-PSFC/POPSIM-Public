@@ -32,7 +32,10 @@ def calc_lambda_q(
         :term:`lambda_q` [mm]
     """
     if lambda_q_scaling == LambdaQScaling.Brunner:
-        return calc_lambda_q_with_brunner(average_total_pressure)
+        return calc_lambda_q_with_brunner(
+            average_total_pressure,
+            lambda_q_factor=lambda_q_factor,
+        )
     elif lambda_q_scaling == LambdaQScaling.EichRegression9:
         return calc_lambda_q_with_eich_regression_9(
             magnetic_field_on_axis=magnetic_field_on_axis,
@@ -41,19 +44,28 @@ def calc_lambda_q(
             lambda_q_factor=lambda_q_factor,
         )
     elif lambda_q_scaling == LambdaQScaling.EichRegression14:
-        return calc_lambda_q_with_eich_regression_14(B_pol_omp)
+        return calc_lambda_q_with_eich_regression_14(
+            B_pol_omp,
+            lambda_q_factor=lambda_q_factor,
+        )
     elif lambda_q_scaling == LambdaQScaling.EichRegression15:
-        return calc_lambda_q_with_eich_regression_15(power_crossing_separatrix, major_radius, B_pol_omp, inverse_aspect_ratio)
+        return calc_lambda_q_with_eich_regression_15(
+            power_crossing_separatrix,
+            major_radius,
+            B_pol_omp,
+            inverse_aspect_ratio,
+            lambda_q_factor=lambda_q_factor,
+        )
     else:
         raise NotImplementedError(f"No implementation for lambda_q scaling {lambda_q_scaling}")
 
 
-def calc_lambda_q_with_brunner(average_total_pressure: float) -> float:
+def calc_lambda_q_with_brunner(average_total_pressure: float, lambda_q_factor: float = 1.0) -> float:
     """Return lambda_q according to the Brunner scaling.
 
     Equation 4 in :cite:`brunner_2018_heat_flux`
     """
-    return 0.91 * average_total_pressure**-0.48
+    return lambda_q_factor * 0.91 * average_total_pressure**-0.48
 
 
 def calc_lambda_q_with_eich_regression_9(
@@ -66,20 +78,20 @@ def calc_lambda_q_with_eich_regression_9(
     return lambda_q_factor * 0.7 * magnetic_field_on_axis**-0.77 * q_star**1.05 * power_crossing_separatrix**0.09
 
 
-def calc_lambda_q_with_eich_regression_14(B_pol_omp: float) -> float:
+def calc_lambda_q_with_eich_regression_14(B_pol_omp: float, lambda_q_factor: float = 1.0) -> float:
     """Return lambda_q according to Eich regression 14.
 
     #14 in Table 3 in :cite:`eich_scaling_2013`
     """
-    return 0.63 * B_pol_omp**-1.19
+    return lambda_q_factor * 0.63 * B_pol_omp**-1.19
 
 
 def calc_lambda_q_with_eich_regression_15(
-    power_crossing_separatrix: float, major_radius: float, B_pol_omp: float, inverse_aspect_ratio: float
+    power_crossing_separatrix: float, major_radius: float, B_pol_omp: float, inverse_aspect_ratio: float, lambda_q_factor: float = 1.0
 ) -> float:
     """Return lambda_q according to Eich regression 15.
 
     #15 in Table 3 in :cite:`eich_scaling_2013`
     """
     lambda_q = 1.35 * major_radius**0.04 * B_pol_omp**-0.92 * inverse_aspect_ratio**0.42
-    return np.where(power_crossing_separatrix > 0, lambda_q * power_crossing_separatrix**-0.02, lambda_q)
+    return lambda_q_factor * np.where(power_crossing_separatrix > 0, lambda_q * power_crossing_separatrix**-0.02, lambda_q)
