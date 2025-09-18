@@ -68,7 +68,7 @@ url = "https://pypi.org/simple/"
 default = true
 
 [tool.uv.sources]
-xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", tag = "v0.0.8" }
+xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", rev = "a857c610134d195d975dbc43be72c8c661714ced" }
 
 [tool.hatch.build.targets.sdist]
 include = ["popsim"]

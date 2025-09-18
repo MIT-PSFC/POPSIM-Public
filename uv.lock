@@ -3060,7 +3060,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5,<3" },
     { name = "scipy", specifier = ">=1.13.0,<2" },
     { name = "tabulate", specifier = ">=0.9.0,<0.10" },
-    { name = "xarray-jax", git = "https://github.com/allen-adastra/xarray_jax.git?tag=v0.0.8" },
+    { name = "xarray-jax", git = "https://github.com/allen-adastra/xarray_jax.git?rev=a857c610134d195d975dbc43be72c8c661714ced" },
     { name = "xbatcher", specifier = ">=0.3.0,<0.4" },
     { name = "xeofs", specifier = ">=3.0.4,<4" },
     { name = "xxhash", specifier = ">=3.5.0" },
@@ -4333,7 +4333,7 @@ wheels = [
 [[package]]
 name = "xarray-jax"
 version = "0.0.8"
-source = { git = "https://github.com/allen-adastra/xarray_jax.git?tag=v0.0.8#c14bc33e50faab487974e215f3dd163a5ea9042e" }
+source = { git = "https://github.com/allen-adastra/xarray_jax.git?rev=a857c610134d195d975dbc43be72c8c661714ced#a857c610134d195d975dbc43be72c8c661714ced" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },
