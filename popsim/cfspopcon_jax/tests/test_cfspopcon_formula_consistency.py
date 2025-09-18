@@ -592,6 +592,9 @@ DEFAULT_SOL_MAGS = {k: v.magnitude for k, v in DEFAULT_SOL_QUANTITIES.items()}
 
 def test_scrape_off_layer_model():
     for scaling in cfsno.LambdaQScaling:
+        if scaling == cfsno.LambdaQScaling.EichRegression9:
+            # Currently not supported in the POPSIM repo.
+            continue
         jax_compatability_test(
             lambda_q.calc_lambda_q,
             static_argnames=["lambda_q_scaling"],
