@@ -122,7 +122,7 @@ def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> No
     ds = xr.open_zarr(zarr_path, consolidated=False)
     ds = ds.pad({dim: (0, n_extend)})
     ds_padding = ds.isel({dim: slice(-n_extend, None)})
-    ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=False)
+    ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=False, align_chunks=True)
 
 
 def add_to_zarr_store(  # noqa: PLR0912
