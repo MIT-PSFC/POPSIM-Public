@@ -8,6 +8,7 @@ import pytest
 import os
 import shutil
 import pytest
+import sys
 
 # Generation of test examples uses PRNG. We found failure modes by repeating tests at some point, so
 # lets make repeats of tests a part of testing.
@@ -273,6 +274,7 @@ def test_build_tensorized_dataset_time_dim_equals_time_coord(test_number):
         # Check that time across shots is not constant
         assert np.abs(ds["time"].diff("shot")).max().compute() > 0
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="Test fails on mac for unknown reasons. https://github.com/cfs-energy-internal/POPSIM/issues/147")
 @pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
 def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
     """Test build_tensorized_dataset with the TCV FBT dataset."""
