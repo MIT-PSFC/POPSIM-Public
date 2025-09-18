@@ -7,8 +7,16 @@ import tempfile
 import pytest
 import os
 import shutil
+import pytest
 
-def test_add_to_zarr_store():
+# Generation of test examples uses PRNG. We found failure modes by repeating tests at some point, so
+# lets make repeats of tests a part of testing.
+N_TEST_REPEAT = 5
+
+
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store(test_number):
+    np.random.seed(test_number)
     dummy_generator = dummy.generate_simple_scalar_dataset(3)
     
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -44,8 +52,9 @@ def test_add_to_zarr_store():
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["time"].equals(expected_time)
 
-
-def test_add_to_zarr_store_changing_spatial():
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store_changing_spatial(test_number):
+    np.random.seed(test_number)
     dummy_generator = dummy.generate_dataset_with_changing_spatial_var(3)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -97,9 +106,10 @@ def test_add_to_zarr_store_changing_spatial():
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["space"].equals(expected_space)
 
-
-def test_add_to_zarr_store_mismatch_dims():
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store_mismatch_dims(test_number):
     """Test trying to add a dataset with different dimensions to the zarr store raises an error"""
+    np.random.seed(test_number)
     dummy_generator = dummy.generate_simple_scalar_dataset(2)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -131,8 +141,9 @@ def test_add_to_zarr_store_mismatch_dims():
         with pytest.raises(ValueError):
             add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
 
-
-def test_build_tensorized_dataset():
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_build_tensorized_dataset(test_number):
+    np.random.seed(test_number)
     def build_fn(path: str) -> xr.Dataset:
         # Create some random data for testing
         nt = np.random.randint(1, 50)
@@ -224,8 +235,9 @@ def test_build_tensorized_dataset():
                 mb_per_chunk=10
             )
 
-
-def test_build_tensorized_dataset_time_dim_equals_time_coord():
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_build_tensorized_dataset_time_dim_equals_time_coord(test_number):
+    np.random.seed(test_number)
     def build_fn(path: str) -> xr.Dataset:
         # Create some random data for testing
         nt = np.random.randint(1, 50)
@@ -261,11 +273,11 @@ def test_build_tensorized_dataset_time_dim_equals_time_coord():
         # Check that time across shots is not constant
         assert np.abs(ds["time"].diff("shot")).max().compute() > 0
 
-
-def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset):
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
     """Test build_tensorized_dataset with the TCV FBT dataset."""
     ds = tcv_fbt_test_dataset
-    np.random.seed(42)
+    np.random.seed(test_number)
     
     def build_fn(identifier: str) -> xr.Dataset:
         # Randomly select time dimension length
