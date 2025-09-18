@@ -44,7 +44,7 @@ def load_cfspopcon_scenario_for_td_popcon(case_name: str = "SPARC_PRD"):
         zip(
             impurity_types,
             input_parameters["intrinsic_impurity_concentration"].values,
-            strict=False,
+            strict=True,
         )
     )
 

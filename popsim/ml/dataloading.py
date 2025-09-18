@@ -282,7 +282,7 @@ def make_standard_dataloaders(
 
     # By default, only shuffle the first dataset.
     shuffle = (True if i == 0 else False for i in range(len(datasets)))
-    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=False)]
+    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=True)]
 
 
 def make_time_indep_dataloader(

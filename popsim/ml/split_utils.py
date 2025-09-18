@@ -63,7 +63,7 @@ def random_split(n_data: int, lengths_or_fracs: Sequence[int | float], seed: int
         jax.random.PRNGKey(seed),
         n_data,
     )
-    return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths, strict=False)]
+    return [indices[offset - length : offset] for offset, length in zip(accumulate(lengths), lengths, strict=True)]
 
 
 def split_dataset_by_fracs(
@@ -95,7 +95,7 @@ def split_dataset_by_fracs(
         sorted_indices = np.argsort(sort_values.values)
         ds = ds.isel({dim: sorted_indices})
 
-        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths, strict=False)]
+        split_idxs = [np.arange(offset - length, offset) for offset, length in zip(accumulate(lengths), lengths, strict=True)]
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in split_idxs]
     else:
         dataset_splits = [ds.isel({dim: np.asarray(idxs)}) for idxs in random_split(n_data, lengths, seed)]

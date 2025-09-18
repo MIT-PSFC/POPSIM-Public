@@ -306,8 +306,8 @@ class ProfilePredictor(eqx.Module):
             raise ValueError(f"Invalid shape type: {self.shape_type}")
 
         # Compute the shapes.
-        ne_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.ne_shapes, ne_coeffs, strict=False)], axis=0)
-        te_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.te_shapes, te_coeffs, strict=False)], axis=0)
+        ne_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.ne_shapes, ne_coeffs, strict=True)], axis=0)
+        te_shapes = jnp.stack([w * shape(inputs.rho) for shape, w in zip(self.te_shapes, te_coeffs, strict=True)], axis=0)
 
         # Compute the ne profile. If we are using the edge density as an input, we subtract out the predicted edge density and add the input edge density.
         ne = jnp.sum(ne_shapes, axis=0) * inputs.ne20_line_avg

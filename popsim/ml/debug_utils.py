@@ -119,7 +119,7 @@ def diagnose_nans(prev_model: ModuleTrainingEnv | None = None, batch: XarrayPrep
         loguru.logger.info("Diagnosing batch...")
         inputs, targets = batch.get_inputs_and_targets()
 
-        for name, data in zip(["inputs", "targets"], [inputs, targets], strict=False):
+        for name, data in zip(["inputs", "targets"], [inputs, targets], strict=True):
             loguru.logger.info(f"Checking {name} for zero variance...")
             check_zero_variance_variables(data)
             loguru.logger.info(f"Checking {name} for large values...")

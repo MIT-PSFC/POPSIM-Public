@@ -15,7 +15,7 @@ def violin_shapes_in_data(eval_data: EvalData, rho_downsample: int = 1):
     if len(variables_to_plot) == 1:  # Handle single subplot case
         axes = [axes]
 
-    for var_name, ax in zip(variables_to_plot, axes, strict=False):
+    for var_name, ax in zip(variables_to_plot, axes, strict=True):
         # Extract the variable
         data_array = eval_data.input_ds[var_name]
 
@@ -52,7 +52,7 @@ def compute_integrated_error(eval_data: EvalData, q=None, return_distributions=F
 
     def quantile_dict(da, q):
         quants = da.quantile(q, dim="sample")
-        return dict(zip(quants["quantile"].values, quants.values, strict=False))
+        return dict(zip(quants["quantile"].values, quants.values, strict=True))
 
     out_dict = {}
 

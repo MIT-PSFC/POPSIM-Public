@@ -131,7 +131,7 @@ def draw_sample(
 
     keys = jax.random.split(key, len(list_of_samplers))
 
-    sampled_samplers = [sampler(k) for sampler, k in zip(list_of_samplers, keys, strict=False)]
+    sampled_samplers = [sampler(k) for sampler, k in zip(list_of_samplers, keys, strict=True)]
 
     reconstructed_samplers_tree = jax.tree.unflatten(treedef, sampled_samplers)
 
@@ -192,7 +192,7 @@ def generate_multi_cases(tree: PyTree[typing.Any | MultiCases]) -> list[PyTree[t
 
     list_of_multi_cases_list = [x.cases for x in list_of_multi_cases]
 
-    cases = list(zip(*list_of_multi_cases_list, strict=False))
+    cases = list(zip(*list_of_multi_cases_list, strict=True))
 
     def reconstruct_tree(case):
         reconstructed_multi_case_tree = jax.tree.unflatten(treedef, case)

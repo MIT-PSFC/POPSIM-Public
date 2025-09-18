@@ -171,7 +171,7 @@ def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
     Returns:
         collections.OrderedDict: An ordered dictionary with keys and values.
     """
-    return collections.OrderedDict(zip(keys, vals, strict=False))
+    return collections.OrderedDict(zip(keys, vals, strict=True))
 
 
 def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey) -> int | typing.Hashable | str:
