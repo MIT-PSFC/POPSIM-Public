@@ -592,9 +592,6 @@ DEFAULT_SOL_MAGS = {k: v.magnitude for k, v in DEFAULT_SOL_QUANTITIES.items()}
 
 def test_scrape_off_layer_model():
     for scaling in cfsno.LambdaQScaling:
-        if scaling == cfsno.LambdaQScaling.EichRegression9:
-            # Currently not supported in the POPSIM repo.
-            continue
         jax_compatability_test(
             lambda_q.calc_lambda_q,
             static_argnames=["lambda_q_scaling"],
@@ -605,6 +602,8 @@ def test_scrape_off_layer_model():
                 "major_radius": DEFAULT_MAGS["major_radius"],
                 "B_pol_omp": 1,
                 "inverse_aspect_ratio": DEFAULT_MAGS["inverse_aspect_ratio"],
+                "magnetic_field_on_axis": DEFAULT_MAGS["magnetic_field_on_axis"],
+                "q_star": 3.0,
             },
         )
 

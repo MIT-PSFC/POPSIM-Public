@@ -11,6 +11,9 @@ def calc_lambda_q(
     major_radius: float,
     B_pol_omp: float,
     inverse_aspect_ratio: float,
+    magnetic_field_on_axis: float,
+    q_star: float,
+    lambda_q_factor: float = 1.0,
 ) -> float:
     """Calculate SOL heat flux decay length (lambda_q) from a scaling.
 
@@ -19,14 +22,24 @@ def calc_lambda_q(
         average_total_pressure: [atm] :term:`glossary link <average_total_pressure>`
         power_crossing_separatrix: [MW] :term:`glossary link<power_crossing_separatrix>`
         major_radius: [m] :term:`glossary link<major_radius>`
-        B_pol_omp: [T] :term:`glossary link<B_pol_omp>`
+        B_pol_out_mid: [T] :term:`glossary link<B_pol_out_mid>`
         inverse_aspect_ratio: [~] :term:`glossary link<inverse_aspect_ratio>`
+        magnetic_field_on_axis: [T] :term:`glossary link<magnetic_field_on_axis>`
+        q_star: [~] :term:`glossary link<q_star>`
+        lambda_q_factor: [~] :term:`glossary link<lambda_q_factor>`
 
     Returns:
         :term:`lambda_q` [mm]
     """
     if lambda_q_scaling == LambdaQScaling.Brunner:
         return calc_lambda_q_with_brunner(average_total_pressure)
+    elif lambda_q_scaling == LambdaQScaling.EichRegression9:
+        return calc_lambda_q_with_eich_regression_9(
+            magnetic_field_on_axis=magnetic_field_on_axis,
+            q_star=q_star,
+            power_crossing_separatrix=power_crossing_separatrix,
+            lambda_q_factor=lambda_q_factor,
+        )
     elif lambda_q_scaling == LambdaQScaling.EichRegression14:
         return calc_lambda_q_with_eich_regression_14(B_pol_omp)
     elif lambda_q_scaling == LambdaQScaling.EichRegression15:
@@ -41,6 +54,16 @@ def calc_lambda_q_with_brunner(average_total_pressure: float) -> float:
     Equation 4 in :cite:`brunner_2018_heat_flux`
     """
     return 0.91 * average_total_pressure**-0.48
+
+
+def calc_lambda_q_with_eich_regression_9(
+    magnetic_field_on_axis: float, q_star: float, power_crossing_separatrix: float, lambda_q_factor: float = 1.0
+) -> float:
+    """Return lambda_q according to Eich regression 9.
+
+    #9 in Table 2 in :cite:`eich_scaling_2013`
+    """
+    return lambda_q_factor * 0.7 * magnetic_field_on_axis**-0.77 * q_star**1.05 * power_crossing_separatrix**0.09
 
 
 def calc_lambda_q_with_eich_regression_14(B_pol_omp: float) -> float:
