@@ -5,21 +5,27 @@ import os
 
 import loguru
 
-from popsim.ml import Trainer
+from popsim.ml import DataLoader, Trainer
 from popsim.ml.loggers import NullLogger, WandbLogger
 from popsim.ml.train_config import TrainConfig, load_dict
 from popsim.ml.train_run_builder import TrainRunBuilder
 
 
-def launch_train(config: str | os.PathLike[str] | dict, use_wandb: bool = False):
+def launch_train(
+    config: str | os.PathLike[str] | dict, use_wandb: bool = False
+) -> tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]:
     """Launch a training run from a configuration dictionary.
 
-    config_path (str | os.PathLike[str] | dict): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
-    use_wandb (bool): Whether to use Weights & Biases for logging. Defaults to False.
+    Args:
+        config (str | os.PathLike[str] | dict): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
+        use_wandb (bool, optional): Whether to use Weights & Biases for logging. Defaults to False.. Defaults to False.
+
+    Returns:
+        tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]: Objects relevant to the training run.
     """
     training_config = TrainConfig.load(config)
 
-    _run_train(training_config, use_wandb=use_wandb)
+    return _run_train(training_config, use_wandb=use_wandb)
 
 
 def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: str | os.PathLike[str] | dict):
@@ -74,7 +80,7 @@ def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | typ
 def _run_train(
     training_config: TrainConfig,
     use_wandb: bool = False,
-):
+) -> tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]:
     if use_wandb:
         import wandb
 
