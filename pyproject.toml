@@ -24,7 +24,6 @@ dependencies = [
     "plotly>=5.24.1,<6",
     "tabulate>=0.9.0,<0.10",
     "xarray_jax",
-    "disruption_py",
     "cfspopcon>=7.0.2,<8",
     "certifi>=2024.8.30,<2025",
     "xeofs>=3.0.4,<4",
@@ -60,6 +59,7 @@ dev = [
     "pytest-repeat>=0.9.4",
     "pytest-rerunfailures>=16.0.1",
 ]
+dispy = ["disruption_py"]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
 
 [tool.uv]

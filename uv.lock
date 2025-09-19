@@ -3048,7 +3048,6 @@ dependencies = [
     { name = "cfspopcon" },
     { name = "chex" },
     { name = "diffrax" },
-    { name = "disruption-py" },
     { name = "equinox" },
     { name = "fire" },
     { name = "flox" },
@@ -3094,6 +3093,9 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
 ]
+dispy = [
+    { name = "disruption-py" },
+]
 gpu = [
     { name = "jax", extra = ["cuda12"] },
 ]
@@ -3105,7 +3107,6 @@ requires-dist = [
     { name = "cfspopcon", specifier = ">=7.0.2,<8" },
     { name = "chex", specifier = ">=0.1.84,<0.2" },
     { name = "diffrax", specifier = ">=0.7.0,<0.8" },
-    { name = "disruption-py", git = "https://github.com/MIT-PSFC/disruption-py.git?rev=zk%2Fpopsim" },
     { name = "equinox", specifier = ">=0.13.0,<0.14" },
     { name = "fire", specifier = ">=0.7.1,<0.8" },
     { name = "flox", specifier = ">=0.9.9,<0.10" },
@@ -3151,6 +3152,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6.1,<4" },
     { name = "ruff", specifier = ">=0.1.5,<0.2" },
 ]
+dispy = [{ name = "disruption-py", git = "https://github.com/MIT-PSFC/disruption-py.git?rev=zk%2Fpopsim" }]
 gpu = [{ name = "jax", extras = ["cuda12"], specifier = ">=0.7.0,<0.8" }]
 
 [[package]]
