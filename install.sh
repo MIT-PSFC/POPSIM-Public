@@ -58,22 +58,36 @@ fi
 
 # Install dependencies
 echo "Installing dependencies with uv..."
-uv sync
-uv run setup-radas # Install radas
 
-# Optional installations
+# Collect optional group installations
+SYNC_ARGS=()
 install_gpu=$(prompt_user "Do you want to install with GPU support? (y/n):" "$INSTALL_GPU")
-# If install_gpu starts with y or Y then install.
 if [[ "$install_gpu" =~ ^[yY] ]]; then
-    echo "Installing with GPU support..."
-    uv sync --group gpu
+    SYNC_ARGS+=(--group gpu)
 fi
 
 install_dev=$(prompt_user "Do you want to install development dependencies? (y/n):" "$INSTALL_DEV")
-# If install_dev starts with y or Y then install.
 if [[ "$install_dev" =~ ^[yY] ]]; then
-    echo "Installing development dependencies..."
-    uv sync --group dev
+    SYNC_ARGS+=(--group dev)
+fi
+
+install_data=$(prompt_user "Do you want to install data dependencies? (y/n):" "$INSTALL_DATA")
+if [[ "$install_data" =~ ^[yY] ]]; then
+    SYNC_ARGS+=(--group data)
+fi
+
+# Install dependencies with selected groups
+if [[ ${#SYNC_ARGS[@]} -gt 0 ]]; then
+    echo "Installing with groups: ${SYNC_ARGS[*]}"
+    uv sync "${SYNC_ARGS[@]}"
+else
+    echo "Installing base dependencies only"
+    uv sync
+fi
+uv run setup-radas # Install radas
+
+# Install pre-commit hooks if dev dependencies were selected
+if [[ "$install_dev" =~ ^[yY] || "$install_data" =~ ^[yY] ]]; then
     uv run pre-commit install # Install pre-commit hooks
 fi
 

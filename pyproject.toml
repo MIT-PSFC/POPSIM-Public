@@ -59,7 +59,7 @@ dev = [
     "pytest-repeat>=0.9.4",
     "pytest-rerunfailures>=16.0.1",
 ]
-dispy = ["disruption_py"]
+data = ["disruption_py"]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
 
 [tool.uv]

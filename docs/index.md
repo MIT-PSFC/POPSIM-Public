@@ -34,7 +34,9 @@ bash install.sh
 
       b. To install with development dependencies, run `uv sync --group dev`
 
-      c. To install with both GPU and dev dependencies, run `uv sync --group gpu --group dev`
+      c. To install with data dependencies, run `uv sync --group data`
+
+      d. To install with all optional dependencies, run `uv sync --all-groups`
 
    4. CFSPOPCON currently requires a bit of manual work to get working. Follow the instructions [here](https://cfspopcon.readthedocs.io/en/latest/doc_sources/Usage.html)
    5. Install git lfs and do a `git lfs install` and a `git lfs pull` to get the necessary data files.
