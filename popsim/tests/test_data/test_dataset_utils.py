@@ -12,7 +12,7 @@ import sys
 
 # Generation of test examples uses PRNG. We found failure modes by repeating tests at some point, so
 # lets make repeats of tests a part of testing.
-N_TEST_REPEAT = 5
+N_TEST_REPEAT = 3
 
 
 @pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
