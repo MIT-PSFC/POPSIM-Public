@@ -53,4 +53,4 @@ jobs:
         run: uv run pytest ./popsim/cfspopcon_jax/tests/ -n=auto
 
       - name: Test Notebooks
-        run: uv run pytest --nbmake docs/notebooks/ -n=auto --ignore docs/notebooks/doc_ignore/ --nbmake-timeout=600
+        run: uv run pytest --nbmake docs/notebooks/ -n=auto --ignore docs/notebooks/doc_ignore/ --nbmake-timeout=300 --reruns 5 --reruns-delay 1

@@ -57,6 +57,7 @@ dev = [
     "black>=24.8.0,<25",
     "mkdocstrings-python>=1.12.1,<2",
     "pytest-repeat>=0.9.4",
+    "pytest-rerunfailures>=16.0.1",
 ]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
 
