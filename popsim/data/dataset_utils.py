@@ -70,7 +70,7 @@ def build_tensorized_dataset(  # noqa: PLR0912
         if ds is not None:
             success = add_to_zarr_store(ds, zarr_path, time_dim, episode_dim, store_time_dim_size=store_time_dim_size)
             if success and not store_time_dim_size:
-                store_time_dim_size = xr.open_zarr(zarr_path, consolidated=False).sizes[time_dim]
+                store_time_dim_size = xr.open_zarr(zarr_path, consolidated=True).sizes[time_dim]
             else:
                 store_time_dim_size = max(store_time_dim_size, ds.sizes[time_dim])
 
@@ -79,21 +79,20 @@ def build_tensorized_dataset(  # noqa: PLR0912
         del ds
         if (i > 0) and (i % GC_INTERVAL == 0):
             loguru.logger.debug(f"Forcing garbage collection after {i} processed shots")
-            jax.clear_backends()
             jax.clear_caches()
             gc.collect()
 
     # Exit if no datasets were successfully processed.
     if not atleast_one_success:
         loguru.logger.warning(f"No successful datasets were processed. Returning an empty dataset for {zarr_path}.")
-        if extend_existing:
+        if extend_existing and os.path.exists(zarr_path):
             return xr.open_zarr(zarr_path, consolidated=None)  # Allow for both consolidated and non-consolidated zarr stores.
         else:
             return xr.Dataset()
 
     # Now that the store has been built, we can consolidate the metadata and rechunk if necessary.
     loguru.logger.info(f"Successfully processed at least some of the files. Chunking and consolidating metadata for {zarr_path}.")
-    ds = xr.open_zarr(zarr_path, consolidated=False)
+    ds = xr.open_zarr(zarr_path, consolidated=True)
 
     if mb_per_chunk is not None:
         # Compute the number of episodes per chunk based on the average size of per-episode datasets.
@@ -119,10 +118,11 @@ def build_tensorized_dataset(  # noqa: PLR0912
 
 def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> None:
     """Extend an existing zarr store along a specified dimension by padding it with nans."""
-    ds = xr.open_zarr(zarr_path, consolidated=False)
+    ds = xr.open_zarr(zarr_path, consolidated=True)
     ds = ds.pad({dim: (0, n_extend)})
     ds_padding = ds.isel({dim: slice(-n_extend, None)})
-    ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=False, align_chunks=True)
+    ds_padding = ds_padding.compute()  # Pull dataset into memory to avoid dask/chunking issues
+    ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=True, align_chunks=True)
 
 
 def add_to_zarr_store(  # noqa: PLR0912
@@ -156,11 +156,10 @@ def add_to_zarr_store(  # noqa: PLR0912
 
     if not os.path.exists(zarr_path):
         loguru.logger.info(f"Zarr store at {zarr_path} does not exist. Creating a new one.")
-        ds.to_zarr(zarr_path, mode="w", consolidated=False)
+        ds.to_zarr(zarr_path, mode="w", consolidated=True)
         return True
     else:
-        # Don't try to read consolidated data during intermediate steps, can be consolidated later.
-        ds_store = xr.open_zarr(zarr_path, consolidated=False)
+        ds_store = xr.open_zarr(zarr_path, consolidated=True)
 
         # Handle dimension size changes for all dimensions except episode_dim
         pad_dims = {}
@@ -194,7 +193,10 @@ def add_to_zarr_store(  # noqa: PLR0912
 
         # Append the new dataset to the existing zarr store.
         # a- means we append only to variables that have episode_dim.
-        ds.to_zarr(zarr_path, mode="a-", append_dim=episode_dim, consolidated=False)
+        ds.to_zarr(zarr_path, mode="a-", append_dim=episode_dim, consolidated=True)
+        # According to xarray docs, stale consolidated metadata can cause issues.
+        # Should re-consolidate between each addition.
+        zarr.consolidate_metadata(zarr_path)
         return True
 
 

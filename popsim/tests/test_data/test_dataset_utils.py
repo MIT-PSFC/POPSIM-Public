@@ -329,3 +329,31 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
         ds_shot = result_ds.sel(shot=100000)
         ds2_shot = result_ds2.load().sel(shot=100000).isel(time_idx=slice(0, ds_shot.sizes["time_idx"]))
         assert ds_shot.equals(ds2_shot)
+
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize('extend_existing', [True, False])
+def test_build_tensorized_dataset_no_successful(test_number, extend_existing):
+    np.random.seed(test_number)
+
+    def build_fn(path: str) -> xr.Dataset:
+        return None # Simulate failure to process
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+        
+        # Build the dataset
+        ds = build_tensorized_dataset(
+            process_fn=build_fn,
+            zarr_path=zarr_path,
+            identifiers=["test1", "test2", "test3"],
+            time_dim="time_idx",
+            episode_dim="shot",
+            extend_existing=extend_existing
+        )
+        
+        # Check if the dataset is created correctly
+        assert isinstance(ds, xr.Dataset)
+        assert ds.data_vars == {}
+        assert ds.coords == {}
+        assert ds.dims == {}
+        assert not os.path.exists(zarr_path)
