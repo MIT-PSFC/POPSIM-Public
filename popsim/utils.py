@@ -34,5 +34,5 @@ def time_epsilon(time: ArrayLike) -> ArrayLike:
         ArrayLike: the padding amount for each time value.
     """
 
-    minimum_eps = jnp.finfo(jnp.float64).eps  # Needed to handle the case where time is 0.0.
+    minimum_eps = jnp.finfo(time.dtype).eps  # Needed to handle the case where time is 0.0.
     return jnp.maximum(jnp.nextafter(time, jnp.inf) - time, minimum_eps)
