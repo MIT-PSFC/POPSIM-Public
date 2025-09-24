@@ -1,4 +1,4 @@
-import os
+import getpass
 import warnings
 from pathlib import Path
 
@@ -10,8 +10,8 @@ SUPPORTED_ML_DATA_PATHS = [
 
 SUPPORTED_ML_SCRATCH_PATHS = [
     Path("/usr/local/mfe/ml_data_dump/"),
-    Path(f"/home/{os.getlogin()}/orcd/scratch/"),
-    Path(f"/cscratch/{os.getlogin()}/"),
+    Path(f"/home/{getpass.getuser()}/orcd/scratch/"),
+    Path(f"/cscratch/{getpass.getuser()}/"),
 ]
 
 
