@@ -19,8 +19,6 @@ from popsim.studies.transport_predictor_transfer.datasets.cmod_data import (
     CMOD_SIGNAL_BOUNDS,
 )
 
-CACHE_BASE = "/tmp/popsim/tests/test_data_pipeline/cmod"
-
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(
     get_path_to_ml_data_dump() is None,
@@ -29,9 +27,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 @pytest.fixture(scope="session")
-def cached_raw_dataset_info():
+def cache_base():
+    cache_base_dir = tempfile.gettempdir()
+    return cache_base_dir
+
+@pytest.fixture(scope="session")
+def cached_raw_dataset_info(cache_base):
     """Create or reuse a cached TCV dataset in /tmp."""
-    raw_ds_dir = os.path.join(CACHE_BASE, "raw")
+    raw_ds_dir = os.path.join(cache_base, "raw")
     max_num_shots = 10
     min_shot_id = 1050204013
 
@@ -51,10 +54,10 @@ def cached_raw_dataset_info():
     return raw_ds_dir, max_num_shots, min_shot_id
 
 @pytest.fixture(scope="session")
-def cached_processed_dataset_info(cached_raw_dataset_info):
+def cached_processed_dataset_info(cached_raw_dataset_info, cache_base):
     """Create or reuse a cached processed CMOD dataset in /tmp."""
     raw_ds_dir, max_num_shots, min_shot_id = cached_raw_dataset_info
-    processed_ds_dir = os.path.join(CACHE_BASE, "processed")
+    processed_ds_dir = os.path.join(cache_base, "processed")
 
     workflow = CMODDataWorkflow(
         ds_name="cmod",
