@@ -9,7 +9,7 @@ SUPPORTED_ML_DATA_PATHS = [
 ]
 
 SUPPORTED_ML_SCRATCH_PATHS = [
-    Path("/usr/local/mfe/ml_data_dump/"),
+    Path("/usr/local/mfe/ml_data_scratch/"),
     Path(f"/home/{getpass.getuser()}/orcd/scratch/"),
     Path(f"/cscratch/{getpass.getuser()}/"),
 ]
