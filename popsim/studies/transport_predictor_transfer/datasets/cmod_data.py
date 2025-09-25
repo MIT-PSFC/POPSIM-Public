@@ -1,6 +1,7 @@
 import os
 
 import loguru
+import numpy as np
 import xarray as xr
 
 from popsim.data.dataset_utils import build_tensorized_dataset
@@ -41,24 +42,6 @@ CMOD_DATASET_SIGNALS = [
     # TODO(ZanderKeith): Add gas valves when we get to that point
 ]
 
-CMOD_SIGNAL_MAP = {
-    # Simple renames
-    "R0": ("rmagx", None, "rename"),
-    "delta_top": ("tritop", None, "rename"),
-    "delta_bottom": ("tribot", None, "rename"),
-    # Conversions
-    "B0": ("btor", None, "abs"),
-    "Ip_MA": ("ip", 1e-6, "abs_multiply"),
-    "P_oh_MW": ("p_oh", 1e-6, "multiply"),
-    "P_rad_MW": ("p_rad", 1e-6, "multiply"),
-    "ne20_line_avg": ("n_e", 1e-20, "multiply"),
-    "Wtot_MJ": ("wmhd", 1e-6, "multiply"),
-    "ne20_rho": ("ne_rho", 1e-20, "multiply"),
-    "Te_keV_rho": ("te_rho", 1e-3, "multiply"),
-    "P_ICRF_MW": ("p_icrf", 1e-3, "multiply"),
-    "P_LH_MW": ("p_lh", 1e-3, "multiply"),
-}
-
 CMOD_SIGNAL_BOUNDS = {
     "Wtot_MJ": {"bounds": (1e-3, None)},
     "beta_p": {"bounds": (0, 1)},
@@ -67,7 +50,6 @@ CMOD_SIGNAL_BOUNDS = {
 
 
 class CMODDataWorkflow(DataWorkflow):
-    signal_map = CMOD_SIGNAL_MAP
     signal_bounds = CMOD_SIGNAL_BOUNDS
 
     def build_dataset(self, extend_existing: bool = False):
@@ -137,3 +119,30 @@ class CMODDataWorkflow(DataWorkflow):
             loguru.logger.remove(build_handler)
         except ValueError:
             pass
+
+    def process_signals(self, ds: xr.Dataset) -> xr.Dataset:
+        # Simple renames
+        ds = ds.rename(
+            {
+                "rmagx": "R0",
+                "tritop": "delta_top",
+                "tribot": "delta_bottom",
+            }
+        )
+
+        # Conversions
+        ds["B0"] = np.abs(ds["btor"])
+        ds["Ip_MA"] = np.abs(ds["ip"]) * 1e-6
+        ds["P_oh_MW"] = ds["p_oh"] * 1e-6
+        ds["P_rad_MW"] = ds["p_rad"] * 1e-6
+        ds["ne20_line_avg"] = ds["n_e"] * 1e-20
+        ds["Wtot_MJ"] = ds["wmhd"] * 1e-6
+        ds["ne20_rho"] = ds["ne_rho"] * 1e-20
+        ds["Te_keV_rho"] = ds["te_rho"] * 1e-3
+        ds["P_ICRF_MW"] = ds["p_icrf"] * 1e-6
+        ds["P_LH_MW"] = ds["p_lh"] * 1e-6
+
+        # Drop old names
+        ds = ds.drop_vars(["btor", "ip", "p_oh", "p_rad", "n_e", "wmhd", "ne_rho", "te_rho", "p_icrf", "p_lh"])
+
+        return ds

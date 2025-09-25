@@ -1,6 +1,7 @@
 import os
 
 import loguru
+import numpy as np
 import xarray as xr
 
 from popsim.data.dataset_utils import build_tensorized_dataset
@@ -44,26 +45,6 @@ TCV_DATASET_SIGNALS = [
     "P_LH",  # LH transition threshold
 ]
 
-TCV_SIGNAL_MAP = {
-    # Simple renames
-    "R0": ("RMAG", None, "rename"),
-    "kappa": ("KAPPA", None, "rename"),
-    "delta_top": ("DELTA_TOP", None, "rename"),
-    "delta_bottom": ("DELTA_BOTTOM", None, "rename"),
-    "LH_transition_threshold_MW": ("P_LH", None, "rename"),
-    # Conversions
-    "B0": ("BZERO", None, "abs"),
-    "Ip_MA": ("I_P", 1e-6, "abs_multiply"),
-    "P_oh_MW": ("POHM", 1e-6, "multiply"),
-    "P_rad_MW": ("PradBulk", 1e-6, "multiply"),
-    "ne20_line_avg": ("NEavg", 1e-20, "multiply"),
-    "Wtot_MJ": ("Wtot", 1e-6, "multiply"),
-    "ne20_rho": ("Ne_rho", 1e-20, "multiply"),
-    "Te_keV_rho": ("Te_rho", 1e-3, "multiply"),
-    "P_NBI_MW": ("NBI", None, "zero_nans"),
-    "P_ECRH_MW": ("ECRH", None, "zero_nans"),
-}
-
 TCV_SIGNAL_BOUNDS = {
     "ne20_line_avg": {"bounds": (0.1, 2e20)},
     "Wtot_MJ": {"bounds": (1e-3, None)},
@@ -74,7 +55,6 @@ TCV_SIGNAL_BOUNDS = {
 
 
 class TCVDataWorkflow(DataWorkflow):
-    signal_map = TCV_SIGNAL_MAP
     signal_bounds = TCV_SIGNAL_BOUNDS
 
     def build_dataset(self, extend_existing: bool = False):
@@ -124,3 +104,34 @@ class TCVDataWorkflow(DataWorkflow):
 
         loguru.logger.info(f"Completed building raw dataset\n{dataset}")
         loguru.logger.remove(build_handler)
+
+    def process_signals(self, ds: xr.Dataset) -> xr.Dataset:
+        # Simple renames
+        ds = ds.rename(
+            {
+                "RMAG": "R0",
+                "KAPPA": "kappa",
+                "DELTA_TOP": "delta_top",
+                "DELTA_BOTTOM": "delta_bottom",
+                "P_LH": "LH_transition_threshold_MW",
+            }
+        )
+
+        # Conversions
+        ds["B0"] = np.abs(ds["BZERO"])
+        ds["Ip_MA"] = np.abs(ds["I_P"]) * 1e-6
+        ds["P_oh_MW"] = ds["POHM"] * 1e-6
+        ds["P_rad_MW"] = ds["PradBulk"] * 1e-6
+        ds["ne20_line_avg"] = ds["NEavg"] * 1e-20
+        ds["Wtot_MJ"] = ds["Wtot"] * 1e-6
+        ds["ne20_rho"] = ds["Ne_rho"] * 1e-20
+        ds["Te_keV_rho"] = ds["Te_rho"] * 1e-3
+
+        # If the signal is not present, create it as zeros
+        ds["P_NBI_MW"] = ds["NBI"].fillna(0.0)
+        ds["P_ECRH_MW"] = ds["ECRH"].fillna(0.0)
+
+        # Drop old names
+        ds = ds.drop_vars(["BZERO", "I_P", "POHM", "PradBulk", "NEavg", "Wtot", "Te_rho", "Ne_rho", "NBI", "ECRH"])
+
+        return ds

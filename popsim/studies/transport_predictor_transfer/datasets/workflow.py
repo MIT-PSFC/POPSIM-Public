@@ -82,6 +82,10 @@ class DataWorkflow:
     def build_dataset(self, extend_existing: bool = False):
         """Build the tensorized dataset from raw data."""
 
+    @abstractmethod
+    def process_signals(self, ds: xr.Dataset) -> xr.Dataset:
+        """Process signals from the raw dataset to the values expected by the module."""
+
     def process_dataset(self):
         """Process the dataset (e.g., filtering, normalization)."""
         logger.info(f"Processing dataset {self.ds_name} from {self.raw_ds_dir}")
@@ -94,7 +98,7 @@ class DataWorkflow:
             # Convert the shot ds to non-dask arrays to avoid issues with some operations
             shot_ds = shot_ds.compute()
             # Process signals according to the provided signal map
-            shot_ds = process_signals(shot_ds, self.signal_map)
+            shot_ds = self.process_signals(shot_ds)
             # Reject unrealistic and/or unreliable datapoints
             shot_ds = apply_bounds_validation(shot_ds, self.signal_bounds)
 
@@ -242,26 +246,6 @@ class DataWorkflow:
                 return
             logger.info("Source device, no test set separation needed.")
             self.place_on_scratch(self.processed_ds_path, self.train_ds_path)
-
-
-def process_signals(ds: xr.Dataset, signal_map: dict[str, tuple[str, float, str]]) -> xr.Dataset:
-    for module_name, (ds_name, factor, operation) in signal_map.items():
-        if operation == "rename":
-            ds = ds.rename({ds_name: module_name})
-        elif operation == "multiply":
-            ds[module_name] = ds[ds_name] * factor
-            ds = ds.drop_vars(ds_name)
-        elif operation == "abs":
-            ds[module_name] = np.abs(ds[ds_name])
-            ds = ds.drop_vars(ds_name)
-        elif operation == "abs_multiply":
-            ds[module_name] = np.abs(ds[ds_name] * factor)
-            ds = ds.drop_vars(ds_name)
-        elif operation == "zero_nans":
-            ds[module_name] = ds[ds_name].fillna(0)
-        else:
-            raise ValueError(f"Unknown processing operation: {operation}")
-    return ds
 
 
 def apply_bounds_validation(shot_ds: xr.Dataset, signal_bounds: dict[str, dict]) -> xr.Dataset:
