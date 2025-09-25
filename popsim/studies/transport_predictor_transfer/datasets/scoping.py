@@ -39,14 +39,20 @@ def scope_dataset(ds: xr.Dataset, fig_dir: str) -> None:
         ax_power.plot(shot_ds["time"], shot_ds["P_rad_MW"], label="P_rad [MW]", color="red")
         ax_power.plot(shot_ds["time"], shot_ds["P_NBI_MW"], label="P_NBI [MW]", color="cyan")
         ax_power.plot(shot_ds["time"], shot_ds["P_ECRH_MW"], label="P_ECRH [MW]", color="lime")
-        ax_power.plot(shot_ds["time"], shot_ds["P_LH"] / 1e6, label="P_LH [MW]", color="white", linestyle="--")
+        ax_power.plot(shot_ds["time"], shot_ds["LH_transition_threshold_MW"] / 1e6, label="LH_Thresh [MW]", color="white", linestyle="--")
         ax_power.set_ylabel("Power [MW]", fontsize=LABEL_FONTSIZE, color="white")
         ax_power.legend(fontsize=LEGEND_FONTSIZE, facecolor=BACKGROUND_COLOR, edgecolor=BACKGROUND_COLOR, loc="upper left")
 
-        # density
+        # density and gas valve
         ax_ne = axes[2]
         ax_ne.plot(shot_ds["time"], shot_ds["ne20_line_avg"], label="ne20_line_avg [m^-3]", color="white")
         ax_ne.set_ylabel("ne20_line_avg [m^-3]", fontsize=LABEL_FONTSIZE, color="white")
+        ax_ne.set_ylim(0, 1.5)
+        ax_valve = ax_ne.twinx()
+        ax_valve.plot(shot_ds["time"], shot_ds["gas_valve"], label="Gas Valve", color="yellow")
+        ax_valve.set_ylabel("Gas Valve", fontsize=LABEL_FONTSIZE, color="yellow")
+        ax_valve.tick_params(axis="y", labelsize=TICK_FONTSIZE, colors=TEXT_COLOR)
+        ax_valve.set_ylim(-6, 6)
 
         # Shaping
         ax_shape = axes[3]
