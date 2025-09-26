@@ -7,7 +7,7 @@ from popsim.modules.bounded_output import BoundedOutput, BoundType
 
 
 
-@pytest.mark.parametrize("bound_type", [BoundType.TANH, BoundType.CLIP])
+@pytest.mark.parametrize("bound_type", [BoundType.SOFT, BoundType.CLIP])
 def test_bounded_output_vec_output(bound_type):
     class DummyModuleVecOut(TimeIndepModule):
         """Simple test module that multiplies inputs by -1."""
@@ -15,7 +15,7 @@ def test_bounded_output_vec_output(bound_type):
             return -1.0 * inputs
 
 
-    """Test default tanh bounding with vector output."""
+    """Test default SOFT bounding with vector output."""
     module = BoundedOutput(
         module=DummyModuleVecOut(),
         lower_bound=jnp.array([-0.5, -2.0, -3.0, -3.0, -3.0]),
@@ -26,7 +26,7 @@ def test_bounded_output_vec_output(bound_type):
     inputs = jnp.array([1.0, 1.0, -1.0, 5.0, -5.0])
     output = module(inputs)
     
-    if bound_type == BoundType.TANH:
+    if bound_type == BoundType.SOFT:
         # Expect outputs are within bounds.
         assert jnp.all(output >= module.lower_bound)
         assert jnp.all(output <= module.upper_bound)
@@ -36,7 +36,7 @@ def test_bounded_output_vec_output(bound_type):
     else:
         raise ValueError(f"Test not set up for bound_type: {bound_type}")
 
-@pytest.mark.parametrize("bound_type", [BoundType.TANH, BoundType.CLIP])
+@pytest.mark.parametrize("bound_type", [BoundType.SOFT, BoundType.CLIP])
 def test_bounded_output_pytree_output(bound_type):
     class DummyModulePyTreeOut(TimeIndepModule):
         def __call__(self, inputs):
@@ -72,7 +72,7 @@ def test_bounded_output_pytree_output(bound_type):
     
     output = module(inputs)
     
-    if bound_type == BoundType.TANH:
+    if bound_type == BoundType.SOFT:
         # Check that all outputs are within bounds.
         def check_bounds(out, lb, ub):
             assert jnp.all(out >= lb)

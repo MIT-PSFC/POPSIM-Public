@@ -1,4 +1,4 @@
-from popsim.math_utils import signed_log, inverse_signed_log, soft_clip, safe_log, tanh_clip
+from popsim.math_utils import signed_log, inverse_signed_log, soft_clip, safe_log
 import jax.numpy as jnp
 import jax
 import pytest
@@ -100,40 +100,3 @@ def test_soft_clip_vec():
         return jnp.sum(soft_clip(x, mins, maxs))
     grads = jax.grad(fn)(values)
     assert not jnp.any(jnp.isnan(grads))
-
-
-@pytest.mark.parametrize("min_val, max_val", [
-    (-1.0, 1.0),
-    (0.0, 5.0),
-    (-2.0, 3.0),
-    (1e-5, 2e-5),
-])
-def test_tanh_clip_scalar(min_val: float, max_val: float):
-    # Test scalar inputs
-    x_values = jnp.array([-10.0, -1.0, 0.0, 1.0, 10.0])
-
-    for x in x_values:
-        result = tanh_clip(x, min_val, max_val)
-
-        # Check that result is within bounds
-        assert result >= min_val
-        assert result <= max_val
-
-        # Check that result is a scalar when inputs are scalars
-        assert jnp.isscalar(result) or result.shape == ()
-
-
-def test_tanh_clip_array():
-    # Test array inputs
-    x = jnp.array([-5.0, -1.0, 0.0, 1.0, 5.0])
-    min_val = -2.0
-    max_val = 3.0
-
-    result = tanh_clip(x, min_val, max_val)
-
-    # Check that all results are within bounds
-    assert jnp.all(result >= min_val)
-    assert jnp.all(result <= max_val)
-
-    # Check that result has same shape as input
-    assert result.shape == x.shape

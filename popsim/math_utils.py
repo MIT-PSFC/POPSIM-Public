@@ -42,7 +42,7 @@ def inverse_signed_log(y: ArrayLike) -> ArrayLike:
     return jnp.sign(y) * (jnp.exp(jnp.abs(y)) - 1)
 
 
-def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpness: float = 1.0, eps: float = 1e-6) -> ArrayLike:
+def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpness: float = 2.0, eps: float = 1e-6) -> ArrayLike:
     """A smooth alternative to clipping that uses a tanh function.
 
     Args:

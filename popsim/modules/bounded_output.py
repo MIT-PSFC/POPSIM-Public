@@ -4,13 +4,13 @@ import jax.numpy as jnp
 from jaxtyping import Array, PyTree
 
 from popsim import TimeIndepModule
-from popsim.math_utils import tanh_clip
+from popsim.math_utils import soft_clip
 
 
 class BoundType(eqx.Enumeration):
     """Enumeration of supported bounding types for BoundedOutput module."""
 
-    TANH = "tanh"
+    SOFT = "soft"
     CLIP = "clip"
 
 
@@ -20,9 +20,9 @@ class BoundedOutput(TimeIndepModule):
     module: TimeIndepModule
     lower_bound: PyTree
     upper_bound: PyTree
-    bound_type: BoundType = eqx.field(static=True, default_factory=lambda: BoundType.TANH)
+    bound_type: BoundType = eqx.field(static=True, default_factory=lambda: BoundType.SOFT)
 
-    def __init__(self, module: TimeIndepModule, lower_bound: Array, upper_bound: Array, bound_type: BoundType = BoundType.TANH):
+    def __init__(self, module: TimeIndepModule, lower_bound: Array, upper_bound: Array, bound_type: BoundType = BoundType.SOFT):
         self.module = module
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -35,10 +35,10 @@ class BoundedOutput(TimeIndepModule):
 
             def bound_function(out, lb, ub):
                 return jnp.clip(out, lb, ub)
-        elif self.bound_type == BoundType.TANH:
+        elif self.bound_type == BoundType.SOFT:
 
             def bound_function(out, lb, ub):
-                return tanh_clip(out, lb, ub)
+                return soft_clip(out, lb, ub)
         else:
             raise ValueError(f"Unsupported bound_type: {self.bound_type}. Supported types are {list(BoundType)}.")
 
