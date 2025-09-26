@@ -1,7 +1,7 @@
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, PyTree
+from jaxtyping import PyTree
 
 from popsim import TimeIndepModule
 from popsim.math_utils import soft_clip
@@ -22,13 +22,13 @@ class BoundedOutput(TimeIndepModule):
     upper_bound: PyTree
     bound_type: BoundType = eqx.field(static=True, default_factory=lambda: BoundType.SOFT)
 
-    def __init__(self, module: TimeIndepModule, lower_bound: Array, upper_bound: Array, bound_type: BoundType = BoundType.SOFT):
+    def __init__(self, module: TimeIndepModule, lower_bound: PyTree, upper_bound: PyTree, bound_type: BoundType = BoundType.SOFT):
         self.module = module
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.bound_type = bound_type
 
-    def __call__(self, inputs: PyTree) -> Array:
+    def __call__(self, inputs: PyTree) -> PyTree:
         module_out = self.module(inputs)
 
         if self.bound_type == BoundType.CLIP:

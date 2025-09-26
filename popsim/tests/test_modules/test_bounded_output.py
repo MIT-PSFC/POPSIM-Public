@@ -15,7 +15,6 @@ def test_bounded_output_vec_output(bound_type):
             return -1.0 * inputs
 
 
-    """Test default SOFT bounding with vector output."""
     module = BoundedOutput(
         module=DummyModuleVecOut(),
         lower_bound=jnp.array([-0.5, -2.0, -3.0, -3.0, -3.0]),
@@ -39,6 +38,7 @@ def test_bounded_output_vec_output(bound_type):
 @pytest.mark.parametrize("bound_type", [BoundType.SOFT, BoundType.CLIP])
 def test_bounded_output_pytree_output(bound_type):
     class DummyModulePyTreeOut(TimeIndepModule):
+        """Test to make sure that BoundedOutput works with PyTree outputs."""
         def __call__(self, inputs):
             return {
                 "a": -1.0 * inputs,
