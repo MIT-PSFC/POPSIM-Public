@@ -103,7 +103,11 @@ def build_tensorized_dataset(  # noqa: PLR0912
 
     if episodes_per_chunk is not None:
         loguru.logger.info(f"Chunking the dataset with {episodes_per_chunk} episodes per chunk.")
-        ds = zarr_chunk(ds, chunk_spec={episode_dim: episodes_per_chunk})
+
+        # We essentially only want chunking across episodes. So other dimensions should be covered by a single chunk.
+        chunk_spec = {episode_dim: episodes_per_chunk} | {k: ds.sizes[k] for k in ds.dims if k != episode_dim}
+
+        ds = zarr_chunk(ds, chunk_spec=chunk_spec)
 
         # Save the chunked dataset to a temporary path and then rename it to the final zarr path.
         tmp_path = zarr_path + ".tmp"

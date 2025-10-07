@@ -224,6 +224,11 @@ def test_build_tensorized_dataset(test_number):
         )
         assert ds.chunks["shot"] == (2, 1)
         
+        # Make sure that all dimensions except shot are covered by a single chunk.
+        for dim in ds.dims:
+            if dim != "shot":
+                assert ds.chunksizes[dim] == (ds.sizes[dim],)
+        
         # By default, mb_per_chunk is specified and we should get an error if the user tries to set both.
         with pytest.raises(ValueError):
             ds = build_tensorized_dataset(
