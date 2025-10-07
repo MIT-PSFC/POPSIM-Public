@@ -42,7 +42,7 @@ class PopsimMLAccessor:
         # Compute a boolean mask where NaNs are present
         nan_mask = self._ds.isnull()
 
-        n_nans_total = nan_mask.to_array().sum().item()
+        n_nans_total = sum([nan_mask[var].sum().item() for var in self._ds.data_vars])
 
         # If no NaNs are found, return early with False
         if n_nans_total == 0:

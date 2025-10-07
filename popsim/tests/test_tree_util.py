@@ -8,7 +8,7 @@ import pytest
 import xarray as xr
 import jax
 import equinox as eqx
-
+import copy
 
 # Sample data structures for testing
 sample_tree_1 = {
@@ -210,3 +210,28 @@ def test_json_compatible():
 
     assert layer1["bias"] == nn.layers[1].bias.tolist()
     assert layer1["weight"] == nn.layers[1].weight.tolist()
+    
+def test_convert_to_real():
+    # Tree where some arrays have complex dtype, but all complex parts are zero.
+    tree_real = {
+        'a': jnp.array([1.0 + 0.0j, 3.0]),
+        'b': {
+            'c': 2.0,
+            'd': jnp.array([5.0, 6.0+ 0.0j]),
+        }
+    }
+    
+    tree_real_out = tree_util.convert_to_real(tree_real)
+    chex.assert_trees_all_close(tree_real_out, tree_real)
+    
+    # Tree where some arrays have non-zero complex parts.
+    tree_imag = copy.deepcopy(tree_real)
+    tree_imag['a'] = tree_imag['a'] + 1.0j
+    # By default, should raise an error.
+    with pytest.raises(ValueError):
+        tree_util.convert_to_real(tree_imag)
+        
+    # If we disable the check, should work.
+    tree_imag_out = tree_util.convert_to_real(tree_imag, check=False)
+    chex.assert_trees_all_close(tree_imag_out, tree_real)
+    

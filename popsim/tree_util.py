@@ -174,14 +174,14 @@ def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
     return collections.OrderedDict(zip(keys, vals, strict=True))
 
 
-def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey) -> int | typing.Hashable | str:
+def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey | str) -> int | typing.Hashable | str:
     """The different key types in Jax have different accessors. This is a wrapper function to get the key value.
 
     Args:
-        key (typing.Union[tu.SequenceKey, tu.DictKey, tu.GetAttrKey]): key to access.
+        key (tu.SequenceKey | tu.DictKey | tu.GetAttrKey | str): key to access.
 
     Returns:
-        typing.Union[int, typing.Hashable, str]: key value.
+        int | typing.Hashable | str:: key value.
     """
     if isinstance(key, tu.SequenceKey):
         return key.idx
@@ -189,6 +189,8 @@ def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey) -> int | typing.Ha
         return key.key
     elif isinstance(key, tu.GetAttrKey):
         return key.name
+    elif isinstance(key, str):
+        return key
     else:
         raise ValueError(f"Key type {type(key)} not recognized.")
 
@@ -288,3 +290,25 @@ def to_json_compatible(tree: PyTree) -> dict:
 
     tree_dict = jax.tree.map(convert, tree_dict)
     return tree_dict
+
+
+def convert_to_real(pytree: PyTree, check: bool = True) -> PyTree:
+    """Convert complex numbers to real numbers. If check is True, it will raise an error if the imaginary part is non-zero.
+
+    Args:
+        pytree (PyTree): the PyTree to convert.
+        check (bool, optional): Whether or not ot raise an error if an imaginary part is non-zero. Defaults to True.
+
+    Returns:
+        PyTree: the PyTree with complex numbers converted to real numbers.
+    """
+
+    def convert_to_real(x):
+        if jnp.iscomplexobj(x):
+            # Check that the imagniary part is zero.
+            if check and not jnp.all(jnp.imag(x) == 0):
+                raise ValueError("Complex number has non-zero imaginary part.")
+            return jnp.real(x)
+        return x
+
+    return jax.tree.map(convert_to_real, pytree)

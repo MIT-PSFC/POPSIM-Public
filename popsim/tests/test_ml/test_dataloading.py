@@ -237,3 +237,28 @@ def test_dl_limit_size_constructed(time_dependent):
     for coord in list(dl.ds.coords) + list(dl.ds.dims):
         lim_dl = dl.limit_size(size=2, coord=coord)
         assert np.unique(lim_dl.ds[coord]).size == 2
+
+def test_prng(reduced_cmod_test_dataset):
+    ds, _, _, _ = reduced_cmod_test_dataset
+    dl = make_time_indep_dataloader(
+        ds=ds,
+        time_coord="time",
+        episode_coord="shot",
+        input_vars=["p_rad", "ip", "n_e"],
+        target_vars=["Wmhd"],
+        convert_xr_to_jnp=True,
+        batch_size=512,
+        shuffle=True,
+        generate_prng=True
+    )
+    
+    # Check that when we grab the next batch, there is a "prng_key" variable in the dataset.
+    batch = next(iter(dl))
+    assert "prng_key" in batch.ds
+    prng_key1 = dl.ds["prng_key"].data
+    
+    _ = next(iter(dl))
+    prng_key2 = dl.ds["prng_key"].data
+    
+    # Check that the prng keys are different for different batches.
+    assert not np.array_equal(prng_key1, prng_key2)

@@ -59,46 +59,7 @@
   - LY.rbary
   - LY.raqmin
   - LY.qmin
-  - L.P.botlim
-  - L.P.capaj
-  - L.P.cappa1
-  - L.P.delta1
-  - L.P.eftlim
-  - L.P.ell1
-  - L.P.emm1
-  - L.P.gpbd
-  - L.P.gpcd
-  - L.P.gpfd
-  - L.P.gpid
-  - L.P.hlamd1
-  - L.P.iansha
-  - L.P.ibro
-  - L.P.ibzo
-  - L.P.ilia
-  - L.P.ilie
-  - L.P.isaddl
-  - L.P.ivsec
-  - L.P.omega
-  - L.P.placex
-  - L.P.ppal
-  - L.P.ppfac
-  - L.P.psirat
-  - L.P.rmajo1
-  - L.P.rmino1
-  - L.P.timeeq
-  - L.P.toplim
-  - L.P.ttfac1
-  - L.P.vsec
-  - L.P.weitam
-  - L.P.weitex
-  - L.P.zmajo1
-  - L.P.t
-  - L.P.gpvd
-  - L.P.Ip
-  - L.P.rBt
-  - L.P.qA
-  - L.P.niter
-  - L.P.gpdd
+  - LY.gamma
   - LY.shot
   - LY.resy
   - LY.resC
@@ -182,9 +143,18 @@
   - "LX.Va"
   - "LX.gpia"
   - "LX.gpie"
+  - "LY.MpEF"
+
+!!python.tuple ["ohmic_coils", "time"]:
+  # A bit of a special case because OH coils are typically not considered part of FBT active coils
+  # But we want the coupling between the plasma and the OH coils.
+  - "LY.MpOH"
+
 !!python.tuple ["active_coils"]:
   - "L.G.Iamax"
   - "L.G.Iamin"
+
+
 !!python.tuple ["zx", "rx", "time"]:
   - "LY.Fx"
 !!python.tuple ["zy", "ry", "time"]:

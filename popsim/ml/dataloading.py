@@ -15,6 +15,7 @@ from popsim.ml.preprocess_utils import expand_time_dim, shift_time_to_not_nan
 from popsim.ml.utils import pad_time_with_epsilon_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
+PRNG_KEY_VAR = "prng_key"
 
 
 class XarrayPreppedDataset:
@@ -51,6 +52,9 @@ class XarrayPreppedDataset:
 
     def get_inputs_and_targets(self):
         training_metadata, ds = self.training_metadata, self.ds
+        input_vars = training_metadata.input_vars
+        if PRNG_KEY_VAR in ds and PRNG_KEY_VAR not in input_vars:
+            input_vars = [*input_vars, PRNG_KEY_VAR]
         if self.training_metadata.is_time_dependent:
             # Get the time and sample coordinate variable, then drop them from the dataset.
             # We want to drop them because having different coordinates will re-trigger JIT compilation.
@@ -59,7 +63,7 @@ class XarrayPreppedDataset:
             sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
             ds = ds.drop_vars(sample_coords)
 
-            inputs = ds[training_metadata.input_vars]
+            inputs = ds[input_vars]
             targets = ds[training_metadata.target_vars]
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
@@ -85,7 +89,7 @@ class XarrayPreppedDataset:
             # Time-independent case.
             sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
             ds = ds.drop_vars(sample_coords)
-            inputs = ds[training_metadata.input_vars]
+            inputs = ds[input_vars]
             targets = ds[training_metadata.target_vars]
 
             if training_metadata.convert_xr_to_jnp:
@@ -104,6 +108,15 @@ class XarrayPreppedDataset:
         """Get the number of samples in the dataset."""
         return self.sample_coord.size
 
+    def update_prng_seed(self, key: int) -> "XarrayPreppedDataset":
+        """Generate new random numbers for each sample in the dataset and add them as a new variable."""
+        np.random.seed(key)
+        random_numbers = np.random.randint(low=0, high=2**32, size=(self.n_samples,))
+        if PRNG_KEY_VAR in self.ds:
+            self.ds[PRNG_KEY_VAR].data = random_numbers
+        else:
+            self.ds[PRNG_KEY_VAR] = xr.DataArray(random_numbers, dims=[self.training_metadata.sample_dim])
+
 
 class DataLoader:
     def __init__(
@@ -112,22 +125,30 @@ class DataLoader:
         batch_size: int,
         shuffle: bool,
         drop_last: bool = False,
-        key: int = 0,
+        key: jax.random.PRNGKey = jax.random.key(0),  # noqa: B008
+        generate_prng: bool = False,
         **kwargs,
     ):
-        self.key = jax.random.PRNGKey(key)
+        self.key = key
         self.dataset = dataset
-
-        self.indices = np.arange(len(dataset))
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.drop_last = drop_last
+        self.generate_prng = generate_prng
+
+        if self.generate_prng and not shuffle:
+            raise ValueError("generate_prng must be False if shuffle is False")
 
     def __len__(self):
         complete_batches, remainder = divmod(len(self.indices), self.batch_size)
         return complete_batches if self.drop_last else complete_batches + bool(remainder)
 
     def __iter__(self):
+        if self.generate_prng:
+            # When shuffling, presume training mode.
+            seed = jax.random.randint(self.next_key(), (), minval=0, maxval=2**32).item()
+            self.dataset.update_prng_seed(seed)
+
         def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
             for i in range(0, len(indices), batch_size):
                 idx = indices[i : i + batch_size]
@@ -135,7 +156,6 @@ class DataLoader:
 
         # shuffle (permutation) indices every epoch
         indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
-
         if self.drop_last:
             indices = indices[: len(self.indices) - len(self.indices) % self.batch_size]
         return EpochIterator(self.dataset, self.batch_size, indices)
@@ -179,10 +199,13 @@ class DataLoader:
 
         prep_ds = XarrayPreppedDataset(lim_ds, self.dataset.training_metadata)
         # Extract integer from PRNG key if needed
-        key_val = int(self.key[0]) if hasattr(self.key, "__getitem__") else self.key
-        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=key_val)
+        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=self.key)
 
         return lim_dl
+
+    @property
+    def indices(self):
+        return np.arange(len(self.dataset))
 
     @property
     def ds(self) -> xr.Dataset:
@@ -192,6 +215,10 @@ class DataLoader:
     def metrics(self) -> dict:
         out = {"n_samples": self.dataset.n_samples, "n_GB": self.dataset.ds.nbytes / 1e9}
         return out
+
+    @property
+    def metadata(self) -> TrainingMetadata:
+        return self.dataset.training_metadata
 
 
 def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
@@ -243,7 +270,7 @@ def make_standard_dataloaders(
     segment_length: int | None = None,
     segment_overlap: int | None = 0,
 ) -> typing.Sequence[DataLoader]:
-    if (state_init_vars is None and segment_length is not None) or segment_overlap != 0:
+    if state_init_vars is None and (segment_length is not None or segment_overlap != 0):
         raise ValueError("segment_length and segment_overlap are only valid when state_init_vars are provided")
     if state_init_vars is None:
 
@@ -295,6 +322,7 @@ def make_time_indep_dataloader(
     extra_vars: list[str] | None = None,
     batch_size: int | None = None,
     shuffle: bool = True,
+    generate_prng: bool = False,
 ) -> DataLoader:
     """Create a DataLoader for training tasks that do not require time dependence.
 
@@ -308,10 +336,12 @@ def make_time_indep_dataloader(
         extra_vars (list[str], optional): Names of additional variables to include in the dataset. Defaults to None.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
+        generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
+
     ds = ds[input_vars + target_vars + (extra_vars or [])]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
     sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM)
@@ -338,11 +368,7 @@ def make_time_indep_dataloader(
         training_metadata=train_meta,
     )
 
-    dl = DataLoader(
-        dataset=prepped_ds,
-        batch_size=batch_size,
-        shuffle=shuffle,
-    )
+    dl = DataLoader(dataset=prepped_ds, batch_size=batch_size, shuffle=shuffle, generate_prng=generate_prng)
     return dl
 
 
@@ -359,6 +385,7 @@ def make_time_dep_dataloader(
     segment_overlap: int = 0,
     batch_size: int | None = None,
     shuffle: bool = True,
+    generate_prng: bool = False,
 ) -> DataLoader:
     """Given a multi-episode time series dataset, generate a DataLoader. This function does some pre-processing, and you should expect the resultant data to have the following properties:
         1. The data is segmented into samples of length `segment_length` with `segment_overlap` overlap.
@@ -378,6 +405,7 @@ def make_time_dep_dataloader(
         segment_overlap (int): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
+        generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
@@ -459,6 +487,7 @@ def make_time_dep_dataloader(
         dataset=prepped_ds,
         batch_size=batch_size,
         shuffle=shuffle,
+        generate_prng=generate_prng,
     )
     return dl
 

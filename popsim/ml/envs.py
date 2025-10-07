@@ -23,7 +23,7 @@ class ModuleEvalEnvInput:
 
 
 @eqx.filter_jit
-def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, max_step_mult: int = 2) -> diffrax.Solution:
+def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, max_step_mult: int = 10) -> diffrax.Solution:
     """Run a ModuleEvalEnv with the given input. This handles state initialization and interpolation of time-dependent inputs.
 
     Args:
@@ -82,5 +82,5 @@ class ModuleEvalEnv(eqx.Module):
 
 class ModuleTrainingEnv(ModuleEvalEnv):
     @abstractmethod
-    def get_trainable(self) -> PyTree | tuple[PyTree]:
+    def get_trainable(self) -> PyTree:
         raise NotImplementedError

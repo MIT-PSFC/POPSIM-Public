@@ -35,6 +35,15 @@ def load_tcv_fbt_test_dataset():
     except:
         raise ValueError(f"Could not find the TCV FBT test dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
 
+@lru_cache(maxsize=1)  # Caches only one result since it's always the same dataset
+def load_scrambled_multishot_liuqe_dataset():
+    try:
+        path_to_data = os.path.join(popsim.DATA_DIR, "tcv/scrambled_multishot_liuqe.nc")
+        ds = xr.open_dataset(path_to_data)
+        return ds
+    except:
+        raise ValueError(f"Could not find the scrambled multishot LIUQE dataset at {path_to_data}. Did you do a git lfs init followed by a git lfs pull?")
+
 def generate_oscillator_dataset():
     """Generate an oscillator dataset, following the example from: https://docs.kidger.site/diffrax/examples/neural_ode """
     ts = jnp.linspace(0, 5, 50)
@@ -60,6 +69,9 @@ def generate_oscillator_dataset():
     sols = jax.vmap(lambda key: generate_solution(key))(keys)
     return solution_to_xarray(sols, multi_simulation=True)
 
+"""
+Dataset fixtures.
+"""
 @pytest.fixture(scope="session")
 def cmod_test_dataset():
     return load_cmod_test_dataset()
@@ -87,6 +99,13 @@ def tcv_fbt_test_dataset():
 def oscillator_dataset():
     return generate_oscillator_dataset()
 
+@pytest.fixture(scope="session")
+def scrambled_multishot_liuqe_dataset():
+    return load_scrambled_multishot_liuqe_dataset()
+
+"""
+Model fixtures.
+"""
 @pytest.fixture(scope="session")
 def profile_predictor_latest_sparc():
     from popsim.modules.profile_predictor.module import ProfilePredictor

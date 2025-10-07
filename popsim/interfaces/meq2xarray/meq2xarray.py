@@ -25,10 +25,13 @@ def tcv_db_to_xr(path: str) -> xr.DataTree:
         xr.DataTree: The xarray DataTree containing the data from the .mat file.
     """
     data = loadmat(path)
-    fbt = meqstructs2xarray(data["fbt_data"])
-    liuqe = meqstructs2xarray(data["liuqe_data"])
-    ss = process_ss(data["state_space_systems"])
-    acts = process_acts(data["acts"])
+
+    # We want time to be the coordinate, but time_idx to be the dimension to allow for
+    # datasets that have shots with different time bases.
+    fbt = meqstructs2xarray(data["fbt_data"]).swap_dims({"time": "time_idx"}).expand_dims("shot")
+    liuqe = meqstructs2xarray(data["liuqe_data"]).swap_dims({"time": "time_idx"}).expand_dims("shot")
+    ss = process_ss(data["state_space_systems"]).swap_dims({"time": "time_idx"}).expand_dims("shot")
+    acts = process_acts(data["acts"]).swap_dims({"time": "time_idx"}).expand_dims("shot")
 
     return xr.DataTree.from_dict({"fbt": fbt, "liuqe": liuqe, "ss": ss, "acts": acts})
 

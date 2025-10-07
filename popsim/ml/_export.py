@@ -4,6 +4,7 @@ Utilities for exporting models.
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -64,8 +65,14 @@ def get_static_fields(module: dataclass) -> dict[str, Any]:
         if is_dataclass(value):  # If the field is another dataclass, recurse
             nested_static = get_static_fields(value)
             static_fields[f.name] = nested_static
+        elif isinstance(value, Sequence) and all(is_dataclass(v) for v in value):
+            # JSON only supports lists/arrays, so convert all sequences into a list.
+            static_fields[f.name] = [get_static_fields(v) for v in value]
         elif f.metadata.get("static", False):
             static_fields[f.name] = to_json_compatible(value)
+        else:
+            # Ignore non-static fields
+            pass
     return static_fields
 
 

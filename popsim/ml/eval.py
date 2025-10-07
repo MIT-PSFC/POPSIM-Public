@@ -9,15 +9,9 @@ from jaxtyping import Array, PyTree
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, DataLoader, XarrayPreppedDataset
-from popsim.ml.envs import ModuleEvalEnv
+from popsim.ml.envs import ModuleEvalEnv, ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
-from popsim.xarray_utils import (
-    DEFAULT_SIM_DIM_NAME,
-    DEFAULT_TIME_DIM_NAME,
-    pytree_to_xarray,
-    run_function_with_dim_removed,
-    solution_to_xarray,
-)
+from popsim.xarray_utils import pytree_to_xarray, run_function_with_dim_removed
 
 if TYPE_CHECKING:
     import diffrax
@@ -58,21 +52,25 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         EvalData: evaluation results.
     """
 
+    # Best practice for making sure things like dropout are disabled.
+    # https://docs.kidger.site/equinox/api/nn/inference/
+    model = eqx.nn.inference_mode(model)
+
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
+        ds_in = dataset.ds
         inputs, _ = dataset.get_inputs_and_targets()
         inputs_spec = jax.tree.map(lambda _: 0, inputs)
         vec_env = jax.vmap(env, in_axes=(inputs_spec,))
 
         sol = run_function_with_dim_removed(vec_env, (inputs,), DEFAULT_SAMPLE_DIM)
 
-        ds_out = solution_to_xarray(sol, multi_simulation=True)
+        training_meta = dataset.training_metadata
 
-        # Rename the dimensions to match the input dataset.
-        ds_out = ds_out.rename({DEFAULT_SIM_DIM_NAME: DEFAULT_SAMPLE_DIM})
+        ds_out = pytree_to_xarray(sol.ys, [training_meta.sample_dim, training_meta.time_dep_metadata.time_dim], {})
 
-        # Re-assign the sample coordinates to the output dataset.
-        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
-        ds_out = ds_out.rename_dims({DEFAULT_TIME_DIM_NAME: dataset.training_metadata.time_dep_metadata.time_dim})
+        # Make sure the output data has access to the same coordinates as the input data.
+        ds_out = ds_out.assign_coords(ds_in.coords)
+
         return ds_out
 
     def eval_model_return_xarray(model: TrainableModel, dataset: XarrayPreppedDataset) -> xr.Dataset:
@@ -88,12 +86,13 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
         return ds_out
 
-    if isinstance(model, ModuleEvalEnv):
+    if isinstance(model, ModuleEvalEnv | ModuleTrainingEnv):
         eval_fn = eval_env_return_xarray
     else:
         eval_fn = eval_model_return_xarray
 
     sim_outs_and_batches = [(eval_fn(model, batch), batch) for batch in dataloader]
+
     sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
 
     ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
@@ -172,7 +171,11 @@ def batched_model_eval_and_loss(
         Array: the vector of losses for the samples.
     """
     inputs_spec, targets_spec = jax.tree.map(lambda _: 0, (inputs, targets))
-    losses = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))(model, loss_fn, inputs, targets)
+
+    vec_model_eval_and_loss = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))
+
+    losses = run_function_with_dim_removed(vec_model_eval_and_loss, (model, loss_fn, inputs, targets), DEFAULT_SAMPLE_DIM)
+
     return losses
 
 
