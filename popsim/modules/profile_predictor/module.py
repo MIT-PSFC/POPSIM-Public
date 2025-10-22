@@ -9,13 +9,14 @@ import xarray as xr
 from jaxtyping import Array
 from scipy.constants import eV, mu_0
 
+from popsim import TimeIndepModule
 from popsim.basis import Basis1DProtocol, BSplineBasis, InterpedLinearBasis
 from popsim.cfspopcon_jax.current_drive import calc_f_shaping, calc_q_star
 from popsim.cfspopcon_jax.geometry import calc_plasma_volume
 from popsim.ml.rtd_mlp import Activation, RtdMLP
 
 
-class ProfileShape(eqx.Module):
+class ProfileShape(TimeIndepModule):
     """
     A module defining a profile shape on the rho grid [0, 1].
 
@@ -232,7 +233,7 @@ def pca_initial_guess(n_shapes: int, te_data: xr.DataArray, ne_data: xr.DataArra
     return te_shapes, ne_shapes
 
 
-class ProfilePredictor(eqx.Module):
+class ProfilePredictor(TimeIndepModule):
     te_shapes: list[ProfileShape]
     ne_shapes: list[ProfileShape]
 

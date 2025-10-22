@@ -110,12 +110,10 @@ class ProfilePredictorTrainRunBuilder(TrainRunBuilder):
             if freeze_shapes:
                 # Get all leaves that are not a part of te_shapes and ne_shapes.
                 # All of these leaves are trainable.
-                ids_of_shape_leaves = [
-                    id(x) for x in jax.tree.leaves((module.profile_predictor.te_shapes, module.profile_predictor.ne_shapes))
-                ]
-                return [x for x in jax.tree.leaves(module.profile_predictor) if id(x) not in ids_of_shape_leaves]
+                ids_of_shape_leaves = [id(x) for x in jax.tree.leaves((module.te_shapes, module.ne_shapes))]
+                return [x for x in jax.tree.leaves(module) if id(x) not in ids_of_shape_leaves]
             else:
-                return module.profile_predictor
+                return module
 
         return get_trainable
 

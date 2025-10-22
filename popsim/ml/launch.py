@@ -108,6 +108,7 @@ def _run_train(
         loss_fn=loss_fn,
         optimizer=opt,
         checkpoint_dir=training_config.checkpoint_dir,
+        trainable_getter=train_run_builder.get_trainable_getter(training_config.trainable_getter_config),
     )
     loguru.logger.info("Trainer built.")
 
