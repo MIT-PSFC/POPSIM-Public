@@ -251,7 +251,12 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
     """Function for simulating a single case using simple Euler integration."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
-    dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > 1e-10), "Time steps must be uniform.")
+    if jax.config.jax_enable_x64:
+        dt_epsilon = 1e-10
+    else:
+        dt_epsilon = 1e-6
+
+    dts = eqx.error_if(dts, jnp.any(jnp.abs(dts - dts[0]) > dt_epsilon), "Time steps must be uniform.")
 
     dt = dts[0]
 
