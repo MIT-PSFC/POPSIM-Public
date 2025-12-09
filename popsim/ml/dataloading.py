@@ -146,7 +146,9 @@ class DataLoader:
     def __iter__(self):
         if self.generate_prng:
             # When shuffling, presume training mode.
-            seed = jax.random.randint(self.next_key(), (), minval=0, maxval=2**32).item()
+            # Seed *must* be in [0, 2**32) for np.random.seed compatibility.
+            # Also, in x32 mode Jax defaults to int32, so we use that here. This is plenty of seeds and keys in either mode.
+            seed = jax.random.randint(self.next_key(), (), minval=0, maxval=jnp.iinfo(jnp.int32).max, dtype=jnp.int32).item()
             self.dataset.update_prng_seed(seed)
 
         def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
