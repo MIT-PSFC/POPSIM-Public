@@ -10,7 +10,9 @@ from popsim.config import config
 from popsim.field_labels import discrete_no_save_field, discrete_time_field, no_save_field
 from popsim.module_base import TimeDepModule, TimeIndepModule
 
-jax_config.update("jax_enable_x64", True)
+# Default to 64-bit float unless user specifies otherwise
+if os.getenv("JAX_ENABLE_X64") is None:
+    jax_config.update("jax_enable_x64", True)
 
 
 PACKAGE_ROOT = files("popsim")
