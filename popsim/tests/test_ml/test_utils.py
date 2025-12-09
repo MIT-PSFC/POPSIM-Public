@@ -1,3 +1,4 @@
+import jax
 import pytest
 import jax.numpy as jnp
 import numpy as np
@@ -6,22 +7,25 @@ import xarray as xr
 
 @pytest.mark.parametrize("times, expected", [
     (jnp.array([0., 1., 2., 3., 4., jnp.nan,jnp.nan]), 
-     jnp.array([0., 1., 2., 3., 4., 4. + jnp.finfo(jnp.float64).eps, 4. + 2. * jnp.finfo(jnp.float64).eps])),
+     jnp.array([0., 1., 2., 3., 4., 4. + jnp.finfo(jnp.result_type(float)).eps, 4. + 2. * jnp.finfo(jnp.result_type(float)).eps])),
     (jnp.array([0., 1., 2., 3., 4., 4., 4.]), 
-     jnp.array([0., 1., 2., 3., 4., 4. + jnp.finfo(jnp.float64).eps, 4. + 2. * jnp.finfo(jnp.float64).eps])),
+     jnp.array([0., 1., 2., 3., 4., 4. + jnp.finfo(jnp.result_type(float)).eps, 4. + 2. * jnp.finfo(jnp.result_type(float)).eps])),
     (jnp.array([1., 2., 3., 4., 5.]), 
      jnp.array([1., 2., 3., 4., 5.])),
     (jnp.array([1., 1., 1., 1.]), 
-     jnp.array([1., 1. + 2. * jnp.finfo(jnp.float64).eps, 1. + 4. * jnp.finfo(jnp.float64).eps, 1. + 6. * jnp.finfo(jnp.float64).eps])),
+     jnp.array([1., 1. + 2. * jnp.finfo(jnp.result_type(float)).eps, 1. + 4. * jnp.finfo(jnp.result_type(float)).eps, 1. + 6. * jnp.finfo(jnp.result_type(float)).eps])),
     (jnp.array([1.]),
      jnp.array([1.])),
     (jnp.array([1., 2., 3., 3., 3., 4., 4.]), 
-     jnp.array([1., 2., 3., 3. + 3. * jnp.finfo(jnp.float64).eps, 3. + 6. * jnp.finfo(jnp.float64).eps, 4., 4. + 3. * jnp.finfo(jnp.float64).eps])),
+     jnp.array([1., 2., 3., 3. + 3. * jnp.finfo(jnp.result_type(float)).eps, 3. + 6. * jnp.finfo(jnp.result_type(float)).eps, 4., 4. + 3. * jnp.finfo(jnp.result_type(float)).eps])),
      
 ])
 def test_pad_time_with_epsilon(times, expected):
     result = pad_time_with_epsilon(times)
-    np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
+    if jax.config.jax_enable_x64:
+        np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    else:
+        np.testing.assert_allclose(result, expected, rtol=1e-6, atol=1e-6)
     assert (result[1:] > result[:-1]).all()
 
 @pytest.mark.parametrize("times", [
