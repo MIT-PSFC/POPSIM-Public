@@ -1,5 +1,5 @@
 import dataclasses
-
+import jax
 import chex
 import pytest
 from jaxtyping import ArrayLike
@@ -24,6 +24,13 @@ class SimpleInputs:
 # Note: cubic case currently breaks as extrapolation of the time dictionary is not handeled as expected.
 @pytest.mark.parametrize("interp_type", [pinterp.InterpType.LINEAR])
 def test_build_input_paths(interp_type):
+    # We want to ensure that the built input paths match exactly,
+    # but assert_trees_all_equal fails for float32 mismatches against python float literals.
+    if jax.config.jax_enable_x64:
+        assert_trees_match = chex.assert_trees_all_equal
+    else:
+        assert_trees_match = chex.assert_trees_all_close
+
     @chex.dataclass
     class Inputs:
         a: float
@@ -44,8 +51,8 @@ def test_build_input_paths(interp_type):
     # Should return interps that are constant. Spot check at start and end.
     #
     new_inputs = build_input_paths(inputs, time_base, interp_type)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs, time_base[0]), inputs)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs, time_base[-1]), inputs)
+    assert_trees_match(pinterp.resolve_paths(new_inputs, time_base[0]), inputs)
+    assert_trees_match(pinterp.resolve_paths(new_inputs, time_base[-1]), inputs)
 
     #
     # Now have the user specify a time-dependent impurity sequence.
@@ -70,8 +77,8 @@ def test_build_input_paths(interp_type):
     expected_inputs_begin = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[0.0])
     expected_inputs_t25 = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps=time_dep_imps[2.5])
 
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs2, 0.0), expected_inputs_begin)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs2, 2.5), expected_inputs_t25)
+    assert_trees_match(pinterp.resolve_paths(new_inputs2, 0.0), expected_inputs_begin)
+    assert_trees_match(pinterp.resolve_paths(new_inputs2, 2.5), expected_inputs_t25)
 
 
     #
@@ -84,8 +91,8 @@ def test_build_input_paths(interp_type):
     new_inputs3 = build_input_paths(inputs, time_base, interp_type)
     expected_inputs3_begin = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 4.0, penums.Impurity.Neon: 5.0})
     expected_inputs_3_t25 = Inputs(a=1.0, nested_b={"b0": 2.0, "b1": [3.0, -3.0]}, imps={penums.Impurity.Tungsten: 6.0, penums.Impurity.Neon: 5.0})
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs3, 0.0), expected_inputs3_begin)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new_inputs3, 2.5), expected_inputs_3_t25)
+    assert_trees_match(pinterp.resolve_paths(new_inputs3, 0.0), expected_inputs3_begin)
+    assert_trees_match(pinterp.resolve_paths(new_inputs3, 2.5), expected_inputs_3_t25)
 
 
     #
@@ -113,11 +120,11 @@ def test_build_input_paths(interp_type):
 
     if interp_type == "linear":
         expected_at_point_five = {"b0": 2.5, "b1": [3.5, -3.5]}
-        chex.assert_trees_all_equal(b_at_point_five, expected_at_point_five)
+        assert_trees_match(b_at_point_five, expected_at_point_five)
 
-    chex.assert_trees_all_equal(b_at_zero, time_dep_b[0.0])
-    chex.assert_trees_all_equal(b_at_one, time_dep_b[1.0])
-    chex.assert_trees_all_equal(b_at_25, time_dep_b[2.5])
+    assert_trees_match(b_at_zero, time_dep_b[0.0])
+    assert_trees_match(b_at_one, time_dep_b[1.0])
+    assert_trees_match(b_at_25, time_dep_b[2.5])
 
 
     #
@@ -137,9 +144,9 @@ def test_build_input_paths(interp_type):
     expected_t0 = dataclasses.replace(inputs, a=0.0)
     expected_t15 = dataclasses.replace(inputs, a=1.5)
     expected_t812 = dataclasses.replace(inputs, a=8.12)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 0.0), expected_t0)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 1.5), expected_t15)
-    chex.assert_trees_all_equal(pinterp.resolve_paths(new, 8.12), expected_t812)
+    assert_trees_match(pinterp.resolve_paths(new, 0.0), expected_t0)
+    assert_trees_match(pinterp.resolve_paths(new, 1.5), expected_t15)
+    assert_trees_match(pinterp.resolve_paths(new, 8.12), expected_t812)
 
 def test_input_specs_to_paths():
     #
