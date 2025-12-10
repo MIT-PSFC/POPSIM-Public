@@ -8,6 +8,7 @@ from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, D
 from popsim.simulate import SimInput
 import xarray as xr
 from jaxtyping import Array
+import jax
 
 class ContinuousTimeModule(TimeDepModule):
     @chex.dataclass
@@ -214,7 +215,8 @@ def test_disable_record_state():
             return state_out, out
 
     # 800MB array.
-    state = MemoryHogExample.State(big_array=jnp.ones(int(1e8)))
+    array_size = int(1e8 if jax.config.jax_enable_x64 else 2e8)
+    state = MemoryHogExample.State(big_array=jnp.ones(array_size))
     assert state.big_array.nbytes == 8e8
 
     # 800MB * 50 time steps = 80GB (should crash most computers).
