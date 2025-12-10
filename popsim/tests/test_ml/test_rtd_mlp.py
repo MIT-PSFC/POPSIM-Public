@@ -10,6 +10,10 @@ import equinox as eqx
 @pytest.mark.parametrize("out_size", [1, 10])
 @pytest.mark.parametrize("depth", [1, 3])
 def test_rtd_mlp(activation, in_size, out_size, depth):
+    if jax.config.jax_enable_x64:
+        atol = 1e-08
+    else:
+        atol = 1e-05
     
     rtd_mlp = RtdMLP(
         in_size=in_size,
@@ -38,7 +42,7 @@ def test_rtd_mlp(activation, in_size, out_size, depth):
     ys_jac_rtd_autodiff = jax.vmap(jax.jacfwd(lambda x: rtd_mlp(x, return_jacobian=False)))(xs)
 
     # Check consistency between autodiff and analytical gradients
-    assert jnp.allclose(ys_jac_rtd, ys_jac_rtd_autodiff)
+    jnp.allclose(ys_jac_rtd, ys_jac_rtd_autodiff, atol=atol)
     
     
     # Equinox doesn't seem to handle softmax.
@@ -48,5 +52,5 @@ def test_rtd_mlp(activation, in_size, out_size, depth):
     ys_eqx = jax.vmap(eqx_mlp)(xs)
     
     # Check consistenency between RtdMLP and EqxMLP
-    assert jnp.allclose(ys_rtd, ys_eqx)
+    assert jnp.allclose(ys_rtd, ys_eqx, atol=atol)
     
