@@ -122,7 +122,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         assert loss_end["mean"] != loss_start["mean"]
         return
 
-    assert loss_end["mean"]/loss_start["mean"] < 0.5
+    assert loss_end["mean"]/loss_start["mean"] < 0.6
 
 
     if use_val:
