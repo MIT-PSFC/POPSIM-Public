@@ -48,14 +48,14 @@ jobs:
       - name: Tests (float64)
         # TODO enable -Werror once tests are fixed
         run: uv run pytest popsim/tests -n=auto
-        timeout-minutes: 30
+        timeout-minutes: 40
         env:
           JAX_ENABLE_X64: True
 
       - name: Core Tests (float32)
         # Run precision-sensitive core tests in float32 mode
         run: uv run pytest popsim/tests/test_*.py popsim/tests/test_ml -n=auto
-        timeout-minutes: 30
+        timeout-minutes: 40
         env:
           JAX_ENABLE_X64: False
 

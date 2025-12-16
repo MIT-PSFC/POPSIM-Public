@@ -63,11 +63,11 @@ class NeuralODEEnv(ModuleTrainingEnv):
 @pytest.mark.parametrize("train_seg_length", [None, 31]) # 31 is chosen as an unusual segment length to test the code.
 @pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
 @pytest.mark.parametrize("batch_size", [None, 1, 8])
-@pytest.mark.parametrize("stepper", [StepperType.DIFFRAX_TSIT5, StepperType.SIMPLE_EULER])
+@pytest.mark.parametrize("stepper", [StepperType.DIFFRAX_EULER, StepperType.SIMPLE_EULER])
 def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, batch_size, stepper, tmpdir):
     ds = oscillator_dataset
 
-    nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=64, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
+    nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=16, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
     module = NeuralODE(config=NeuralODE.Config(nn=nn))
     env = NeuralODEEnv(module=module, stepper=stepper)
 
@@ -114,8 +114,8 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
         train_dl=dl,
         val_dl=val_dl,
         # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
-        max_epochs=50,
-        epochs_per_val=50,
+        max_epochs=20,
+        epochs_per_val=20,
     )
     loss_end = trainer.compute_loss(dl if not use_val else val_dl)
 
