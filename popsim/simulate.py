@@ -264,8 +264,8 @@ def _diffrax_simulate(
 
 
 @eqx.filter_jit
-def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
-    """Function for simulating a single case using simple Euler integration."""
+def _simple_euler_simulate_fixed_timestep(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
+    """Function for simulating a single case using simple Euler integration with fixed time steps."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
     if jax.config.jax_enable_x64:
@@ -289,6 +289,31 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
         outputs = _step(sim_input.initial_state, sim_input.time)
     else:
         _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=sim_input.time)
+    # Add simulation dimension to any xr.Variable instances.
+    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+    return outputs
+
+
+@eqx.filter_jit
+def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
+    """Function for simulating a single case using Euler integration with non-uniform time steps."""
+    dts = jnp.diff(sim_input.time)
+
+    def _step(carry, timing_info):
+        """Perform a single Euler step."""
+        state = carry
+        inputs_resolved = resolve_paths(sim_input.inputs, timing_info["ts"])
+        state_next, outputs = _single_step(module, state, inputs_resolved, timing_info["dts"], record_state=record_state)
+        return state_next, outputs
+
+    if dts.size == 1:
+        # We only have one time step, which makes things simpler.
+        outputs = _step(sim_input.initial_state, sim_input.time, dts[0])
+    else:
+        dt0 = min_greater_than_thresh(dts, jnp.max(time_epsilon(sim_input.time)))
+        dts_padded = jnp.concatenate([jnp.array([dt0]), dts], axis=0)  # Pad dts to match time size.
+        timing_info = {"ts": sim_input.time, "dts": dts_padded}
+        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=timing_info)
     # Add simulation dimension to any xr.Variable instances.
     outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
     return outputs

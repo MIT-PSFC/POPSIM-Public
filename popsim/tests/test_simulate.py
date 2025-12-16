@@ -1,14 +1,22 @@
 import popsim.simulate as simulate
 import pytest
 import chex
+import typing
 from popsim import TimeDepModule, discrete_time_field, discrete_no_save_field
 from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
 import jax.numpy as jnp
 from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
-from popsim.simulate import SimInput
 import xarray as xr
 from jaxtyping import Array
 import jax
+from popsim.input_utils import input_specs_to_paths
+from popsim.interp import InterpType
+from popsim.tree_util import tree_transpose
+from popsim.sim_utils import make_time_base
+from popsim.ml.utils import pad_time_with_epsilon
+
+from popsim.simulate import SimInput, _simple_euler_simulate, _simple_euler_simulate_fixed_timestep
+
 
 class ContinuousTimeModule(TimeDepModule):
     @chex.dataclass
@@ -241,3 +249,72 @@ def test_run_single_timestep(hybrid_time_module):
     
     assert out['state'].y[-1] == state.y
     assert out['state'].sign[-1] == state.sign
+
+def test_simple_euler_simulate_variable_timestep_match(pure_continuous_time_module):
+    # Ensure the variable time step produces the same output as the original fixed time step implementation
+    module, initial_state = pure_continuous_time_module
+    dt = 0.01
+    t_final = 10.0
+    time_base = make_time_base(0.0, t_final, dt)
+
+    sim_inputs = SimInput(
+        time=time_base,
+        initial_state=initial_state,
+        inputs=ContinuousTimeModule.Inputs(z=0.0),
+    )
+
+    def _simulate(simulate_fun, sim_inputs):
+        if not isinstance(sim_inputs, typing.Sequence):
+            sim_inputs = [sim_inputs]
+        sim_inputs = input_specs_to_paths(sim_inputs=sim_inputs, interp_type=InterpType.LINEAR)
+        sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
+        sol = simulate_fun(module, sim_inputs_vectorized)
+        return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol)
+    
+    sol_fixed = _simulate(_simple_euler_simulate_fixed_timestep, sim_inputs)
+    sol_variable = _simulate(_simple_euler_simulate, sim_inputs)
+
+    assert jnp.allclose(sol_fixed["state.x1"].values, sol_variable["state.x1"].values)
+    assert jnp.allclose(sol_fixed["state.x2"].values, sol_variable["state.x2"].values)
+    assert jnp.allclose(sol_fixed["output.y"].values, sol_variable["output.y"].values)
+
+def test_simple_euler_simulate_epsilon_dt(pure_continuous_time_module):
+    # Ensure epsilon timesteps at the end of a uniform simulation don't cause stuff to get too wonky
+    module, initial_state = pure_continuous_time_module
+    dt = 0.01
+    t_final = 10.0
+    normal_times = make_time_base(0.0, t_final, dt)
+    nan_times = jnp.ones((10,)) * jnp.nan
+    time_base = pad_time_with_epsilon(jnp.concatenate([normal_times, nan_times]))
+
+    sim_inputs = SimInput(
+        time=time_base,
+        initial_state=initial_state,
+        inputs=ContinuousTimeModule.Inputs(z=0.0),
+    )
+
+    def _simulate(simulate_fun, sim_inputs):
+        if not isinstance(sim_inputs, typing.Sequence):
+            sim_inputs = [sim_inputs]
+        sim_inputs = input_specs_to_paths(sim_inputs=sim_inputs, interp_type=InterpType.LINEAR)
+        sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
+        sol = simulate_fun(module, sim_inputs_vectorized)
+        return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol)
+    
+    sol = _simulate(_simple_euler_simulate, sim_inputs)
+
+    # Ensure no nans in output
+    assert not jnp.isnan(sol["state.x1"].data).any()
+    assert not jnp.isnan(sol["state.x2"].data).any()
+    assert not jnp.isnan(sol["output.y"].data).any()
+
+    # Ensure the values in the nan section are close-ish to the final value of the normal section
+    last_normal_index = normal_times.size - 1
+    ref_x1 = sol["state.x1"].isel(time=last_normal_index).values
+    ref_x2 = sol["state.x2"].isel(time=last_normal_index).values
+    
+    sol_x1 = sol["state.x1"].isel(time=slice(last_normal_index + 1, None)).values
+    sol_x2 = sol["state.x2"].isel(time=slice(last_normal_index + 1, None)).values
+
+    assert jnp.allclose(sol_x1, ref_x1, rtol=1e-5, atol=1e-5)
+    assert jnp.allclose(sol_x2, ref_x2, rtol=1e-5, atol=1e-5)
