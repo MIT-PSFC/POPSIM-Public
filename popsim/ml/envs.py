@@ -8,7 +8,7 @@ from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import TimeDepModule, interp
 from popsim.sim_utils import SimInput
-from popsim.simulate import _diffrax_simulate
+from popsim.simulate import StepperType, _diffrax_simulate, _simple_euler_simulate
 
 """
 Base classes for defining environments for training and evaluating modules.
@@ -57,13 +57,39 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, ma
         inputs=inputs_interped,
     )
 
-    max_steps = max_step_mult * time.size
-    sol = _diffrax_simulate(env.module, sim_input, max_steps=max_steps)
+    if env.stepper == StepperType.SIMPLE_EULER:
+        sol = _simple_euler_simulate(env.module, sim_input, record_state=True)
+        # Wrap in a diffrax.Solution for consistency with other steppers.
+        sol = diffrax.Solution(
+            t0=time[0],
+            t1=time[-1],
+            ts=time,
+            ys=sol,
+            interpolation=None,
+            stats=None,
+            result=None,
+            solver_state=None,
+            controller_state=None,
+            made_jump=None,
+            event_mask=None,
+        )
+    elif env.stepper in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
+        max_steps = max_step_mult * time.size
+        if env.stepper == StepperType.DIFFRAX_EULER:
+            solver = diffrax.Euler()
+        elif env.stepper == StepperType.DIFFRAX_TSIT5:
+            solver = diffrax.Tsit5()
+        elif env.stepper == StepperType.DIFFRAX_DOPRI5:
+            solver = diffrax.Dopri5()
+        sol = _diffrax_simulate(env.module, sim_input, max_steps=max_steps, solver=solver)
+    else:
+        raise ValueError(f"Unsupported stepper type: {env.stepper}")
     return sol
 
 
 class ModuleEvalEnv(eqx.Module):
     module: TimeDepModule
+    stepper: StepperType = StepperType.DIFFRAX_TSIT5
 
     @staticmethod
     @abstractmethod

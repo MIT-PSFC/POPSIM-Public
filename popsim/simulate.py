@@ -125,18 +125,16 @@ def simulate(
 
         def simulate_fun(mod, inp):
             return _simple_euler_simulate(mod, inp, record_state=record_state)
-    elif stepper_type == StepperType.DIFFRAX_EULER:
+    elif stepper_type in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
+        if stepper_type == StepperType.DIFFRAX_EULER:
+            solver = diffrax.Euler()
+        elif stepper_type == StepperType.DIFFRAX_TSIT5:
+            solver = diffrax.Tsit5()
+        elif stepper_type == StepperType.DIFFRAX_DOPRI5:
+            solver = diffrax.Dopri5()
 
         def simulate_fun(mod, inp):
-            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Euler())
-    elif stepper_type == StepperType.DIFFRAX_TSIT5:
-
-        def simulate_fun(mod, inp):
-            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Tsit5())
-    elif stepper_type == StepperType.DIFFRAX_DOPRI5:
-
-        def simulate_fun(mod, inp):
-            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Dopri5())
+            return _diffrax_simulate(mod, inp, record_state=record_state, solver=solver)
     else:
         raise ValueError("Stepper type not recognized.")
 

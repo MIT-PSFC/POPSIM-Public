@@ -1,4 +1,5 @@
 from jaxtyping import PyTree
+from popsim.simulate import StepperType
 from popsim.tests.fixtures import oscillator_dataset
 from popsim.ml.trainer import Trainer
 from popsim.ml.dataloading import make_time_dep_dataloader
@@ -62,12 +63,13 @@ class NeuralODEEnv(ModuleTrainingEnv):
 @pytest.mark.parametrize("train_seg_length", [None, 31]) # 31 is chosen as an unusual segment length to test the code.
 @pytest.mark.parametrize("optimizer", [optax.adabelief(5e-3), optax.lbfgs()])
 @pytest.mark.parametrize("batch_size", [None, 1, 8])
-def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, batch_size, tmpdir):
+@pytest.mark.parametrize("stepper", [StepperType.DIFFRAX_TSIT5, StepperType.SIMPLE_EULER])
+def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimizer, batch_size, stepper, tmpdir):
     ds = oscillator_dataset
 
     nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=64, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
     module = NeuralODE(config=NeuralODE.Config(nn=nn))
-    env = NeuralODEEnv(module=module)
+    env = NeuralODEEnv(module=module, stepper=stepper)
 
     def loss(predictions, targets):
         y0_loss = optax.losses.l2_loss(predictions.state["y0"], targets["y0"])
