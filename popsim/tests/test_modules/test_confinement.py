@@ -70,7 +70,7 @@ def test_dynamics():
 )
 
     sim_input = SimInput(time=times, initial_state=state, inputs=inputs)
-    dataset = simulate(confinement_module, sim_input, return_xarray=True, stepper_type=StepperType.DIFFRAX)
+    dataset = simulate(confinement_module, sim_input, return_xarray=True, stepper_type=StepperType.DIFFRAX_TSIT5)
 
     assert jnp.isclose(float(dataset['output.tau_E'][0]),0.1834906)
     assert jnp.isclose(float(dataset['output.tau_E'][1]),0.67667817)

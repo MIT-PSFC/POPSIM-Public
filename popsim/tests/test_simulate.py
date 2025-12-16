@@ -86,7 +86,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type == simulate.StepperType.DIFFRAX:
+        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
@@ -114,7 +114,7 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
         sim_inputs = [sim_inputs, sim_inputs]
 
     # Expect an error if the stepper type is Diffrax.
-    if stepper_type == simulate.StepperType.DIFFRAX:
+    if stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
         with pytest.raises(ValueError):
             sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
         return
@@ -125,7 +125,7 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type == simulate.StepperType.DIFFRAX:
+        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
@@ -146,7 +146,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
         sim_inputs = [sim_inputs, sim_inputs]
 
     # Expect an error if the stepper type is Diffrax.
-    if stepper_type == simulate.StepperType.DIFFRAX:
+    if stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
         with pytest.raises(ValueError):
             sol = simulate.simulate(module, sim_inputs, stepper_type=stepper_type, return_xarray=return_xarray)
         return
@@ -157,7 +157,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
     if return_xarray == False:
         if stepper_type == simulate.StepperType.SIMPLE_EULER:
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type == simulate.StepperType.DIFFRAX:
+        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")

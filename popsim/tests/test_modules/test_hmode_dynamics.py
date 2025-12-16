@@ -25,7 +25,7 @@ def test_sim_and_clip():
 
     hmode_module = HmodeDynamics(config=HmodeDynamics.Config())
 
-    sol = simulate(hmode_module, SimInput(time=times, initial_state=state, inputs=inputs), return_xarray=False, stepper_type=StepperType.DIFFRAX)
+    sol = simulate(hmode_module, SimInput(time=times, initial_state=state, inputs=inputs), return_xarray=False, stepper_type=StepperType.DIFFRAX_TSIT5)
 
     in_hmodes = sol.ys['state'].in_hmode
     

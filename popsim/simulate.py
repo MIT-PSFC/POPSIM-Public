@@ -37,14 +37,16 @@ from popsim.xarray_utils import (
 
 class StepperType(IntEnum):
     SIMPLE_EULER = 0
-    DIFFRAX = 1
+    DIFFRAX_EULER = 1
+    DIFFRAX_TSIT5 = 2
+    DIFFRAX_DOPRI5 = 3
 
 
 def _check_sim_inputs(module: TimeDepModule, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
     """Perform checks of the simulation inputs."""
 
     # Check if the state has any discrete components when using Diffrax. If so, raise an error.
-    if stepper_type == StepperType.DIFFRAX:
+    if stepper_type in [StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5]:
 
         def _has_discrete_state(sim_input):
             discrete_state, _ = partition_discrete_cont(sim_input.initial_state)
@@ -123,10 +125,18 @@ def simulate(
 
         def simulate_fun(mod, inp):
             return _simple_euler_simulate(mod, inp, record_state=record_state)
-    elif stepper_type == StepperType.DIFFRAX:
+    elif stepper_type == StepperType.DIFFRAX_EULER:
 
         def simulate_fun(mod, inp):
-            return _diffrax_simulate(mod, inp, record_state=record_state)
+            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Euler())
+    elif stepper_type == StepperType.DIFFRAX_TSIT5:
+
+        def simulate_fun(mod, inp):
+            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Tsit5())
+    elif stepper_type == StepperType.DIFFRAX_DOPRI5:
+
+        def simulate_fun(mod, inp):
+            return _diffrax_simulate(mod, inp, record_state=record_state, solver=diffrax.Dopri5())
     else:
         raise ValueError("Stepper type not recognized.")
 
@@ -144,7 +154,7 @@ def simulate(
 
     if stepper_type == StepperType.SIMPLE_EULER:
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol
-    elif stepper_type == StepperType.DIFFRAX:
+    elif stepper_type in [StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5]:
         return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
     else:
         raise ValueError("Stepper type not recognized.")
@@ -209,9 +219,16 @@ def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
 
 @eqx.filter_jit
 def _diffrax_simulate(
-    module: TimeDepModule, sim_input: SimInput, record_state: bool = True, max_steps: int = config["DIFFRAX_MAX_STEPS"]
+    module: TimeDepModule,
+    sim_input: SimInput,
+    record_state: bool = True,
+    max_steps: int = config["DIFFRAX_MAX_STEPS"],
+    solver: diffrax.AbstractAdaptiveSolver | None = None,
 ) -> diffrax.Solution:
-    """Function for simulating a single case using diffrax."""
+    """Function for simulating a single case using diffrax. Default solver is Dopri5."""
+
+    if solver is None:
+        solver = diffrax.Tsit5()
 
     def module_f(t, y, inputs, return_aux=False):
         inputs_resolved = resolve_paths(inputs, t)
@@ -232,7 +249,7 @@ def _diffrax_simulate(
 
     sol = diffrax.diffeqsolve(
         terms=diffrax.ODETerm(module_f),
-        solver=diffrax.Euler(),
+        solver=solver,
         t0=sim_input.time[0],
         t1=sim_input.time[-1],
         dt0=dt0,
