@@ -287,7 +287,7 @@ def test_simple_euler_simulate_variable_timestep_match(pure_continuous_time_modu
         sol = simulate_fun(module, sim_inputs_vectorized)
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol)
     
-    sol_fixed = _simulate(_simple_euler_simulate_fixed_timestep, sim_inputs)
+    sol_fixed = _simulate(_simple_euler_simulate_uniform_timestep, sim_inputs)
     sol_variable = _simulate(_simple_euler_simulate, sim_inputs)
 
     assert jnp.allclose(sol_fixed["state.x1"].values, sol_variable["state.x1"].values)
