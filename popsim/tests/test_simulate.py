@@ -15,7 +15,7 @@ from popsim.tree_util import tree_transpose
 from popsim.sim_utils import make_time_base
 from popsim.ml.utils import pad_time_with_epsilon
 
-from popsim.simulate import SimInput, _simple_euler_simulate, _simple_euler_simulate_fixed_timestep
+from popsim.simulate import SimInput, _simple_euler_simulate, _simple_euler_simulate_uniform_timestep
 
 
 class ContinuousTimeModule(TimeDepModule):
@@ -92,9 +92,9 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
-        if stepper_type == simulate.StepperType.SIMPLE_EULER:
+        if stepper_type in (simulate.StepperType.SIMPLE_EULER, simulate.StepperType.SIMPLE_EULER_UNIFORM):
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
+        elif stepper_type in (simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5):
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
@@ -131,9 +131,9 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
-        if stepper_type == simulate.StepperType.SIMPLE_EULER:
+        if stepper_type in (simulate.StepperType.SIMPLE_EULER, simulate.StepperType.SIMPLE_EULER_UNIFORM):
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
+        elif stepper_type in (simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5):
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
@@ -163,9 +163,9 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
 
     # In the cases where we don't return an xarray, convert the solution to an xarray for comparison.
     if return_xarray == False:
-        if stepper_type == simulate.StepperType.SIMPLE_EULER:
+        if stepper_type in (simulate.StepperType.SIMPLE_EULER, simulate.StepperType.SIMPLE_EULER_UNIFORM):
             sol = time_and_pytree_to_xarray(time_base, sol, multi_simulation=multi_sim)
-        elif stepper_type in [simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5]:
+        elif stepper_type in (simulate.StepperType.DIFFRAX_EULER, simulate.StepperType.DIFFRAX_TSIT5, simulate.StepperType.DIFFRAX_DOPRI5):
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
@@ -237,6 +237,22 @@ def test_disable_record_state():
 def test_run_single_timestep(hybrid_time_module):
     module, time_base, initial_state, inputs = hybrid_time_module
     n_steps = time_base.size - 1
+    dts = jnp.diff(time_base)
+    state = initial_state
+    inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
+    
+    for i in range(n_steps):
+        state, _ = simulate.single_step(module, state, inputs, dts[i])
+
+    # Test that the final time step is the same as if we call simulate.simulate.
+    out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER, return_xarray=False)
+    
+    assert out['state'].y[-1] == state.y
+    assert out['state'].sign[-1] == state.sign
+
+def test_run_single_timestep_uniform(hybrid_time_module):
+    module, time_base, initial_state, inputs = hybrid_time_module
+    n_steps = time_base.size - 1
     dt = time_base[1] - time_base[0]
     state = initial_state
     inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
@@ -245,7 +261,7 @@ def test_run_single_timestep(hybrid_time_module):
         state, _ = simulate.single_step(module, state, inputs, dt)
 
     # Test that the final time step is the same as if we call simulate.simulate.
-    out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER, return_xarray=False)
+    out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER_UNIFORM, return_xarray=False)
     
     assert out['state'].y[-1] == state.y
     assert out['state'].sign[-1] == state.sign

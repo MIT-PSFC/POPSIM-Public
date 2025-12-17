@@ -36,10 +36,11 @@ from popsim.xarray_utils import (
 
 
 class StepperType(IntEnum):
-    SIMPLE_EULER = 0
-    DIFFRAX_EULER = 1
-    DIFFRAX_TSIT5 = 2
-    DIFFRAX_DOPRI5 = 3
+    SIMPLE_EULER = 0  # _simple_euler_simulate
+    SIMPLE_EULER_UNIFORM = 1  # Simple Euler with uniform time step
+    DIFFRAX_EULER = 2  # diffrax.Euler()
+    DIFFRAX_TSIT5 = 3  # diffrax.Tsit5()
+    DIFFRAX_DOPRI5 = 4  # diffrax.Dopri5()
 
 
 def _check_sim_inputs(module: TimeDepModule, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
@@ -91,7 +92,7 @@ def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_s
     return out
 
 
-def simulate(
+def simulate(  # noqa: PLR0912
     module: TimeDepModule,
     sim_inputs: SimInput | typing.Sequence[SimInput],
     interp_type: InterpType = InterpType.LINEAR,
@@ -121,10 +122,14 @@ def simulate(
     sim_inputs = input_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
 
     # Choose the simulation function based on the stepper type.
-    if stepper_type == StepperType.SIMPLE_EULER:
+    if stepper_type in (StepperType.SIMPLE_EULER, StepperType.SIMPLE_EULER_UNIFORM):
+        if stepper_type == StepperType.SIMPLE_EULER:
+            step_fun = _simple_euler_simulate
+        elif stepper_type == StepperType.SIMPLE_EULER_UNIFORM:
+            step_fun = _simple_euler_simulate_uniform_timestep
 
         def simulate_fun(mod, inp):
-            return _simple_euler_simulate(mod, inp, record_state=record_state)
+            return step_fun(mod, inp, record_state=record_state)
     elif stepper_type in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
         if stepper_type == StepperType.DIFFRAX_EULER:
             solver = diffrax.Euler()
@@ -150,9 +155,9 @@ def simulate(
     else:
         sol = simulate_fun(module, sim_inputs_vectorized)
 
-    if stepper_type == StepperType.SIMPLE_EULER:
+    if stepper_type in (StepperType.SIMPLE_EULER, StepperType.SIMPLE_EULER_UNIFORM):
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol
-    elif stepper_type in [StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5]:
+    elif stepper_type in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
         return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
     else:
         raise ValueError("Stepper type not recognized.")
@@ -262,8 +267,8 @@ def _diffrax_simulate(
 
 
 @eqx.filter_jit
-def _simple_euler_simulate_fixed_timestep(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
-    """Function for simulating a single case using simple Euler integration with fixed time steps."""
+def _simple_euler_simulate_uniform_timestep(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
+    """Function for simulating a single case using simple Euler integration with uniform time steps."""
     dts = jnp.diff(sim_input.time)
     # Check dts are all equal.
     if jax.config.jax_enable_x64:
@@ -308,8 +313,7 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
         # We only have one time step, which makes things simpler.
         outputs = _step(sim_input.initial_state, sim_input.time, dts[0])
     else:
-        dt0 = min_greater_than_thresh(dts, jnp.max(time_epsilon(sim_input.time)))
-        dts_padded = jnp.concatenate([jnp.array([dt0]), dts], axis=0)  # Pad dts to match time size.
+        dts_padded = jnp.concatenate([dts, jnp.array([time_epsilon(sim_input.time[0])])], axis=0)  # Pad dts to match time size.
         timing_info = {"ts": sim_input.time, "dts": dts_padded}
         _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=timing_info)
     # Add simulation dimension to any xr.Variable instances.
