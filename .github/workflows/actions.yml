@@ -17,7 +17,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
         os:
           [
-            "runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}",
+            "ubuntu-latest",
             "macos-latest",
           ]
 
@@ -48,14 +48,14 @@ jobs:
       - name: Tests (float64)
         # TODO enable -Werror once tests are fixed
         run: uv run pytest popsim/tests -n=auto
-        timeout-minutes: 140
+        timeout-minutes: 60
         env:
           JAX_ENABLE_X64: True
 
       - name: Core Tests (float32)
         # Run precision-sensitive core tests in float32 mode
         run: uv run pytest popsim/tests/test_*.py popsim/tests/test_ml -n=auto
-        timeout-minutes: 140
+        timeout-minutes: 60
         env:
           JAX_ENABLE_X64: False
 
