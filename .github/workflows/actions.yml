@@ -10,7 +10,7 @@ env:
   JAX_PLATFORMS: cpu
 
 jobs:
-  build:
+  tests-float64:
     strategy:
       fail-fast: false
       matrix:
@@ -45,26 +45,192 @@ jobs:
       - name: Setup
         run: uv sync --group dev; uv run setup-radas
 
-      - name: Tests (float64)
-        # TODO enable -Werror once tests are fixed
-        run: uv run pytest popsim/tests -n=auto
-        timeout-minutes: 160
+      - name: Core Utils Tests (float64)
+        run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
+        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
-      - name: Core Tests (float32)
+      - name: Simulate Tests (float64)
+        run: uv run pytest popsim/tests/test_simulate.py -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: ML Tests (float64)
+        run: uv run pytest popsim/tests/test_ml/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Modules Tests (float64)
+        run: uv run pytest popsim/tests/test_modules/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Interfaces Tests (float64)
+        run: uv run pytest popsim/tests/test_interfaces/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Physics Tests (float64)
+        run: uv run pytest popsim/tests/test_physics/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Simulators Tests (float64)
+        run: uv run pytest popsim/tests/test_simulators/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Studies Tests (float64)
+        run: uv run pytest popsim/tests/test_studies/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: True
+
+  tests-float32:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os:
+          [
+            "ubuntu-latest",
+            "macos-latest",
+          ]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+
+      - name: Git LFS Pull
+        run: git lfs pull
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Set up Python with uv
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Setup
+        run: uv sync --group dev; uv run setup-radas
+
+      - name: Core Utils Tests (float32)
         # Run precision-sensitive core tests in float32 mode
-        run: uv run pytest popsim/tests/test_*.py popsim/tests/test_ml -n=auto
-        timeout-minutes: 160
+        run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
+        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: False
 
+      - name: Simulate Tests (float32)
+        run: uv run pytest popsim/tests/test_simulate.py -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: False
+
+      - name: ML Tests (float32)
+        run: uv run pytest popsim/tests/test_ml/ -n=auto
+        timeout-minutes: 30
+        env:
+          JAX_ENABLE_X64: False
+
+  cfspopcon-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os:
+          [
+            "ubuntu-latest",
+            "macos-latest",
+          ]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+
+      - name: Git LFS Pull
+        run: git lfs pull
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Set up Python with uv
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Setup
+        run: uv sync --group dev; uv run setup-radas
+
       - name: CFSPOPCON jax_compatible Tests
         run: uv run pytest ./popsim/cfspopcon_jax/tests/ -n=auto
+        timeout-minutes: 160
         env:
           JAX_ENABLE_X64: True
 
-      - name: Test Notebooks
-        run: uv run pytest --nbmake docs/notebooks/ -n=auto --ignore docs/notebooks/doc_ignore/ --nbmake-timeout=300 --reruns 5 --reruns-delay 1
+  notebook-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os:
+          [
+            "ubuntu-latest",
+            "macos-latest",
+          ]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+
+      - name: Git LFS Pull
+        run: git lfs pull
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Set up Python with uv
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Setup
+        run: uv sync --group dev; uv run setup-radas
+
+      - name: Test Top-Level Notebooks
+        run: uv run pytest --nbmake docs/notebooks/*.ipynb -n=auto --nbmake-timeout=300 --reruns 5 --reruns-delay 1
+        timeout-minutes: 60
+        env:
+          JAX_ENABLE_X64: True
+
+      - name: Test Module Notebooks
+        run: uv run pytest --nbmake docs/notebooks/modules/ -n=auto --nbmake-timeout=300 --reruns 5 --reruns-delay 1
+        timeout-minutes: 60
         env:
           JAX_ENABLE_X64: True
