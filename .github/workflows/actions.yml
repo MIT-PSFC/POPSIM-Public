@@ -37,10 +37,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python with uv
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Setup
         run: uv sync --group dev; uv run setup-radas
@@ -120,10 +131,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python with uv
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Setup
         run: uv sync --group dev; uv run setup-radas
@@ -174,10 +196,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python with uv
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Setup
         run: uv sync --group dev; uv run setup-radas
@@ -215,10 +248,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python with uv
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Setup
         run: uv sync --group dev; uv run setup-radas
