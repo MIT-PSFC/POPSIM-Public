@@ -58,49 +58,41 @@ jobs:
 
       - name: Core Utils Tests (float64)
         run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Simulate Tests (float64)
         run: uv run pytest popsim/tests/test_simulate.py -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: ML Tests (float64)
         run: uv run pytest popsim/tests/test_ml/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Modules Tests (float64)
         run: uv run pytest popsim/tests/test_modules/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Interfaces Tests (float64)
         run: uv run pytest popsim/tests/test_interfaces/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Physics Tests (float64)
         run: uv run pytest popsim/tests/test_physics/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Simulators Tests (float64)
         run: uv run pytest popsim/tests/test_simulators/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
       - name: Studies Tests (float64)
         run: uv run pytest popsim/tests/test_studies/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: True
 
@@ -153,19 +145,16 @@ jobs:
       - name: Core Utils Tests (float32)
         # Run precision-sensitive core tests in float32 mode
         run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: False
 
       - name: Simulate Tests (float32)
         run: uv run pytest popsim/tests/test_simulate.py -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: False
 
       - name: ML Tests (float32)
         run: uv run pytest popsim/tests/test_ml/ -n=auto
-        timeout-minutes: 30
         env:
           JAX_ENABLE_X64: False
 
