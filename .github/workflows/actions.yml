@@ -57,7 +57,14 @@ jobs:
         run: uv sync --group dev; uv run setup-radas
 
       - name: Core Utils Tests (float64)
-        run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
+        run: uv run pytest popsim/tests \
+          --ignore=popsim/tests/test_simulate.py \
+          --ignore=popsim/tests/test_ml/ \
+          --ignore=popsim/tests/test_modules/ \
+          --ignore=popsim/tests/test_interfaces/ \
+          --ignore=popsim/tests/test_physics/ \
+          --ignore=popsim/tests/test_simulators/ \
+          --ignore=popsim/tests/test_studies/ -n=auto
         env:
           JAX_ENABLE_X64: True
 
@@ -93,18 +100,6 @@ jobs:
 
       - name: Studies Tests (float64)
         run: uv run pytest popsim/tests/test_studies/ -n=auto
-        env:
-          JAX_ENABLE_X64: True
-
-      - name: Missed Tests (float64)
-        run: uv run pytest popsim/tests \
-          --ignore=popsim/tests/test_*.py \
-          --ignore=popsim/tests/test_ml/ \
-          --ignore=popsim/tests/test_modules/ \
-          --ignore=popsim/tests/test_interfaces/ \
-          --ignore=popsim/tests/test_physics/ \
-          --ignore=popsim/tests/test_simulators/ \
-          --ignore=popsim/tests/test_studies/ -n=auto
         env:
           JAX_ENABLE_X64: True
 
