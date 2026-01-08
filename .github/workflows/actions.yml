@@ -96,6 +96,18 @@ jobs:
         env:
           JAX_ENABLE_X64: True
 
+      - name: Missed Tests (float64)
+        run: uv run pytest popsim/tests \
+          --ignore=popsim/tests/test_*.py \
+          --ignore=popsim/tests/test_ml/ \
+          --ignore=popsim/tests/test_modules/ \
+          --ignore=popsim/tests/test_interfaces/ \
+          --ignore=popsim/tests/test_physics/ \
+          --ignore=popsim/tests/test_simulators/ \
+          --ignore=popsim/tests/test_studies/ -n=auto
+        env:
+          JAX_ENABLE_X64: True
+
   tests-float32:
     strategy:
       fail-fast: false
