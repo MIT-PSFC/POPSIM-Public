@@ -300,6 +300,9 @@ def _simple_euler_simulate_uniform_timestep(module: TimeDepModule, sim_input: Si
 @eqx.filter_jit
 def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
     """Function for simulating a single case using Euler integration with non-uniform time steps."""
+    # Watch out for cases where a big dt can cause numerical instability
+    # Consider how Diffrax solves that issue by having a separate time-stepping timebase
+    # and then interpolating to the output timebase.
     dts = jnp.diff(sim_input.time)
 
     def _step(carry, timing_info):
