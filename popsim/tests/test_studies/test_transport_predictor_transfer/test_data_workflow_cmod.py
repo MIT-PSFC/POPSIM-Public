@@ -21,8 +21,8 @@ from popsim.studies.transport_predictor_transfer.datasets.cmod_data import (
 
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(
-    get_path_to_ml_data_dump() is None,
-    reason="ML data dump path not available",
+    get_path_to_ml_data_dump() != "/usr/local/mfe/ml_data_dump/",
+    reason="CMOD data not available on this system",
     allow_module_level=True
 )
 
@@ -33,7 +33,7 @@ def cache_base():
 
 @pytest.fixture(scope="session")
 def cached_raw_dataset_info(cache_base):
-    """Create or reuse a cached TCV dataset in /tmp."""
+    """Create or reuse a cached CMOD dataset in /tmp."""
     raw_ds_dir = os.path.join(cache_base, "raw")
     max_num_shots = 10
     min_shot_id = 1050204013
@@ -105,7 +105,7 @@ def test_build_dataset():
         # Ensure shot 1050204013 is not in the dataset since it's missing profiles
         assert 1050204013 not in ds[EPISODE_DIM].values
 
-        # Ensure the other two shots have valid te_rho and ne_rho data
+        # Ensure the other shots have valid te_rho and ne_rho data
         for shot in [1050207007, 1050207015, 1050207018]:
             shot_ds = ds.sel({EPISODE_DIM: shot})
             assert not shot_ds["te_rho"].isnull().all()
@@ -150,7 +150,7 @@ def test_process_dataset(cached_raw_dataset_info):
 
 @pytest.mark.parametrize("extrapolate", ["chronological", "performance"])
 def test_separate_test_set(extrapolate, cached_processed_dataset_info):
-    """Test separating the processed TCV dataset into train and test sets using different extrapolation strategies."""
+    """Test separating the processed CMOD dataset into train and test sets using different extrapolation strategies."""
     raw_ds_dir, processed_ds_dir, max_num_shots, min_shot_id = cached_processed_dataset_info
     with tempfile.TemporaryDirectory() as temp_dir:
         workflow = CMODDataWorkflow(

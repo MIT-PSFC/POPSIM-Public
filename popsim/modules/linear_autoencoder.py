@@ -8,6 +8,8 @@ from popsim.norm_data import ScalingType, norm_data
 
 
 class LinearAutoEncoder(TimeIndepModule):
+    """A linear (technically affine) autoencoder for dimensionality reduction that can be initialized with PCA/SVD."""
+
     means: Array
     scaling: Array
     components: Array

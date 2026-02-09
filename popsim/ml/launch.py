@@ -40,7 +40,7 @@ def launch_sweep(config_path: str | os.PathLike[str] | dict, sweep_config_path: 
     training_config = TrainConfig.load(config_path)
     sweep_config = load_dict(sweep_config_path)
     sweep_id = wandb.sweep(sweep_config, project=training_config.project)
-    launch_agent(sweep_id, training_config)
+    launch_agent(config_path, sweep_id)
 
 
 def launch_agent(config_path: str | os.PathLike[str] | dict, sweep_id: str):

@@ -43,7 +43,7 @@ def generate_random_walks(
     # Assert y0 and diffusion_mags have the same structure.
     assert jax.tree.structure(y0) == jax.tree.structure(diffusion_mags)
 
-    drift_struct = jax.tree.map(lambda leaf: jnp.zeros_like(leaf), y0)
+    drift_struct = jax.tree.map(jnp.zeros_like, y0)
 
     def drift(t, y, args):
         return drift_struct

@@ -33,7 +33,7 @@ def get_path_to_ml_data_dump() -> Path | None:
         return existing_paths[0]
     else:
         warnings.warn(f"No ML data dump path found. Checked: {SUPPORTED_ML_DATA_PATHS}", stacklevel=2)
-        return None
+        return Path("")
 
 
 def get_path_to_ml_data_scratch() -> Path | None:

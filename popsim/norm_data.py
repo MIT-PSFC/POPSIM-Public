@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +7,7 @@ import xarray as xr
 from jaxtyping import Array, PyTree
 
 
-class ScalingType(str, Enum):
+class ScalingType(StrEnum):
     """Enum for different scaling types used in data normalization."""
 
     STD = "std"

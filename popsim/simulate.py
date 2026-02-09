@@ -178,8 +178,8 @@ def single_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float,
         tuple[PyTree, PyTree]: (next_state, output_data)
     """
     # Make sure state + inputs have JAX arrays.
-    state = jax.tree.map(lambda x: jnp.asarray(x), state)
-    inputs = jax.tree.map(lambda x: jnp.asarray(x), inputs)
+    state = jax.tree.map(jnp.asarray, state)
+    inputs = jax.tree.map(jnp.asarray, inputs)
     # Perform a single step.
     state_next, output_data = _single_step(module, state, inputs, dt, record_state=record_state)
     return state_next, output_data
@@ -216,7 +216,7 @@ def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
     sol = run_function_with_dim_removed(vec_sim_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME)
 
     # Remove extraneous dimensions.
-    sol = jax.tree.map(lambda x: jnp.squeeze(x), sol)
+    sol = jax.tree.map(jnp.squeeze, sol)
     return sol
 
 

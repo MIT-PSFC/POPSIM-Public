@@ -4,6 +4,7 @@ import numpy as np
 import xarray as xr
 
 from popsim import DATA_DIR
+from popsim.data import get_path_to_ml_data_dump
 
 
 def get_ds(ds_str: str, debug: bool = False):
@@ -61,7 +62,7 @@ def get_sparc_torax_data(debug: bool = False):
 
 
 def get_tcv_data(debug: bool = False):
-    path = os.path.join(os.environ["ML_DATA_DUMP"], "TCV/xarrays/datatree.nc")
+    path = get_path_to_ml_data_dump() / "TCV/xarrays/datatree.nc"
 
     dt = xr.open_datatree(path)
     if debug:

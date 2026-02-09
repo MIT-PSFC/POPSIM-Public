@@ -15,8 +15,8 @@ from popsim.data.tcv.data_generators import (
 
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(
-    get_path_to_ml_data_dump() is None,
-    reason="ML data dump path not available",
+    get_path_to_ml_data_dump() != "/usr/local/mfe/ml_data_dump/",
+    reason="TCV data not available on this system",
     allow_module_level=True
 )
 
@@ -68,31 +68,34 @@ def test_generate_fbte_mat_paths():
         if i >= 2:
             break
 
-
 def test_generate_defuse_h5s():
     """Test that generate_defuse_h5s returns an generator and yields dictionaries of datasets."""
     generator = generate_defuse_h5s()
     assert isinstance(generator, Generator)
     
-    # Test first item if available
-    first_item = next(generator)
-    assert isinstance(first_item, dict)
-    # Values should be xarray datasets
-    for key, value in first_item.items():
-        assert isinstance(key, str)
-        assert isinstance(value, xr.Dataset)
-
+    for i, item in enumerate(generator):
+        assert isinstance(item, dict)
+        # Values should be xarray datasets
+        for key, value in item.items():
+            assert isinstance(key, str)
+            assert isinstance(value, xr.Dataset)
+        # Limit to first few for performance
+        if i >= 2:
+            break
 
 def test_generate_fbte_datasets():
     """Test that generate_fbte_datasets returns an generator and yields xarray datasets."""
     generator = generate_fbte_datasets()
     assert isinstance(generator, Generator)
     
-    # Test first item if available
-    first_item = next(generator)
-    assert isinstance(first_item, xr.Dataset)
+    for i, item in enumerate(generator):
+        assert isinstance(item, xr.Dataset)
+        
+        # Limit to first few for performance
+        if i >= 2:
+            break
 
-@pytest.mark.slow
+
 def test_defuse_datasets_load_successfully():
     """Test that all DEFUSE datasets can be loaded without errors."""
     for i, dataset_dict in enumerate(generate_defuse_h5s()):
@@ -105,7 +108,6 @@ def test_defuse_datasets_load_successfully():
             break
 
 
-@pytest.mark.slow
 def test_fbte_datasets_load_successfully():
     """Test that all FBTE datasets can be loaded without errors."""
     for i, dataset in enumerate(generate_fbte_datasets()):
