@@ -26,7 +26,7 @@ class PopsimMLAccessor:
         Args:
             dim (str): dimension to split the dataset along.
             fracs (typing.Sequence[float]): fractions of splits to be produced.
-            key (int): seed for psuedo-random number generation.
+            key (int): seed for pseudo-random number generation.
 
         Returns:
             typing.Sequence[xr.Dataset]: list of datasets split along the dimension.

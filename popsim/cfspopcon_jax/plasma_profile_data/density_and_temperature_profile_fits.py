@@ -168,7 +168,7 @@ def evaluate_profile(
     # Analytical Integral ("pre-factor")
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Pedestal contribution (solved with Matematica)
+    # Pedestal contribution (solved with Mathematica)
     I1 = -0.0277778 * width_ped * (-23.3473 + 14.6132 * width_ped)
 
     # Core and axis contributions

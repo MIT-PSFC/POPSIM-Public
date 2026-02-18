@@ -44,7 +44,7 @@ def is_matstruct_array(arr: Any) -> bool:
 
 
 def convert_sparse(flat_dict: dict):
-    """Convet sparse matrices to dense."""
+    """Convert sparse matrices to dense."""
     for k, v in flat_dict.items():
         if isinstance(v, csc_matrix):
             flat_dict[k] = v.toarray()

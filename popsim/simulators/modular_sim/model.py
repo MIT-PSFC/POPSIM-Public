@@ -96,7 +96,7 @@ class ModularModel(TimeDepModule):
             finj_injector_dot[k], finj_injector_output[k] = self.finj_injector_modules[k](state.finj_state[k], finj_injector_inputs)
 
         power_balance_inputs = PowerBalance.Inputs(
-            P_aux=icrh_zone_output.transmitted_power,  # Auxilliary power [MW]
+            P_aux=icrh_zone_output.transmitted_power,  # Auxiliary power [MW]
             confinement_time=inputs.confinement_time,  # energy confinement time in seconds
         )
 

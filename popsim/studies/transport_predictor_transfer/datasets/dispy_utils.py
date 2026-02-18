@@ -12,29 +12,21 @@ def summary(
     max_shot: int,
     shots: list[int] | bool = False,
 ) -> np.ndarray:
-    """
-    Perform a SELECT query on the `summary` table to find shots
-    with high enough current and long enough pulse length.
+    """Perform a SELECT query on the `summary` table to find shots with high enough current and long enough pulse length.
+
     Optionally select shots from a given list.
     Snagged from https://github.com/MIT-PSFC/disruption-efit/blob/main/disruption_efit/sql.py
 
-    Parameters
-    ----------
-    ipmax : float, default = config.ipmax
-        threshold that maximum plasma current must exceed [A]
-    pulse_length : float, default = config.pulse_length
-        threshold that pulse length must exceed [s]
-    min_shot : int, optional, default = config.min_shot
-        disregard shots below this number.
-    max_shot : int, optional, default = config.max_shot
-        disregard shots above this number.
-    shots : list[int] | bool, optional, default = False
-        list of shots to be queried.
+    Args:
+        summary_table (str): name of the summary table to query.
+        ipmax (float): threshold that maximum plasma current must exceed [A].
+        pulse_length (float): threshold that pulse length must exceed [s].
+        min_shot (int): disregard shots below this number.
+        max_shot (int): disregard shots above this number.
+        shots (list[int] | bool): list of shots to be queried. Defaults to False.
 
-    Returns
-    -------
-    np.ndarray
-        Nx2 array of [shot_id, pulse_length] for the N shots which exceed the thresholds
+    Returns:
+        np.ndarray: Nx2 array of [shot_id, pulse_length] for the N shots which exceed the thresholds.
     """
 
     # database

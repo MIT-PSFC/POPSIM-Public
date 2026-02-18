@@ -9,7 +9,7 @@ class PIDController(TimeDepModule):
 
     @chex.dataclass
     class Config:
-        Kp: float  # Propotional gain [-]
+        Kp: float  # Proportional gain [-]
         Ki: float  # Integral gain [-]
         Kd: float  # Derivative gain [-]
         dt: float  # Time step between control updates [s]
@@ -31,7 +31,7 @@ class PIDController(TimeDepModule):
     class Inputs:
         setpoint: float  # Control setpoint to track
         measurement: float  # Measured value to apply feedback with
-        feed_forward: float = 0.0  # Feed forward control signal that gets added to the PID output to deterimne Output.control.
+        feed_forward: float = 0.0  # Feed forward control signal that gets added to the PID output to determine Output.control.
 
     config: Config
 

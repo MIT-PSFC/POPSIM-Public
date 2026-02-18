@@ -486,7 +486,7 @@ def locked_mode_dynamics(
     """Determine how the locked mode evolves based on the overlap and the locking threshold.
 
     If there is no mode, and the overlap exceeds the locking threshold, then a locked mode will form.
-    If there is a locked mode, and the overlap drops below the hystereis fraction of the locking threshold, then the mode will go away.
+    If there is a locked mode, and the overlap drops below the hysteresis fraction of the locking threshold, then the mode will go away.
     If there is no rational surface, then the mode is forced unlocked.
 
     Args:

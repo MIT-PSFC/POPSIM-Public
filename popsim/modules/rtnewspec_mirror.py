@@ -81,7 +81,7 @@ class RTNewSpecMirror(TimeDepModule):
     def calculate_rms(self, probe1_data, probe2_data):
         # Calculate the RMS of the signal in a similar way to rtnewspec
         # 1. Take FFT of both signals
-        # 2. Get auto spectrup of probe 1, smooth based on nsmth with a boxcar average
+        # 2. Get auto spectrum of probe 1, smooth based on nsmth with a boxcar average
         # 3. Calculate cross spectrum of probe 1 and probe 2
         # 4. Find coherence of probe 1 and probe 2 signals
         # 5. Filter cross spectrum to only have data where the coherence is above a threshold, and the phase matches an n-th mode

@@ -33,7 +33,7 @@ def load_cfspopcon_scenario_for_td_popcon(case_name: str = "SPARC_PRD"):
 
     """
     For each species, compute the fraction of its density in terms of the total fuel ion density.
-    This is a bit inconsitent with CFSPOPCON: https://github.com/cfs-energy-internal/POPSIM/issues/33
+    This is a bit inconsistent with CFSPOPCON: https://github.com/cfs-energy-internal/POPSIM/issues/33
     """
     fuel_concentrations = {
         FuelSpecies.Deuterium: (1.0 - input_parameters["heavier_fuel_species_fraction"]),

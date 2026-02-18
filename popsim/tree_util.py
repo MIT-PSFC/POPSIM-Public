@@ -135,7 +135,7 @@ def _tree_transpose(
         if not all(size == leaf_leading_sizes[0] for size in leaf_leading_sizes):
             raise ValueError("All leaves must have the same size in the leading dimension.")
 
-        # Get the nummber of trees we need to create.
+        # Get the number of trees we need to create.
         n_trees = leaf_leading_sizes[0]
 
         if n_trees == 0:
@@ -305,7 +305,7 @@ def convert_to_real(pytree: PyTree, check: bool = True) -> PyTree:
 
     def convert_to_real(x):
         if jnp.iscomplexobj(x):
-            # Check that the imagniary part is zero.
+            # Check that the imaginary part is zero.
             if check and not jnp.all(jnp.imag(x) == 0):
                 raise ValueError("Complex number has non-zero imaginary part.")
             return jnp.real(x)

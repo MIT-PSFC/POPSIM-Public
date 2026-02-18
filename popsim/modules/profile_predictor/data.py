@@ -50,7 +50,7 @@ def get_sparc_torax_data(debug: bool = False):
     ds["Te_shape"] = ds["Te_keV_rho"] / ds["Te_keV_line_avg"]
     ds["ne_shape"] = ds["ne20_rho"] / ds["ne20_line_avg"]
 
-    # Drop sims that have too much of a non-monothonic profile
+    # Drop sims that have too much of a non-monotonic profile
     sims_keep = ds.simulation.where(ds["ne_shape"].diff("rho").max("time").max("rho") < 1e-4, drop=True)
     ds = ds.sel(simulation=sims_keep)
 

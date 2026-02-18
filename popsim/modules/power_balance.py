@@ -22,7 +22,7 @@ class PowerBalance(TimeDepModule):
 
     @chex.dataclass
     class Inputs:
-        P_aux: float  # Power from auxillary heating [MW]
+        P_aux: float  # Power from auxiliary heating [MW]
         confinement_time: float  # energy confinement time in seconds
 
     config: Config

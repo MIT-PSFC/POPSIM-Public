@@ -18,7 +18,7 @@ def test_dynamics():
     # Set inputs
 
     inputs = PowerBalance.Inputs(
-        P_aux=1.0,  # Auxillary heating power [MW]
+        P_aux=1.0,  # Auxiliary heating power [MW]
         confinement_time=tau_E,  # energy confinement time in seconds
     )
 

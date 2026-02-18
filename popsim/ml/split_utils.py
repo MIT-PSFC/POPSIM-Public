@@ -38,15 +38,15 @@ def fracs_to_lengths(n_data: int, fracs: Sequence[float]) -> list[int]:
 
 
 def random_split(n_data: int, lengths_or_fracs: Sequence[int | float], seed: int) -> list[jax.Array]:
-    """Generate indicies to split a dataset into non-overlapping new datasets.
+    """Generate indices to split a dataset into non-overlapping new datasets.
 
     Args:
         n_data (int): size of the dataset to be split.
         lengths_or_fracs (Sequence[Union[int, float]]): lengths or fractions of splits to be produced.
-        seed (int): seed for psuedo-random number generation.
+        seed (int): seed for pseudo-random number generation.
 
     Returns:
-        List[jax.Array]: list of indicies to split the dataset.
+        List[jax.Array]: list of indices to split the dataset.
     """
     if math.isclose(sum(lengths_or_fracs), 1) and sum(lengths_or_fracs) <= 1:
         lengths = fracs_to_lengths(n_data, lengths_or_fracs)

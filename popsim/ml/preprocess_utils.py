@@ -56,7 +56,7 @@ def mask_to_largest_group_mask(mask: xr.DataArray, episode_dim: str, time_dim: s
             return mask
 
         # At every point where the mask changes, increment a cumulative sum.
-        # This results in a unique number for each continguous group of Trues and Falses.
+        # This results in a unique number for each contiguous group of Trues and Falses.
         cumulative_number_of_mask_flips = (mask != mask.shift({time_dim: 1})).cumsum()
 
         # Label all points where the mask is True with -1. Once that is done, what is left
@@ -123,21 +123,14 @@ def shift_time_to_not_nan(
 def expand_time_dim(ds, episode_dim, time_coord, time_dim_new) -> tuple[xr.Dataset, str, str]:
     """Expand the time dimension of a dataset to 2D along the episode dimension.
 
-    Parameters
-    ----------
-    ds : xr.Dataset
-        The dataset to be expanded.
-    episode_dim : str
-        The name of the episode dimension (e.g. "shot").
-    time_coord : str
-        The name of the original time dimension which will become the time coordinate (e.g. "time").
-    time_dim_new : str, optional
-        The name of the new time dimension (e.g. "time_slice"). Defaults to "time_slice".
+    Args:
+        ds (xr.Dataset): The dataset to be expanded.
+        episode_dim (str): The name of the episode dimension (e.g. "shot").
+        time_coord (str): The name of the original time dimension which will become the time coordinate (e.g. "time").
+        time_dim_new (str): The name of the new time dimension (e.g. "time_slice"). Defaults to "time_slice".
 
-    Returns
-    -------
-    tuple[xr.Dataset, str]
-        The expanded dataset, and the name of the new time dimension.
+    Returns:
+        tuple[xr.Dataset, str]: The expanded dataset, and the name of the new time dimension.
     """
 
     ds[time_coord] = ds[time_coord].expand_dims(dim={episode_dim: ds.sizes[episode_dim]})
