@@ -88,7 +88,3 @@ nav:
             - Training Modules: 'notebooks/training_td_modules.ipynb'
             - Training a Profile Predictor: 'notebooks/profile_predictor.ipynb'
         - Dev Workflow Basics: 'development_workflow.md'
-    - API:
-        - simulate: 'api/simulate.md'
-        - tree_util: 'api/tree_util.md'
-        - interp: 'api/interp.md'
