@@ -1,3 +1,5 @@
+import pytest
+from popsim.data import get_path_to_ml_data_dump
 from popsim.simulators.tearing_sim.scenarios.simple_tearing import build_simple_tearing_sim_config
 from popsim.simulate import simulate, SimInput
 from popsim.modules.tearing import Tearing, generate_disruption_phase_trajectory, generate_tearing_phase_trajectory
@@ -8,7 +10,12 @@ from popsim.modules.magnetic_diagnostics import BFieldPoloidalProbes
 from popsim.simulators.tearing_sim.model import TearingSim
 import jax.numpy as jnp
 
-
+# Skip all tests in this module if ML data dump path is not available
+pytestmark = pytest.mark.skipif(
+    str(get_path_to_ml_data_dump()) != "/usr/local/mfe/ml_data_dump",
+    reason="Tearing data not available on this system",
+    allow_module_level=True
+)
 
 def test_tearing_sim():
     

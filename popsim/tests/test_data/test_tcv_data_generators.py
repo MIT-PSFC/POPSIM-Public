@@ -15,7 +15,7 @@ from popsim.data.tcv.data_generators import (
 
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(
-    get_path_to_ml_data_dump() != "/usr/local/mfe/ml_data_dump/",
+    str(get_path_to_ml_data_dump()) != "/usr/local/mfe/ml_data_dump",
     reason="TCV data not available on this system",
     allow_module_level=True
 )

@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import os
 from enum import IntEnum
 
 import chex
@@ -7,13 +8,16 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
 
-from popsim import PACKAGE_ROOT, TimeDepModule, discrete_time_field
+from popsim import TimeDepModule, discrete_time_field
+from popsim.data import get_path_to_ml_data_dump
 from popsim.logic_utils import select_w_tuples
 from popsim.simulate import make_time_base
 
 """
 Models the growth of tearing modes in a tokamak plasma.
 """
+
+TEARING_DATA_DIR = os.path.join(get_path_to_ml_data_dump(), "POPSIM", "tearing_data")
 
 
 class DisruptionPhase(IntEnum):
@@ -331,9 +335,9 @@ def load_active_circuit_overlaps(
     # Load overlaps for active circuits
     # Nominal overlaps are given in delta per amp, while shift and tilt are given in delta per m displacement.
     if overlap_phase == OverlapPhase.STARTUP:
-        error_field_source_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/startup_01132025.json"
+        error_field_source_file = os.path.join(TEARING_DATA_DIR, "error_field_sources/startup_01132025.json")
     elif overlap_phase == OverlapPhase.FLATTOP:
-        error_field_source_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/flattop_01132025.json"
+        error_field_source_file = os.path.join(TEARING_DATA_DIR, "error_field_sources/flattop_01132025.json")
     else:
         raise ValueError(f"Invalid overlap_phase: {overlap_phase}")
 
@@ -342,9 +346,9 @@ def load_active_circuit_overlaps(
 
     # Load perturbation shifts/tilts for active circuits
     if ef_universe in [EFUniverse.STARTUP_01, EFUniverse.STARTUP_50, EFUniverse.STARTUP_99p9]:
-        perts_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/perts_startup.json"
+        perts_file = os.path.join(TEARING_DATA_DIR, "error_field_sources/perts_startup.json")
     elif ef_universe in [EFUniverse.FLATTOP_01, EFUniverse.FLATTOP_50, EFUniverse.FLATTOP_99p9]:
-        perts_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/perts_flattop.json"
+        perts_file = os.path.join(TEARING_DATA_DIR, "error_field_sources/perts_flattop.json")
 
     with open(perts_file) as f:
         perts_data = json.load(f)
@@ -419,7 +423,7 @@ def load_tf_overlap(overlap_percentile: EFUniverse | float) -> dict[str, complex
     else:
         raise ValueError(f"overlap_percentile must be a float or EFUniverse enum, got {type(overlap_percentile)}")
 
-    tf_overlap_file = f"{PACKAGE_ROOT}/data/tearing/error_field_sources/tfef.dat"
+    tf_overlap_file = os.path.join(TEARING_DATA_DIR, "error_field_sources/tfef.dat")
     data = np.genfromtxt(tf_overlap_file, dtype=float, delimiter="  ").T
 
     overlaps = data[0]
@@ -545,7 +549,9 @@ class ErrorFieldLocking(TimeDepModule):
 
     @chex.dataclass
     class Inputs:
-        scaling_law_terms: dict[str, list[float]]  # Terms in the scaling law, see data/tearing/scalinglaws.json for examples
+        scaling_law_terms: dict[
+            str, list[float]
+        ]  # Terms in the scaling law, see ml_data_dump/POPSIM/tearing_data/scalinglaws.json for examples
         scaling_law_inputs: dict[str, float]  # Values for each parameter in the scaling law
         active_circuit_currents: dict[str, float]  # Current in active circuits [A]
         active_circuit_overlaps: dict[str, dict[str, complex]]  # Overlaps for each coil source [delta per A]

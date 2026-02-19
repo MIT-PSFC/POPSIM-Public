@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import numpy as np
 from interpax import Interpolator1D
 
-from popsim import PACKAGE_ROOT, TimeDepModule
-from popsim.modules.tearing import Tearing
+from popsim import TimeDepModule
+from popsim.modules.tearing import TEARING_DATA_DIR, Tearing
 
 """
 Classes which simulate magnetic diagnostics
@@ -173,12 +173,12 @@ def load_lown_config():
     """
     # Get sensor positions from lown_design.txt config file
     # The text file has one tuple of (phi1, phi2) per line
-    lown_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/lown_design.txt")
+    lown_fullpath = os.path.join(TEARING_DATA_DIR, "lown_design.txt")
     with open(lown_fullpath) as f:
         probe_connections = [tuple(map(float, line.split(", "))) for line in f]
 
     # Get frequency responses
-    resp_fullpath = os.path.join(PACKAGE_ROOT, "data/tearing/21_mode_resp_data.txt")
+    resp_fullpath = os.path.join(TEARING_DATA_DIR, "21_mode_resp_data.txt")
     out = np.loadtxt(resp_fullpath, skiprows=1)
 
     freqs = out[:, 0]

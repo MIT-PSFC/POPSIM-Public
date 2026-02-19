@@ -18,6 +18,7 @@ from popsim.modules.tearing import (
 )
 from popsim.simulate import simulate, make_time_base, SimInput
 from popsim import PACKAGE_ROOT
+from popsim.data import get_path_to_ml_data_dump
 import pytest
 import numpy as np
 
@@ -96,6 +97,10 @@ def test_mode_growth_and_freq(tearing_test_sim):
         assert F.sel(time=aux_data["lock_time"], method="nearest") == 0.0
 
 
+@pytest.mark.skipif(
+    str(get_path_to_ml_data_dump()) != "/usr/local/mfe/ml_data_dump",
+    reason="Tearing data not available on this system",
+)
 def test_load_tf_overlap():
     # Ensure an error is raised if the percentile is out of range
     with pytest.raises(ValueError):

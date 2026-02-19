@@ -1,8 +1,17 @@
+import pytest
 import jax.numpy as jnp
 
+from popsim.data import get_path_to_ml_data_dump
 from popsim.modules.tearing import Tearing, DisruptionPhase, TearingPhase
 from popsim.modules.magnetic_diagnostics import LowNArray, load_lown_config
 from popsim.simulate import make_time_base
+
+# Skip all tests in this module if ML data dump path is not available
+pytestmark = pytest.mark.skipif(
+    str(get_path_to_ml_data_dump()) != "/usr/local/mfe/ml_data_dump",
+    reason="Tearing data not available on this system",
+    allow_module_level=True
+)
 
 def test_lown_array_same_amplitude_diff_phases():
     """Ensure the Low-N Array module returns the same amplitude for different phases of the same mode."""
