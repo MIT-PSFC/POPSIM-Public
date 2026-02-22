@@ -25,7 +25,7 @@ SPARC_CONFIG = {
         "n_shapes": 3,
         "nn_depth": 2,
         "nn_width": 16,
-        "softmax_temp": 10,
+        "softmax_temp": 1,
         "use_ne_edge": False,
         "freeze_shapes": True,
         "prng_seed": 42,
@@ -43,6 +43,9 @@ SPARC_CONFIG = {
     "trainable_getter_config": {
         "freeze_shapes": True,
     },
+    "test_eval_suite_config": {
+        "device": "sparc",
+    },
 }
 
 
@@ -50,5 +53,6 @@ SPARC_CONFIG = {
 TCV_CONFIG = SPARC_CONFIG.copy()
 TCV_CONFIG["project"] = "tcv_profile_predictor"
 TCV_CONFIG["ds"] = "tcv"
-TCV_CONFIG["model_init_config"]["nn_depth"] = 3
-TCV_CONFIG["model_init_config"]["nn_width"] = 256
+TCV_CONFIG["test_eval_suite_config"] = {
+    "device": "tcv",
+}

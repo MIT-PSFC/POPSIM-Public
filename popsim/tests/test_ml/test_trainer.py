@@ -110,13 +110,20 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
     )
 
     loss_start = trainer.compute_loss(dl if not use_val else val_dl)
-    trainer.train(
-        train_dl=dl,
-        val_dl=val_dl,
-        # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
-        max_epochs=20,
-        epochs_per_val=20,
-    )
+    try:
+        trainer.train(
+            train_dl=dl,
+            val_dl=val_dl,
+            # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
+            max_epochs=20,
+            epochs_per_val=20,
+        )
+    except RuntimeError as e:
+        # Encountered a NaN during training
+        # This is to be expected for some configurations, especially with batch_size=1 and float32 precision.
+        if not (batch_size == 1 and jax.config.jax_enable_x64 is False):
+            raise e
+
     loss_end = trainer.compute_loss(dl if not use_val else val_dl)
 
     if batch_size == 1:

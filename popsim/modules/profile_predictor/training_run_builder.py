@@ -123,13 +123,22 @@ class ProfilePredictorTrainRunBuilder(TrainRunBuilder):
 
     @staticmethod
     def get_test_eval_suite(config):
-        test_eval_suite = {
-            "violin_shapes_in_data": evals.violin_shapes_in_data,
-            "integrated_profile_error": evals.compute_integrated_error,
-            "compare_profiles": evals.compare_profiles_for_episode,
-            "make_histograms": evals.make_histograms,
-            "plot_shapes": evals.plot_shapes,
-            "make_quantile_examples": evals.make_quantile_examples,
-            "plot_ne_te_weights": evals.plot_ne_te_weights,
-        }
+        if config is None:  # No test eval suite config given, return None
+            return None
+        elif config["device"] == "sparc":
+            test_eval_suite = {
+                "violin_shapes_in_data": evals.violin_shapes_in_data,
+                "integrated_profile_error": evals.compute_integrated_error,
+                "compare_profiles": evals.compare_profiles_for_episode,
+                "make_histograms": evals.make_histograms,
+                "plot_shapes": evals.plot_shapes,
+                "make_quantile_examples": evals.make_quantile_examples,
+                "plot_ne_te_weights": evals.plot_ne_te_weights,
+            }
+        elif config["device"] == "tcv":
+            test_eval_suite = {
+                "violin_shapes_in_data": evals.violin_shapes_in_data,
+            }
+        else:
+            raise ValueError(f"Invalid device: {config['device']}")
         return test_eval_suite

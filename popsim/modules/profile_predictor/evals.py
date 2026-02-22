@@ -24,7 +24,7 @@ def violin_shapes_in_data(eval_data: EvalData, rho_downsample: int = 1):
         samples = [data_array.sel(rho=rho).values for rho in rho_values]
 
         # Plot the violin plot
-        sns.violinplot(data=samples, scale="width", ax=ax)
+        sns.violinplot(data=samples, density_norm="width", ax=ax)
 
         # Customize each subplot
         ax.set_title(f"Violin Plot of {var_name}")

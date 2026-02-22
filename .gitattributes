@@ -8,3 +8,5 @@ popsim/modules/profile_predictor/exports/** filter=lfs diff=lfs merge=lfs -text
 popsim/modules/meqml/checkpoints/** filter=lfs diff=lfs merge=lfs -text
 popsim/modules/meqml/liuqe/checkpoints filter=lfs diff=lfs merge=lfs -text
 popsim/modules/meqml/liuqe/checkpoints/latest filter=lfs diff=lfs merge=lfs -text
+popsim/data/cmod/transport_sample.nc filter=lfs diff=lfs merge=lfs -text
+popsim/data/tcv/scrambled_transport_sample.nc filter=lfs diff=lfs merge=lfs -text

@@ -14,7 +14,7 @@ from popsim.enums import (
 from popsim.modules.density import Density
 from popsim.modules.finj_injector import FinjInjector
 from popsim.modules.icrh_zone import IcrhZone
-from popsim.modules.power_balance import PowerBalance
+from popsim.simulators.modular_sim.power_balance import PowerBalance
 
 
 class ModularModel(TimeDepModule):

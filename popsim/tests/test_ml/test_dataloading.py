@@ -1,3 +1,4 @@
+import jax
 import pytest
 from popsim.tests.fixtures import cmod_test_dataset, reduced_cmod_test_dataset
 from popsim.ml.dataloading import make_time_dep_dataloader, make_time_indep_dataloader, XarrayPreppedDataset, DEFAULT_SAMPLE_DIM
@@ -48,7 +49,7 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length, co
     else:
         assert first_batches == second_round_batches
 
-@pytest.mark.parametrize("segmenting_case", [{"seg_length": 250, "seg_overlap": 25, "expected_n_samps" : 724}, {"seg_length": 250, "seg_overlap": 0, "expected_n_samps" : 655},
+@pytest.mark.parametrize("segmenting_case", [{"seg_length": 250, "seg_overlap": 25, "expected_n_samps" : 681}, {"seg_length": 250, "seg_overlap": 0, "expected_n_samps" : 600},
                                              {"seg_length": None, "seg_overlap": 0, "expected_n_samps" : 99}])
 @pytest.mark.parametrize("batch_size", [None, 1, 64, 1024, np.iinfo(np.int32).max])
 @pytest.mark.parametrize("shuffle", [True, False])
@@ -262,3 +263,331 @@ def test_prng(reduced_cmod_test_dataset):
     
     # Check that the prng keys are different for different batches.
     assert not np.array_equal(prng_key1, prng_key2)
+
+@pytest.mark.parametrize("method", ["drop_slice_all", "drop_slice_any", "drop_segment"])
+def test_time_dep_dl_nan_handling_no_nan(method):
+    """Test that the dataloader returns the same dataset when there are no NaNs to handle for all three NaN handling methods."""
+    ds_orig = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, 1.1, 1.2, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.0, 2.1, 2.2, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.0, 3.1, 3.2, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    ds_expected = xr.Dataset(
+        data_vars={
+            "input_1": (("sample", "time_idx_input"), np.array([[1.0, 1.1, 1.2, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("sample", "time_idx_input"), np.array([[2.0, 2.1, 2.2, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("sample", "time_idx_input"), np.array([[3.0, 3.1, 3.2, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("sample", "time_idx_input", "rho_input"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+        },
+        coords={
+            "time": (("sample", "time_idx_input"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "input_batch": ("sample", [0, 0]),
+            "shot": ("sample", [1, 2]),
+            "rho": (("rho_input"), np.array([0, 0.5, 1])),
+        },
+    )
+
+    dl = make_time_dep_dataloader(
+        ds=ds_orig,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=[],
+        input_vars=["input_1", "input_2"],
+        target_vars=["target_0D", "target_1D"],
+        convert_xr_to_jnp=False,
+        batch_size=None,
+        shuffle=False,
+        nan_handling=method
+    )
+
+    # Check that the resulting dataloader dataset is the same as the original, since there are no NaNs to handle.
+    for var in list(ds_expected.data_vars) + list(ds_expected.coords):
+        assert np.allclose(dl.ds[var].data, ds_expected[var].data, atol=1e-06)
+
+
+@pytest.mark.parametrize("method", ["drop_slice_all", "drop_slice_any", "drop_segment"])
+def test_time_dep_dl_nan_handling_start_timeslice(method):
+    """Test that the dataloader correctly handles NaNs at the start of a time slice for all three NaN handling methods.
+    The NaN handling method shouldn't really do anything in this case since it's similar to the shift_time_to_not_nan"""
+    ds_orig = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[np.nan, 1.1, 1.2, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx"), np.array([[np.nan, 2.1, 2.2, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("shot", "time_idx"), np.array([[np.nan, 3.1, 3.2, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[np.nan, np.nan, np.nan], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    ds_expected = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.1, 1.2, 1.3, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.1, 2.2, 2.3, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.1, 3.2, 3.3, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.1, 0.2, 0.3, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    dl = make_time_dep_dataloader(
+        ds=ds_orig,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=[],
+        input_vars=["input_1", "input_2"],
+        target_vars=["target_0D", "target_1D"],
+        convert_xr_to_jnp=False,
+        batch_size=None,
+        shuffle=False,
+        nan_handling=method
+    )
+
+    # Check that the resulting dataloader dataset matches the expected dataset for the given NaN handling method.
+    for var in list(ds_expected.data_vars) + list(ds_expected.coords):
+        assert np.allclose(dl.ds[var].data, ds_expected[var].data, equal_nan=True, atol=1e-06)
+
+
+@pytest.mark.parametrize("method", ["drop_slice_all", "drop_slice_any", "drop_segment"])
+def test_time_dep_dl_nan_handling_end_timeslice(method):
+    """Test that the dataloader correctly handles NaNs at the end of a time slice for all three NaN handling methods.
+    The NaN handling shouldn't really do anything in this case since it's similar to the trim_time_to_not_nan"""
+    ds_orig = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, 1.1, 1.2, np.nan], [1.0, 1.1, 1.2, np.nan]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.0, 2.1, 2.2, np.nan], [2.0, 2.1, 2.2, np.nan]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.0, 3.1, 3.2, np.nan], [3.0, 3.1, 3.2, np.nan]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [np.nan, np.nan, np.nan]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [np.nan, np.nan, np.nan]]])),
+
+        },
+        coords={
+            # End timeslice with everything nan, and end timeslice with everything except time nan
+            # In both cases the final time slice should be completely dropped
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, np.nan], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    ds_expected = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, 1.1, 1.2], [1.0, 1.1, 1.2]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.0, 2.1, 2.2], [2.0, 2.1, 2.2]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.0, 3.1, 3.2], [3.0, 3.1, 3.2]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2], [0.0, 0.1, 0.2]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    dl = make_time_dep_dataloader(
+        ds=ds_orig,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=[],
+        input_vars=["input_1", "input_2"],
+        target_vars=["target_0D", "target_1D"],
+        convert_xr_to_jnp=False,
+        batch_size=None,
+        shuffle=False,
+        nan_handling=method
+    )
+
+    # Check that the resulting dataloader dataset matches the expected dataset for the given NaN handling method.
+    for var in list(ds_expected.data_vars) + list(ds_expected.coords):
+        assert np.allclose(dl.ds[var].data, ds_expected[var].data, equal_nan=True, atol=1e-06)
+
+@pytest.mark.parametrize("method, expected", [
+    [
+        "drop_slice_all",
+        xr.Dataset(
+            data_vars={
+                "input_1": (("sample", "time_idx_input"), np.array([[1.0, 1.3, 1.3, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+                "input_2": (("sample", "time_idx_input"), np.array([[2.0, 2.3, 2.3, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+                "target_0D": (("sample", "time_idx_input"), np.array([[3.0, 3.3, 3.3, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+                "target_1D": (("sample", "time_idx_input", "rho_input"), np.array([[[4.00, 4.01, 4.02], [4.30, 4.31, 4.32], [4.30, 4.31, 4.32], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+            },
+            coords={
+                "time": (("sample", "time_idx_input"), np.array([[0.0, 0.3, 0.3, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+                "input_batch": ("sample", [0, 0]),
+                "shot": ("sample", [1, 2]),
+                "rho": (("rho_input"), np.array([0, 0.5, 1])),
+            },
+        )
+    ],
+    [
+        "drop_slice_any",
+        xr.Dataset(
+            data_vars={
+                "input_1": (("sample", "time_idx_input"), np.array([[1.0, 1.3, 1.3, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+                "input_2": (("sample", "time_idx_input"), np.array([[2.0, 2.3, 2.3, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+                "target_0D": (("sample", "time_idx_input"), np.array([[3.0, 3.3, 3.3, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+                "target_1D": (("sample", "time_idx_input", "rho_input"), np.array([[[4.00, 4.01, 4.02], [4.30, 4.31, 4.32], [4.30, 4.31, 4.32], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+            },
+            coords={
+                "time": (("sample", "time_idx_input"), np.array([[0.0, 0.3, 0.3, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+                "input_batch": ("sample", [0, 0]),
+                "shot": ("sample", [1, 2]),
+                "rho": (("rho_input"), np.array([0, 0.5, 1])),
+            },
+        )
+    ],
+    [
+        "drop_segment",
+        xr.Dataset(
+            data_vars={
+                "input_1": (("sample", "time_idx_input"), np.array([[1.0, 1.1, 1.2, 1.3]])),
+                "input_2": (("sample", "time_idx_input"), np.array([[2.0, 2.1, 2.2, 2.3]])),
+                "target_0D": (("sample", "time_idx_input"), np.array([[3.0, 3.1, 3.2, 3.3]])),
+                "target_1D": (("sample", "time_idx_input", "rho_input"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+            },
+            coords={
+                "time": (("sample", "time_idx_input"), np.array([[0.0, 0.1, 0.2, 0.3]])),
+                "input_batch": ("sample", [0]),
+                "shot": ("sample", [2]),
+                "rho": (("rho_input"), np.array([0, 0.5, 1])),
+            },
+        )
+    ],
+])
+def test_time_dep_dl_nan_handling_middle_timeslices(method, expected):
+    """Test that the dataloader correctly handles NaNs in the middle of a time slice for all three NaN handling methods.
+    drop_slice_all and drop_slice_any should give the same result and lead to a time skip and forward-fill at the end
+    drop_segment should lead to an episode being dropped
+    """
+    ds_orig = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, np.nan, np.nan, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.0, np.nan, np.nan, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.0, np.nan, np.nan, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.00, 4.01, 4.02], [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    dl = make_time_dep_dataloader(
+        ds=ds_orig,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=[],
+        input_vars=["input_1", "input_2"],
+        target_vars=["target_0D", "target_1D"],
+        convert_xr_to_jnp=False,
+        batch_size=None,
+        shuffle=False,
+        nan_handling=method
+    )
+
+    # Check that the resulting dataloader dataset matches the expected dataset for the given NaN handling method.
+    for var in list(expected.data_vars) + list(expected.coords):
+        assert np.allclose(dl.ds[var].data, expected[var].data, equal_nan=True, atol=1e-06)
+
+
+@pytest.mark.parametrize("method, expected", [
+    [
+        "drop_slice_all",
+        "value_error",
+    ],
+    [
+        "drop_slice_any",
+        xr.Dataset(
+            data_vars={
+                "input_1": (("sample", "time_idx_input"), np.array([[1.0, 1.2, 1.3], [1.0, 1.1, 1.3]])),
+                "input_2": (("sample", "time_idx_input"), np.array([[2.0, 2.2, 2.3], [2.0, 2.1, 2.3]])),
+                "target_0D": (("sample", "time_idx_input"), np.array([[3.0, 3.2, 3.3], [3.0, 3.1, 3.3]])),
+                "target_1D": (("sample", "time_idx_input", "rho_input"), np.array([[[4.00, 4.01, 4.02], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.30, 4.31, 4.32]]])),
+            },
+            coords={
+                "time": (("sample", "time_idx_input"), np.array([[0.0, 0.2, 0.3], [0.0, 0.1, 0.3]])),
+                "input_batch": ("sample", [0, 0]),
+                "shot": ("sample", [1, 2]),
+                "rho": (("rho_input"), np.array([0, 0.5, 1])),
+            },
+        )
+    ],
+    [
+        "drop_segment",
+        "value_error",
+    ],
+])
+def test_time_dep_dl_nan_handling_intermittent(method, expected):
+    """Test that the dataloader correctly handles NaNs that are intermittent across time slices for all three NaN handling methods.
+    
+    drop_slice_all should raise a ValueError since the NaNs only appear in a single variable
+    drop_slice_any should have time skips and samples that are shorter than original since they wind up the same length
+    drop_segment should raise a ValueError since both episodes have NaNs
+    """
+    ds_orig = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, np.nan, 1.2, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx"), np.array([[2.0, 2.1, 2.2, 2.3], [2.0, 2.1, 2.2, 2.3]])),
+            "target_0D": (("shot", "time_idx"), np.array([[3.0, 3.1, 3.2, 3.3], [3.0, 3.1, 3.2, 3.3]])),
+            "target_1D": (("shot", "time_idx", "rho"), np.array([[[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, 4.21, 4.22], [4.30, 4.31, 4.32]], [[4.00, 4.01, 4.02], [4.10, 4.11, 4.12], [4.20, np.nan, 4.22], [4.30, 4.31, 4.32]]])),
+
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+
+    if isinstance(expected, str) and expected == "value_error":
+        with pytest.raises(ValueError):
+            dl = make_time_dep_dataloader(
+                ds=ds_orig,
+                time_coord="time",
+                episode_coord="shot",
+                state_init_vars=[],
+                input_vars=["input_1", "input_2"],
+                target_vars=["target_0D", "target_1D"],
+                convert_xr_to_jnp=False,
+                batch_size=None,
+                shuffle=False,
+                nan_handling=method
+            )
+    else:
+        dl = make_time_dep_dataloader(
+            ds=ds_orig,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=[],
+            input_vars=["input_1", "input_2"],
+            target_vars=["target_0D", "target_1D"],
+            convert_xr_to_jnp=False,
+            batch_size=None,
+            shuffle=False,
+            nan_handling=method
+        )
+
+        # Check that the resulting dataloader dataset matches the expected dataset for the given NaN handling method.
+        for var in list(expected.data_vars) + list(expected.coords):
+            assert np.allclose(dl.ds[var].data, expected[var].data, equal_nan=True, atol=1e-06)

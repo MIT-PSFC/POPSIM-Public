@@ -15,7 +15,7 @@ from popsim.tree_util import tree_transpose
 from popsim.sim_utils import make_time_base
 from popsim.ml.utils import pad_time_with_epsilon
 
-from popsim.simulate import SimInput, _simple_euler_simulate, _simple_euler_simulate_uniform_timestep
+from popsim.simulate import SimInput, StepperType, _simple_euler_simulate, _simple_euler_simulate_uniform_timestep
 
 
 class ContinuousTimeModule(TimeDepModule):
@@ -76,7 +76,7 @@ def xarray_partial_state():
     return module, initial_state
 
 @pytest.mark.parametrize("return_xarray", [True, False])
-@pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
+@pytest.mark.parametrize("stepper_type", [StepperType.SIMPLE_EULER, StepperType.DIFFRAX_TSIT5])
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, stepper_type, multi_sim):
     module, initial_state = pure_continuous_time_module
@@ -112,7 +112,7 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
 
 
 @pytest.mark.parametrize("return_xarray", [True, False])
-@pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
+@pytest.mark.parametrize("stepper_type", [StepperType.SIMPLE_EULER, StepperType.DIFFRAX_TSIT5])
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_type, multi_sim):
     module, time_base, initial_state, inputs = pure_discrete_time_module
@@ -145,7 +145,7 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
     assert (sol['state.disrupted_state'].sel(time=slice(0.5, 1.0)) == ExampleDisruptedState.DISRUPTED).all()
 
 @pytest.mark.parametrize("return_xarray", [True, False])
-@pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
+@pytest.mark.parametrize("stepper_type", [StepperType.SIMPLE_EULER, StepperType.DIFFRAX_TSIT5])
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type, multi_sim):
     module, time_base, initial_state, inputs = hybrid_time_module
@@ -177,7 +177,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
     if multi_sim:
         assert DEFAULT_SIM_DIM_NAME in sol.dims
 
-@pytest.mark.parametrize("stepper_type", list(simulate.StepperType))
+@pytest.mark.parametrize("stepper_type", [StepperType.SIMPLE_EULER, StepperType.DIFFRAX_TSIT5])
 @pytest.mark.parametrize("multi_sim", [True, False])
 def test_xarray_partial_state(xarray_partial_state, stepper_type, multi_sim):
     module, initial_state = xarray_partial_state

@@ -2,8 +2,15 @@ import importlib
 import importlib.util
 import inspect
 import os
+import warnings
 
 import loguru
+from absl import logging as absl_logging
+
+# Suppress noisy Orbax checkpoint warnings about temporary path identification
+# These warnings occur during checkpoint cleanup but are benign
+absl_logging.set_verbosity(absl_logging.ERROR)
+warnings.filterwarnings("ignore", message=".*could not be identified as a temporary checkpoint path.*")
 
 from popsim.ml import DataLoader, Trainer
 from popsim.ml.loggers import NullLogger, WandbLogger
@@ -92,9 +99,15 @@ def _run_train(
     else:
         logger = NullLogger()
 
+    loguru.logger.info(f"Building training run for {training_config.project}")
     train_run_builder = _get_train_run_builder_class(training_config.train_run_builder)
     loguru.logger.info("Loading the dataset and creating dataloaders...")
-    _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
+    # If this is a submodule, use the dataloader construction logic from the main module. Fallback to using the submodule's own logic otherwise.
+    if training_config.dataloader_config.get("data_train_run_builder"):
+        data_train_run_builder = _get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
+        _, train_dl, val_dl, test_dl = data_train_run_builder.get_dataloaders(training_config.dataloader_config)
+    else:
+        _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
     loguru.logger.info("Dataset and dataloaders created.")
     loguru.logger.info("Initializing the module...")
     model = train_run_builder.model_init(train_dl, training_config.model_init_config)
@@ -108,7 +121,7 @@ def _run_train(
         loss_fn=loss_fn,
         optimizer=opt,
         checkpoint_dir=training_config.checkpoint_dir,
-        trainable_getter=train_run_builder.get_trainable_getter(training_config.trainable_getter_config),
+        trainable_getter=train_run_builder.get_trainable_getter(training_config.model_init_config),
     )
     loguru.logger.info("Trainer built.")
 

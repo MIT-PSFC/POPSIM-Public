@@ -1,4 +1,4 @@
-from popsim.modules.power_balance import PowerBalance
+from popsim.simulators.modular_sim.power_balance import PowerBalance
 import jax.numpy as jnp
 import jax
 

@@ -11,7 +11,7 @@ from jaxtyping import Array
 from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
 from popsim.ml.envs import ModuleEvalEnvInput
-from popsim.ml.preprocess_utils import expand_time_dim, shift_time_to_not_nan
+from popsim.ml.preprocess_utils import expand_time_dim, shift_time_to_not_nan, trim_time_to_not_nan
 from popsim.ml.utils import pad_time_with_epsilon_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
@@ -257,21 +257,114 @@ def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, 
     return episode_var_dim, time_var_dim
 
 
+def _drop_nan_and_repad(ds_orig, time_var_dim, how, subset):
+    """Given a dataset composed of a SINGLE episode, drop time slices where NaNs are present according to the specified method,
+    and then pad the end of the episode with NaNs to maintain the original length in the time dimension.
+    Note: data is not dropped and padded independently between episodes, so this function should only be applied with ds.groupby(episode_dim).map()
+    """
+    original_size = ds_orig.sizes[time_var_dim]
+    ds_cleaned = ds_orig.dropna(time_var_dim, how=how, subset=subset)
+    new_size = ds_cleaned.sizes[time_var_dim]
+    if new_size < original_size:
+        n_pad = original_size - new_size
+        ds_padded = ds_cleaned.pad({time_var_dim: (0, n_pad)}, constant_values=np.nan)
+        return ds_padded
+    else:
+        return ds_cleaned
+
+
 def make_standard_dataloaders(
     ds: xr.Dataset,
     time_coord: str,
     episode_coord: str,
     input_vars: list[str],
     target_vars: list[str],
-    split_fracs: typing.Sequence[float],
-    key: int,
+    split_fracs: typing.Sequence[float] = (0.6, 0.2, 0.2),
+    key: int = 42,
     convert_xr_to_jnp: bool = True,
     extra_vars: list[str] | None = None,
     state_init_vars: list[str] | None = None,
     batch_size: int | None = None,
     segment_length: int | None = None,
     segment_overlap: int | None = 0,
+    nan_handling: str | None = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
+    """Create standard training, validation, and test DataLoaders from a single dataset by splitting along the episode dimension.
+
+    Args:
+        ds (xr.Dataset): Input dataset.
+        time_coord (str): Name of the time coordinate variable.
+        episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
+        input_vars (list[str]): Names of the input variables that go into the model.
+        target_vars (list[str]): Names of the target variables that the model predicts.
+        split_fracs (typing.Sequence[float], optional): Fractions to split the dataset into. Should sum to 1.0. Defaults to (0.6, 0.2, 0.2).
+        key (int, optional): Random seed for shuffling the dataset before splitting. Defaults to 42.
+        convert_xr_to_jnp (bool, optional): Whether to convert the xarray dataset to a dictionary of jnp arrays before loading the data into the model. Defaults to True.
+        extra_vars (list[str], optional): Names of additional variables to include in the dataset.
+        state_init_vars (list[str], optional): Names of the variables required to initialize the state of the module.
+        batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch.
+        segment_length (int, optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment.
+        segment_overlap (int, optional): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
+        nan_handling (str, optional): Passed to make_time_dep_dataloader, see that function for details. Defaults to "drop_slice_all".
+    Returns:
+        typing.Sequence[DataLoader]: List of DataLoaders for training, validation, and testing.
+    """
+
+    episode_var_dim, _ = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+    datasets = ds.popsim_ml.split_along_dim(episode_var_dim, split_fracs, key)
+
+    return make_dataloaders(
+        datasets=datasets,
+        time_coord=time_coord,
+        episode_coord=episode_coord,
+        input_vars=input_vars,
+        target_vars=target_vars,
+        convert_xr_to_jnp=convert_xr_to_jnp,
+        extra_vars=extra_vars,
+        state_init_vars=state_init_vars,
+        batch_size=batch_size,
+        segment_length=segment_length,
+        segment_overlap=segment_overlap,
+        shuffle=(True if i == 0 else False for i in range(len(datasets))),
+        nan_handling=nan_handling,
+    )
+
+
+def make_dataloaders(
+    datasets: list[xr.Dataset],
+    time_coord: str,
+    episode_coord: str,
+    input_vars: list[str],
+    target_vars: list[str],
+    convert_xr_to_jnp: bool = True,
+    extra_vars: list[str] | None = None,
+    state_init_vars: list[str] | None = None,
+    batch_size: int | None = None,
+    segment_length: int | None = None,
+    segment_overlap: int | None = 0,
+    shuffle: typing.Sequence[bool] | None = None,
+    nan_handling: str | None = "drop_slice_all",
+) -> typing.Sequence[DataLoader]:
+    """Create DataLoaders from a list of datasets. Each dataset is processed independently to create a DataLoader.
+
+    Args:
+        datasets (list[xr.Dataset]): List of datasets to create DataLoaders from.
+        time_coord (str): Name of the time coordinate variable.
+        episode_coord (str): Name of the episode coordinate variable (e.g. "shot" or "simulation").
+        input_vars (list[str]): Names of the input variables that go into the model.
+        target_vars (list[str]): Names of the target variables that the model predicts.
+        convert_xr_to_jnp (bool, optional): Whether to convert the xarray dataset to a dictionary of jnp arrays before loading the data into the model. Defaults to True.
+        extra_vars (list[str], optional): Names of additional variables to include in the dataset.
+        state_init_vars (list[str], optional): Names of the variables required to initialize the state of the module.
+        batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch.
+        segment_length (int, optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment.
+        segment_overlap (int, optional): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
+        shuffle (typing.Sequence[bool], optional): Whether to shuffle the samples in each DataLoader. If None, only the first DataLoader is shuffled.
+        nan_handling (str, optional): Passed to make_time_dep_dataloader, see that function for details. Defaults to "drop_slice_all".
+
+    Returns:
+        list[DataLoader]: List of DataLoaders created from the input datasets.
+    """
     if state_init_vars is None and (segment_length is not None or segment_overlap != 0):
         raise ValueError("segment_length and segment_overlap are only valid when state_init_vars are provided")
     if state_init_vars is None:
@@ -304,14 +397,13 @@ def make_standard_dataloaders(
                 segment_overlap=segment_overlap,
                 batch_size=batch_size,
                 shuffle=shuffle,
+                nan_handling=nan_handling,
             )
 
-    episode_var_dim, _ = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
-    datasets = ds.popsim_ml.split_along_dim(episode_var_dim, split_fracs, key)
-
     # By default, only shuffle the first dataset.
-    shuffle = (True if i == 0 else False for i in range(len(datasets)))
-    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=True)]
+    if shuffle is None:
+        shuffle = (True if i == 0 else False for i in range(len(datasets)))
+    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=False)]
 
 
 def make_time_indep_dataloader(
@@ -343,8 +435,10 @@ def make_time_indep_dataloader(
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
+    if extra_vars is None:
+        extra_vars = []
 
-    ds = ds[input_vars + target_vars + (extra_vars or [])]
+    ds = ds[input_vars + target_vars + extra_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
     sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM)
     sample_ds = sample_ds.transpose(DEFAULT_SAMPLE_DIM, ...)
@@ -388,11 +482,14 @@ def make_time_dep_dataloader(
     batch_size: int | None = None,
     shuffle: bool = True,
     generate_prng: bool = False,
+    nan_handling: str | None = "drop_slice_all",
 ) -> DataLoader:
     """Given a multi-episode time series dataset, generate a DataLoader. This function does some pre-processing, and you should expect the resultant data to have the following properties:
-        1. The data is segmented into samples of length `segment_length` with `segment_overlap` overlap.
-        2. Incomplete samples at the end of the episode have their data and times forward-filled.
-        3. Samples where inputs and targets are all NaN are dropped.
+        1 (optionally). Time slices where any of the input/target/state/extra vars are NaN are dropped
+        - How this is handled is determined by the `nan_handling` argument. "drop_slice_any" and "drop_slice_all" will remove time slices with any or all NaNs respectively (note that this will cause inconsistent timesteps), while "drop_segment" will keep all time slices but drop samples containing NaNs after segmenting (loses more data but maintains consistent timesteps).
+        2. The data is segmented into samples of length `segment_length` with `segment_overlap` overlap.
+        3. Incomplete samples at the end of the episode have their data and times forward-filled.
+        4. Samples where input/target/state/extra vars contain NaN are dropped, or error is raised.
 
     Args:
         ds (xr.Dataset): Input dataset.
@@ -408,10 +505,13 @@ def make_time_dep_dataloader(
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
         generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
+        nan_handling (str | None, optional): Method for handling NaN values in the dataset. If "drop_slice_all", time slices where all of the vars are NaN are dropped, and if NaNs remain raises ValueError. If "drop_slice_any", time slices where any of the vars are NaN are dropped. If "drop_segment", samples containing NaNs are dropped. Defaults to "drop_slice_all".
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
     """
+    if extra_vars is None:
+        extra_vars = []
 
     assert time_coord in ds.coords, f"Time coordinate {time_coord} not found in dataset."
     assert episode_coord in ds.coords, f"Episode coordinate {episode_coord} not found in dataset."
@@ -419,15 +519,37 @@ def make_time_dep_dataloader(
     if segment_length is None and segment_overlap != 0:
         raise ValueError("segment_overlap should be 0 when segment_length is None.")
 
-    model_vars = state_init_vars + input_vars
-    ds = ds[model_vars + target_vars + (extra_vars or [])]
+    if nan_handling not in ["drop_slice_all", "drop_slice_any", "drop_segment"]:
+        raise ValueError(
+            f"Invalid nan_handling method {nan_handling}. Must be one of 'drop_slice_all', 'drop_slice_any', or 'drop_segment'."
+        )
+
+    training_vars = set(input_vars + target_vars + state_init_vars + extra_vars)
+    ds = ds[training_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
 
     # If dataset has 1D time, expand to 2D along the shot dimension.
     if episode_var_dim not in ds[time_coord].dims:
         ds, time_var_dim = expand_time_dim(ds, episode_var_dim, time_coord, f"{time_var_dim}_slice")
 
-    ds = shift_time_to_not_nan(ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=model_vars)
+    if nan_handling == "drop_slice_all":
+        # Drop time slices where all of the training vars are NaN. If any NaNs remain after this, an error will be raised later.
+        ds = ds.groupby(episode_var_dim).map(lambda episode: _drop_nan_and_repad(episode, time_var_dim, how="all", subset=training_vars))
+    elif nan_handling == "drop_slice_any":
+        # Drop time slices where any of the training vars are NaN.
+        ds = ds.groupby(episode_var_dim).map(lambda episode: _drop_nan_and_repad(episode, time_var_dim, how="any", subset=training_vars))
+
+    # Shift each episode to remove time slices where any nan is present at the start
+    ds = shift_time_to_not_nan(
+        ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=training_vars
+    )
+    # Set the time coordinate to NaN after the last non-NaN time slice in each episode
+    ds = trim_time_to_not_nan(
+        ds, episode_dim=episode_var_dim, time_coord=time_coord, time_dim=time_var_dim, how="any", subset=training_vars
+    )
+    # Reduce the size of the dataset if possible by dropping time slices where all training vars are NaN for all episodes.
+    # No data will be affected by this operation, it just reduces the amount of padding needed later.
+    ds = ds.dropna(time_var_dim, how="all", subset=training_vars)
 
     # Construct the model_dims dictionary to define the input dimension the model will see.
     # We want the model to see a fixed number of time steps and data from a single episode.
@@ -449,8 +571,8 @@ def make_time_dep_dataloader(
     # By convention, the BatchGenerator adds "_input" to the time dimension.
     time_dim_sample_ds = f"{time_var_dim}_input"
 
-    # Drop samples where the data is all NaN.
-    sample_ds = sample_ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=input_vars + target_vars)
+    # Drop samples made from the batching process where the data is all NaN.
+    sample_ds = sample_ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=training_vars)
 
     # Squeeze the sample_ds to get rid of extraneous dimensions.
     # For example, when "segment_length=1", we get rid of the "time" dimension.
@@ -459,6 +581,29 @@ def make_time_dep_dataloader(
     # Forward fill the end of each sample along the time dimension to handle segments with unequal lengths.
     # This is distinct from forward-filling the whole dataset because this set of nans are artificially created via the segmenting process.
     sample_ds = ffill_end_of_time_padding(sample_ds, time_coord, time_dim_sample_ds)
+
+    # This always needs to get run to ensure there are no NaNs in the resulting samples
+    nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
+    if nans_found:
+        if nan_handling == "drop_slice_all":
+            raise ValueError(
+                f"NaN values found in dataset after dropping time slices where all training vars are NaN.\n\
+                NaN report: \n{nan_report}\n\
+                Consider using a different nan_handling method or preprocessing the dataset to handle NaNs before passing to dataloader creation."
+            )
+
+        # Drop samples where any remaining data is NaN
+        original_n_samples = sample_ds.sizes[DEFAULT_SAMPLE_DIM]
+        sample_ds = sample_ds.dropna(DEFAULT_SAMPLE_DIM, how="any", subset=training_vars)
+        n_dropped_samples = original_n_samples - sample_ds.sizes[DEFAULT_SAMPLE_DIM]
+        warnings.warn(
+            f"Dropped {n_dropped_samples} out of {original_n_samples} samples with NaNs after segmenting and padding.\n\
+            NaN report: \n{nan_report}\n\
+            Consider preprocessing the dataset to handle NaNs before passing to dataloader creation.",
+            stacklevel=2,
+        )
+        if sample_ds.sizes[DEFAULT_SAMPLE_DIM] == 0:
+            raise ValueError("All samples were dropped due to NaN values. Cannot create DataLoader.")
 
     if batch_size is None:
         batch_size = len(sample_ds[DEFAULT_SAMPLE_DIM])
@@ -473,12 +618,6 @@ def make_time_dep_dataloader(
             state_init_vars=state_init_vars, time_coord=time_coord, time_dim=time_dim_sample_ds
         ),
     )
-
-    nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
-
-    if nans_found:
-        warnings.warn(f"NaNs found in dataset. They will be forward-filled. NaN report: \n{nan_report}", stacklevel=2)
-        sample_ds = sample_ds.ffill(time_dim_sample_ds)
 
     prepped_ds = XarrayPreppedDataset(
         ds=sample_ds,

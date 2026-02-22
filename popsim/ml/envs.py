@@ -89,7 +89,7 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, ma
 
 class ModuleEvalEnv(eqx.Module):
     module: TimeDepModule
-    stepper: StepperType = StepperType.DIFFRAX_TSIT5
+    stepper: StepperType = eqx.field(static=True, default=StepperType.DIFFRAX_TSIT5)
 
     @staticmethod
     @abstractmethod

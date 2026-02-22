@@ -120,6 +120,52 @@ def shift_time_to_not_nan(
     return maybe_groupby_and_map(ds, episode_dim, _shift_time_to_not_nan)
 
 
+def trim_time_to_not_nan(
+    ds: xr.Dataset,
+    episode_dim: str,
+    time_coord: str,
+    time_dim: str,
+    how: str = "any",
+    subset: typing.Iterable[typing.Hashable] | None = None,
+) -> xr.Dataset:
+    """For each episode in a dataset, set the time coordinate to NaN where data vars are contiguously NaN until the end of the episode.
+
+    Args:
+        ds (xr.Dataset): dataset to be processed.
+        episode_dim (str): name of the episode dimension (e.g. "shot").
+        time_coord (str): name of the time variable (e.g. "time").
+        time_dim (str): name of the time dimension (e.g. "time_slice").
+        how (str, optional): Either "any" or "all". Forwarded to xr.Dataset.dropna . Defaults to "any".
+        subset (typing.Optional[typing.Iterable[typing.Hashable]], optional): Forwarded to xr.Dataset.dropna . Defaults to None.
+
+    Returns:
+        xr.Dataset: dataset with the time dimension set to NaN where data vars are contiguously NaN until the end of the episode.
+    """
+
+    def _trim_time_to_not_nan(group):
+        # Drop NaNs across the 'time_slice' dimension.
+        cleaned_group = group.dropna(time_dim, how=how, subset=subset)
+
+        # If there are no time slices left, set all time coord values to NaN.
+        if cleaned_group[time_dim].size == 0:
+            group[time_coord] = np.nan * group[time_coord]
+            return group
+
+        # Find the last time slice remaining in the cleaned group.
+        last_cleaned_slice = cleaned_group[time_coord].isel({time_dim: -1})
+
+        # Set all time coord values greater than the last cleaned slice to NaN.
+        group_coords = list(group.coords)
+        reset_group = group.reset_coords()
+        new_time = xr.where(reset_group[time_coord] <= last_cleaned_slice, reset_group[time_coord], np.nan, keep_attrs=True)
+        new_time = new_time.reset_coords(drop=True)
+        reset_group[time_coord] = new_time
+        trimmed_group = reset_group.set_coords(group_coords)
+        return trimmed_group
+
+    return maybe_groupby_and_map(ds, episode_dim, _trim_time_to_not_nan)
+
+
 def expand_time_dim(ds, episode_dim, time_coord, time_dim_new) -> tuple[xr.Dataset, str, str]:
     """Expand the time dimension of a dataset to 2D along the episode dimension.
 
@@ -137,3 +183,33 @@ def expand_time_dim(ds, episode_dim, time_coord, time_dim_new) -> tuple[xr.Datas
     ds = ds.rename_dims({time_coord: time_dim_new})
     ds[time_dim_new] = np.arange(ds.sizes[time_dim_new])
     return ds, time_dim_new
+
+
+def force_drop_nans(ds, data_vars, time_var_dim, episode_var_dim, time_coord) -> xr.Dataset:
+    """Mask to largest group within episode of contiguous non-NaN values across specified data variables, then drop NaNs.
+
+    Args:
+        ds (xr.Dataset): The dataset to be processed.
+        data_vars (list of str): The data variables to consider when determining where NaNs are.
+        time_var_dim (str): The name of the time dimension (e.g. "time").
+        episode_var_dim (str): The name of the episode dimension (e.g. "shot").
+        time_coord (str): The name of the time coordinate (e.g. "time").
+
+    Returns:
+        xr.Dataset: The processed dataset with only the largest contiguous non-NaN segment for each episode, and with NaN time slices dropped.
+    """
+
+    ds["nan_mask"] = xr.zeros_like(ds[data_vars[0]], dtype=bool)
+    for var in data_vars:
+        ds["nan_mask"] = ds["nan_mask"] | ds[var].isnull().any(dim=[d for d in ds[var].dims if d not in [time_var_dim, episode_var_dim]])
+    no_nan_mask = mask_to_largest_group_mask(~ds["nan_mask"], episode_var_dim, time_var_dim)
+    ds = ds.drop_vars("nan_mask")
+
+    if no_nan_mask.sum() == 0:
+        raise ValueError("All time slices have NaNs in the model_vars, target_vars, or extra_vars. Cannot create dataloader.")
+
+    time_values = ds[time_coord].where(no_nan_mask, drop=True)
+    ds = ds.where(no_nan_mask, drop=True)
+    ds = ds.assign_coords({time_coord: time_values})
+
+    return ds

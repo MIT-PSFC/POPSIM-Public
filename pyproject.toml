@@ -61,6 +61,11 @@ dev = [
 ]
 data = ["disruption_py"]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
+# For ORCD cluster: uses system CUDA 12.4 libraries instead of pip nvidia packages
+gpu-orcd = [
+    "jax-cuda12-plugin==0.7.2",
+    "jax-cuda12-pjrt==0.7.2",
+]
 
 [tool.uv]
 

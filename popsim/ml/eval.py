@@ -83,7 +83,12 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: dataset.sample_coord})
 
         # Re-assign the sample coordinates to the output dataset.
-        ds_out = ds_out.assign_coords({DEFAULT_SAMPLE_DIM: dataset.sample_coord})
+        # Drop existing multi-index level coordinates first to avoid inconsistent state.
+        sample_dim = dataset.training_metadata.sample_dim
+        coords_to_drop = [c for c in ds_out.coords if c in dataset.sample_coord.coords and c != sample_dim]
+        if coords_to_drop:
+            ds_out = ds_out.drop_vars(coords_to_drop)
+        ds_out = ds_out.assign_coords({sample_dim: dataset.sample_coord})
         return ds_out
 
     if isinstance(model, ModuleEvalEnv | ModuleTrainingEnv):

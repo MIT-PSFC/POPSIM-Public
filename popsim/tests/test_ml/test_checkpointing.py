@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import jax
 import equinox as eqx
@@ -69,6 +70,6 @@ def test_checkpointing(tmpdir):
 
 
     # Test that we can load the model from a path without using the manager.
-    model_path = ckpt_dir / str(train_state_lower_loss.epoch) / "model"
+    model_path = os.path.join(ckpt_dir, str(train_state_lower_loss.epoch), "model")
     restored_model = restore_model_from_path(model_path, nested_module)
     chex.assert_trees_all_equal(restored_model, restored_train_state.model)

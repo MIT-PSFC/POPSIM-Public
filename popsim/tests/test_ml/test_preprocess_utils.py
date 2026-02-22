@@ -5,7 +5,7 @@ import os
 from popsim import PACKAGE_ROOT
 import matplotlib.pyplot as plt
 
-from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan, expand_time_dim
+from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan, expand_time_dim, trim_time_to_not_nan
 from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset
 from popsim.ml.dataloading import make_time_dep_dataloader
 
@@ -337,3 +337,221 @@ def test_shift_time_to_not_nan_cmod(cmod_data_with_energy_mask, multishot):
     assert np.isclose(result["Wmhd"].isel(time_slice=0), expected_wmhds[0])
     assert np.isclose(result["Wmhd"].isel(time_slice=-1), expected_wmhds[1])
 
+@pytest.mark.parametrize("ds, how, subset, expected", [
+    # how=Any: No NaN
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[1, 2, 3], [4, 5, 6]]),
+                "var2": (("shot", "time"), [[7, 8, 9], [10, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "any",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[1, 2, 3], [4, 5, 6]]),
+                "var2": (("shot", "time_slice"), [[7, 8, 9], [10, 11, 12]])
+            },
+            coords = {
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            },
+        )
+    ),
+    # how=Any: NaNs at Start
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, 1, 2], [np.nan, np.nan, 6]]),
+                "var2": (("shot", "time"), [[np.nan, 8, 9], [10, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "any",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, 1, 2], [np.nan, np.nan, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, 8, 9], [10, 11, 12]])
+            },
+            coords = {
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            },
+        )
+    ),
+    # how=Any: NaNs at Start and Middle
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, np.nan, 2], [np.nan, 5, np.nan]]),
+                "var2": (("shot", "time"), [[np.nan, 8, 9], [np.nan, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "any",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, np.nan, 2], [np.nan, 5, np.nan]]),
+                "var2": (("shot", "time_slice"), [[np.nan, 8, 9], [np.nan, 11, 12]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, np.nan]]),
+            },
+        )
+    ),
+    # how=Any: Only use a subset of variables for determining the first non-NaN time slice
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, 1, 2], [4, np.nan, 6]]),
+                "var2": (("shot", "time"), [[np.nan, 8, 9], [np.nan, np.nan, np.nan]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "any",
+        ["var1"],
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, 1, 2], [4, np.nan, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, 8, 9], [np.nan, np.nan, np.nan]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            }
+        )
+    ),
+    # how=Any: All NaNs in a Shot
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, np.nan, np.nan], [4, 5, 6]]),
+                "var2": (("shot", "time"), [[np.nan, np.nan, np.nan], [10, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "any",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [4, 5, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [10, 11, 12]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[np.nan, np.nan, np.nan], [0.5, 1.5, 2.0]]),
+            }
+        )
+    ),
+    # how=All: NaNs at Start
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, np.nan, 2], [np.nan, np.nan, 6]]),
+                "var2": (("shot", "time"), [[np.nan, np.nan, 9], [10, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "all",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, np.nan, 2], [np.nan, np.nan, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, np.nan, 9], [10, 11, 12]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            },
+        )
+    ),
+    # how=All: NaNs at Start and Middle
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, np.nan, np.nan], [np.nan, 5, np.nan]]),
+                "var2": (("shot", "time"), [[np.nan, np.nan, 9], [np.nan, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "all",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [np.nan, 5, np.nan]]),
+                "var2": (("shot", "time_slice"), [[np.nan, np.nan, 9], [np.nan, 11, 12]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            }
+        )
+    ),
+    # how=All: Only use a subset of variables for determining the first non-NaN time slice
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, 1, 2], [4, np.nan, 6]]),
+                "var2": (("shot", "time"), [[np.nan, 8, 9], [np.nan, np.nan, np.nan]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "all",
+        ["var1"],
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, 1, 2], [4, np.nan, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, 8, 9], [np.nan, np.nan, np.nan]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (["shot", "time_slice"], [[0.5, 1.5, 2.0], [0.5, 1.5, 2.0]]),
+            }
+        )
+    ),
+    # how=All: All NaNs in a Shot
+    (
+        xr.Dataset(
+            {
+                "var1": (("shot", "time"), [[np.nan, np.nan, np.nan], [4, 5, 6]]),
+                "var2": (("shot", "time"), [[np.nan, np.nan, np.nan], [10, 11, 12]])
+            },
+            coords={"time": [0.5, 1.5, 2.0], "shot": [0, 1]}
+        ),
+        "all",
+        None,
+        xr.Dataset(
+            {
+                "var1": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [4, 5, 6]]),
+                "var2": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [10, 11, 12]])
+            },
+            coords={
+                "shot": [0, 1],
+                "time_slice": [0, 1, 2],
+                "time": (("shot", "time_slice"), [[np.nan, np.nan, np.nan], [0.5, 1.5, 2.0]])
+            }
+        )
+    ),
+])
+def test_trim_time_to_not_nan(ds, how, subset, expected):
+
+    episode_dim = "shot"
+    time_coord = "time"
+
+    ds, time_dim = expand_time_dim(ds, episode_dim, time_coord, f"{time_coord}_slice")
+
+    result = trim_time_to_not_nan(ds, episode_dim, time_coord, time_dim, how=how, subset=subset)
+    xr.testing.assert_identical(result, expected)

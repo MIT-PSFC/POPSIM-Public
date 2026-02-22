@@ -50,7 +50,7 @@ def make_data_array(
         # If the array has more dimensions than the number of specified dims, and there was no attempt to specify additional dimensions, we can add extra dimensions with default names.
         n_missing_dims = array.ndim - len(dims)
 
-        logger.info(
+        logger.debug(
             f"Variable {name} has more dimensions, {array.ndim}, than the number of specified dimensions, {len(dims)}. {dims} extra dimensions will be generated with names {name}_extra_dim_i."
         )
 

@@ -68,17 +68,15 @@ def train_epoch(
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
     logger: LoggerBase,
-) -> TrainState | None:
+) -> TrainState:
     """Train the model for one epoch."""
     for batch in train_dl:
         tstart_prep = time.time()
         inputs, targets = batch.get_inputs_and_targets()
         if any_nans(inputs):
-            warnings.warn("NaN values found in inputs. Stopping training.", stacklevel=2)
-            return None
+            raise RuntimeError("NaN values found in inputs. Training cannot continue.")
         if any_nans(targets):
-            warnings.warn("NaN values found in targets, this will cause further NaNs on backpropagation. Stopping training.", stacklevel=2)
-            return None
+            raise RuntimeError("NaN values found in targets, this will cause further NaNs on backpropagation. Training cannot continue.")
         tend_prep = time.time()
 
         tstart_step = time.time()
@@ -97,9 +95,8 @@ def train_epoch(
         )
 
         if step_nan_check(model, opt_state, loss_value):
-            warnings.warn("NaN values found in model, optimizer state, or loss value after train_step. Stopping training.", stacklevel=2)
             diagnose_nans(train_state.model, batch)
-            return None
+            raise RuntimeError("NaN values found in model, optimizer state, or loss value after train_step. Training cannot continue.")
 
         tend_step = time.time()
 
@@ -205,11 +202,7 @@ class Trainer:
             tstart_epoch = time.time()
 
             new_train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger)
-
-            if new_train_state is None:
-                break
-            else:
-                self.train_state = new_train_state
+            self.train_state = new_train_state
 
             tend_epoch = time.time()
 
