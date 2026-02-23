@@ -39,10 +39,12 @@ class PopsimMLAccessor:
         Returns:
             tuple[str, bool]: A report of NaN values and a boolean indicating if NaNs were found.
         """
-        # Compute a boolean mask where NaNs are present
         nan_mask = self._ds.isnull()
 
-        n_nans_total = sum([nan_mask[var].sum().item() for var in self._ds.data_vars])
+        # Compute NaN counts for all variables in one pass (better performance with dask arrays)
+        nan_counts_ds = nan_mask.sum().compute()
+        nan_counts = {var_name: int(nan_counts_ds[var_name].values.item()) for var_name in self._ds.data_vars}
+        n_nans_total = sum(nan_counts.values())
 
         # If no NaNs are found, return early with False
         if n_nans_total == 0:
@@ -52,7 +54,7 @@ class PopsimMLAccessor:
         headers = ["Variable", "Number of NaNs", "NaNs as a Fraction of Total"]
         for var_name in self._ds.data_vars:
             var_data = self._ds[var_name]
-            nan_count = var_data.isnull().sum().item()
+            nan_count = nan_counts[var_name]
             total_elements = var_data.size
             nan_fraction = nan_count / total_elements
             table.append([var_name, nan_count, nan_fraction])

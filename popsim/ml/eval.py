@@ -31,7 +31,9 @@ class EvalData(NamedTuple):
         """
         Get the xarray dataset that was used as input to the module evaluation.
         """
-        return self.dataloader.ds
+        # The evaluation pipeline compares model outputs (in-memory JAX) to this,
+        # so we need to make sure it's loaded into memory as well
+        return self.dataloader.ds.load()
 
 
 # An evaluation function is a function that takes an EvalData and returns a value.

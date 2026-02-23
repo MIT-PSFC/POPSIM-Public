@@ -63,15 +63,17 @@ class XarrayPreppedDataset:
             sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
             ds = ds.drop_vars(sample_coords)
 
-            inputs = ds[input_vars]
-            targets = ds[training_metadata.target_vars]
+            inputs = ds[input_vars].load()
+            targets = ds[training_metadata.target_vars].load()
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
             if training_metadata.sample_dim not in time.dims:
                 time = time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
-            state_init = ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
+            state_init = (
+                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0}).load()
+            )
 
             if training_metadata.convert_xr_to_jnp:
                 state_init = ds_to_dict_jnp(state_init)
@@ -89,8 +91,8 @@ class XarrayPreppedDataset:
             # Time-independent case.
             sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
             ds = ds.drop_vars(sample_coords)
-            inputs = ds[input_vars]
-            targets = ds[training_metadata.target_vars]
+            inputs = ds[input_vars].load()
+            targets = ds[training_metadata.target_vars].load()
 
             if training_metadata.convert_xr_to_jnp:
                 inputs = ds_to_dict_jnp(inputs)
@@ -459,6 +461,10 @@ def make_time_indep_dataloader(
     if nans_found:
         warnings.warn(f"NaNs found in dataset. NaN report: \n{nan_report}", stacklevel=2)
 
+    # Load time coordinate into memory for consistency with time-dependent dataloader
+    if sample_ds[time_coord].chunks is not None:
+        sample_ds[time_coord] = sample_ds[time_coord].load()
+
     prepped_ds = XarrayPreppedDataset(
         ds=sample_ds,
         training_metadata=train_meta,
@@ -565,7 +571,11 @@ def make_time_dep_dataloader(
     # Use a first call to Xbatcher to segment the episodes to the desired length and create a dataset with dimensions
     # (sample, time, other_dims).
     sample_ds = next(
-        iter(xbatcher.BatchGenerator(ds, input_dims=model_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True))
+        iter(
+            xbatcher.BatchGenerator(
+                ds, input_dims=model_dims, input_overlap={time_var_dim: segment_overlap}, concat_input_dims=True, preload_batch=False
+            )
+        )
     )
 
     # By convention, the BatchGenerator adds "_input" to the time dimension.
@@ -659,7 +669,7 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
 
     ds = xr.where(padding_mask_da, ds.ffill(time_dim), ds)
 
-    ds[time_coord] = pad_time_with_epsilon_xr(ds[time_coord], time_dim)
+    ds[time_coord] = pad_time_with_epsilon_xr(ds[time_coord].load(), time_dim)
     if DEFAULT_SAMPLE_DIM in ds[time_coord].dims:
         # Drop samples where time is all NaN.
         ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])
