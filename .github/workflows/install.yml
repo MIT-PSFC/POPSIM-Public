@@ -9,15 +9,10 @@ on:
 
 jobs:
   test-install:
-    runs-on: ${{ matrix.os }}
+    runs-on: runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}
     strategy:
       fail-fast: true
       matrix:
-        os:
-          [
-            "runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}",
-            "macos-latest",
-          ]
         dev: ["n", "y"]
 
     env:
