@@ -33,8 +33,8 @@ def build_tensorized_dataset(  # noqa: PLR0912
         time_dim (str): The name of the time dimension in the dataset.
         episode_dim (str): The name of the episode dimension in the dataset.
         extend_existing (bool, optional): If zarr_path already exists and this is true, we will try to extend the existing zarr_path. Defaults to False.
-        episodes_per_chunk (Optional[int], optional): The number of episodes per chunk in storage. If this is not None, then this function will rechunk the built Zarr store once all the files are added. Defaults to 10.
-        mb_per_chunk (Optional[int], optional): If specified, the resulting Zarr stored will be chunked along the episodes dimension with size max(1, int(mb_per_chunk / mean_mb_per_episode)). Defaults to None.
+        episodes_per_chunk (Optional[int], optional): The number of episodes per chunk in storage. If this is not None, then this function will rechunk the built Zarr store once all the files are added. Defaults to None.
+        mb_per_chunk (Optional[int], optional): If specified, the resulting Zarr stored will be chunked along the episodes dimension with size max(1, int(mb_per_chunk / mean_mb_per_episode)). Defaults to 10.
 
     Raises:
         ValueError: If zarr_path already exists and extend_existing is False, this function will raise an error.
@@ -100,6 +100,9 @@ def build_tensorized_dataset(  # noqa: PLR0912
         bytes_per_episode = ds.isel({episode_dim: 0}).nbytes
         mean_mb_per_episode = bytes_per_episode / (1024 * 1024)
         episodes_per_chunk = min(max(1, int(mb_per_chunk / mean_mb_per_episode)), n_episodes)
+        loguru.logger.info(
+            f"Determined {episodes_per_chunk} episodes per chunk based on provided mb_per_chunk={mb_per_chunk} and the computed mean_mb_per_episode={mean_mb_per_episode:.2f}."
+        )
 
     if episodes_per_chunk is not None:
         loguru.logger.info(f"Chunking the dataset with {episodes_per_chunk} episodes per chunk.")

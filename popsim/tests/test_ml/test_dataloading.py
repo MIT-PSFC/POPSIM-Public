@@ -1,7 +1,7 @@
 import jax
 import pytest
 from popsim.tests.fixtures import cmod_test_dataset, reduced_cmod_test_dataset
-from popsim.ml.dataloading import make_time_dep_dataloader, make_time_indep_dataloader, XarrayPreppedDataset, DEFAULT_SAMPLE_DIM
+from popsim.ml.dataloading import make_dataloaders, make_standard_dataloaders, make_time_dep_dataloader, make_time_indep_dataloader, XarrayPreppedDataset, DEFAULT_SAMPLE_DIM
 import numpy as np
 from copy import deepcopy
 import xarray as xr
@@ -591,3 +591,186 @@ def test_time_dep_dl_nan_handling_intermittent(method, expected):
         # Check that the resulting dataloader dataset matches the expected dataset for the given NaN handling method.
         for var in list(expected.data_vars) + list(expected.coords):
             assert np.allclose(dl.ds[var].data, expected[var].data, equal_nan=True, atol=1e-06)
+
+
+@pytest.mark.parametrize("time_dep", [True, False])
+def test_make_dataloaders_handles_list_arguments(time_dep: bool):
+    """Verify make_dataloaders applies list-valued args to the matching dataset index."""
+    ds_full = xr.Dataset(
+        {
+            "p_rad": (("shot", "time_slice"), np.random.rand(4, 6)),
+            "ip": (("shot", "time_slice"), np.random.rand(4, 6)),
+            "n_e": (("shot", "time_slice"), np.random.rand(4, 6)),
+            "Wmhd": (("shot", "time_slice"), np.random.rand(4, 6)),
+        },
+        coords={
+            "shot": np.arange(4),
+            "time_slice": np.arange(6),
+            "time": (("shot", "time_slice"), np.tile(np.arange(6) * 0.001, (4, 1))),
+        },
+    )
+
+    datasets = [ds_full.isel(shot=slice(0, 2)), ds_full.isel(shot=slice(2, 4))]
+    batch_sizes = [1, 2]
+    shuffles = [False, True]
+    nan_handling = ["drop_slice_all", "drop_slice_all"]
+
+    if time_dep:
+        segment_lengths = [3, None]
+        segment_overlaps = [1, 0]
+
+        dls = make_dataloaders(
+            datasets=datasets,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=["Wmhd"],
+            input_vars=["ip", "n_e"],
+            target_vars=["p_rad"],
+            convert_xr_to_jnp=False,
+            batch_size=batch_sizes,
+            segment_length=segment_lengths,
+            segment_overlap=segment_overlaps,
+            shuffle=shuffles,
+            nan_handling=nan_handling,
+        )
+
+        expected_dls = [
+            make_time_dep_dataloader(
+                ds=ds,
+                time_coord="time",
+                episode_coord="shot",
+                state_init_vars=["Wmhd"],
+                input_vars=["ip", "n_e"],
+                target_vars=["p_rad"],
+                convert_xr_to_jnp=False,
+                batch_size=batch_size,
+                segment_length=segment_length,
+                segment_overlap=segment_overlap,
+                shuffle=shuffle,
+                nan_handling=nan_method,
+            )
+            for ds, batch_size, segment_length, segment_overlap, shuffle, nan_method in zip(
+                datasets, batch_sizes, segment_lengths, segment_overlaps, shuffles, nan_handling, strict=False
+            )
+        ]
+
+        with pytest.raises(ValueError):
+            make_dataloaders(
+                datasets=datasets,
+                time_coord="time",
+                episode_coord="shot",
+                state_init_vars=["Wmhd"],
+                input_vars=["ip", "n_e"],
+                target_vars=["p_rad"],
+                convert_xr_to_jnp=False,
+                batch_size=[1],  # Incorrect length
+                segment_length=segment_lengths,
+                segment_overlap=segment_overlaps,
+                shuffle=shuffles,
+                nan_handling=nan_handling,
+            )
+    else:
+        dls = make_dataloaders(
+            datasets=datasets,
+            time_coord="time",
+            episode_coord="shot",
+            input_vars=["ip", "n_e"],
+            target_vars=["p_rad"],
+            convert_xr_to_jnp=False,
+            batch_size=batch_sizes,
+            shuffle=shuffles,
+        )
+
+        expected_dls = [
+            make_time_indep_dataloader(
+                ds=ds,
+                time_coord="time",
+                episode_coord="shot",
+                input_vars=["ip", "n_e"],
+                target_vars=["p_rad"],
+                convert_xr_to_jnp=False,
+                batch_size=batch_size,
+                shuffle=shuffle,
+            )
+            for ds, batch_size, shuffle, in zip(
+                datasets, batch_sizes, shuffles, strict=False
+            )
+        ]
+
+    assert len(dls) == len(expected_dls)
+    for created_dl, expected_dl in zip(dls, expected_dls, strict=False):
+        assert created_dl.batch_size == expected_dl.batch_size
+        assert created_dl.shuffle == expected_dl.shuffle
+        assert len(created_dl) == len(expected_dl)
+        assert created_dl.ds.equals(expected_dl.ds)
+
+        created_first_batch = next(iter(created_dl))
+        expected_first_batch = next(iter(expected_dl))
+        assert created_first_batch == expected_first_batch
+
+
+def test_make_standard_dataloaders():
+    """Verify make_standard_dataloaders completes without error"""
+    num_shots = 5
+    ds_full = xr.Dataset(
+        {
+            "p_rad": (("shot", "time_slice"), np.random.rand(num_shots, 6)),
+            "ip": (("shot", "time_slice"), np.random.rand(num_shots, 6)),
+            "n_e": (("shot", "time_slice"), np.random.rand(num_shots, 6)),
+            "Wmhd": (("shot", "time_slice"), np.random.rand(num_shots, 6)),
+        },
+        coords={
+            "shot": np.arange(num_shots),
+            "time_slice": np.arange(6),
+            "time": (("shot", "time_slice"), np.tile(np.arange(6) * 0.001, (num_shots, 1))),
+        },
+    )
+
+    split_fracs = [0.6, 0.4]
+    datasets = [ds_full.isel(shot=slice(0, 3)), ds_full.isel(shot=slice(3, 5))]
+    batch_sizes = [1, 2]
+    segment_lengths = [3, None]
+    segment_overlaps = [1, 0]
+    shuffles = [True, False]
+    nan_handling = ["drop_slice_all", "drop_slice_all"]
+
+    dls = make_standard_dataloaders(
+        ds=ds_full,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=["Wmhd"],
+        input_vars=["ip", "n_e"],
+        target_vars=["p_rad"],
+        split_fracs=split_fracs,
+        convert_xr_to_jnp=False,
+        batch_size=batch_sizes,
+        segment_length=segment_lengths,
+        segment_overlap=segment_overlaps,
+        nan_handling=nan_handling,
+    )
+
+    expected_dls = [
+        make_time_dep_dataloader(
+            ds=ds,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=["Wmhd"],
+            input_vars=["ip", "n_e"],
+            target_vars=["p_rad"],
+            convert_xr_to_jnp=False,
+            batch_size=batch_size,
+            segment_length=segment_length,
+            segment_overlap=segment_overlap,
+            shuffle=shuffle,
+            nan_handling=nan_method,
+        )
+        for ds, batch_size, segment_length, segment_overlap, shuffle, nan_method in zip(
+            datasets, batch_sizes, segment_lengths, segment_overlaps, shuffles, nan_handling, strict=False
+        )
+    ]
+
+    assert len(dls) == len(expected_dls)
+    for created_dl, expected_dl in zip(dls, expected_dls, strict=False):
+        assert created_dl.batch_size == expected_dl.batch_size
+        assert created_dl.shuffle == expected_dl.shuffle
+        assert len(created_dl) == len(expected_dl)

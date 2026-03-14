@@ -1,5 +1,4 @@
 import typing
-import warnings
 
 import jax
 import jax.numpy as jnp
@@ -7,6 +6,7 @@ import numpy as np
 import xarray as xr
 import xbatcher
 from jaxtyping import Array
+from loguru import logger
 
 from popsim.array_utils import contiguous_true_end_of_axis_mask
 from popsim.ml._types import TrainingMetadata
@@ -327,7 +327,7 @@ def make_standard_dataloaders(
         batch_size=batch_size,
         segment_length=segment_length,
         segment_overlap=segment_overlap,
-        shuffle=(True if i == 0 else False for i in range(len(datasets))),
+        shuffle=[True if i == 0 else False for i in range(len(datasets))],
         nan_handling=nan_handling,
     )
 
@@ -341,13 +341,18 @@ def make_dataloaders(
     convert_xr_to_jnp: bool = True,
     extra_vars: list[str] | None = None,
     state_init_vars: list[str] | None = None,
-    batch_size: int | None = None,
-    segment_length: int | None = None,
-    segment_overlap: int | None = 0,
-    shuffle: typing.Sequence[bool] | None = None,
-    nan_handling: str | None = "drop_slice_all",
+    batch_size: int | None | typing.Sequence[int | None] = None,
+    segment_length: int | None | typing.Sequence[int | None] = None,
+    segment_overlap: int | None | typing.Sequence[int | None] = 0,
+    shuffle: bool | None | typing.Sequence[bool] = None,
+    nan_handling: str | None | typing.Sequence[str] = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
     """Create DataLoaders from a list of datasets. Each dataset is processed independently to create a DataLoader.
+
+    `batch_size`, `segment_length`, `segment_overlap`, `shuffle`, and `nan_handling` may be provided as sequences of the same size as the number of datasets,
+    in which case each dataset will be processed with the corresponding value from the sequence.
+    If they are provided as a single value, that value will be used for all datasets.
+    If `shuffle` is not provided, the first dataset will be shuffled and the rest will not be, which is a common pattern for train/val/test splits.
 
     Args:
         datasets (list[xr.Dataset]): List of datasets to create DataLoaders from.
@@ -358,20 +363,88 @@ def make_dataloaders(
         convert_xr_to_jnp (bool, optional): Whether to convert the xarray dataset to a dictionary of jnp arrays before loading the data into the model. Defaults to True.
         extra_vars (list[str], optional): Names of additional variables to include in the dataset.
         state_init_vars (list[str], optional): Names of the variables required to initialize the state of the module.
-        batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch.
-        segment_length (int, optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment.
-        segment_overlap (int, optional): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
-        shuffle (typing.Sequence[bool], optional): Whether to shuffle the samples in each DataLoader. If None, only the first DataLoader is shuffled.
-        nan_handling (str, optional): Passed to make_time_dep_dataloader, see that function for details. Defaults to "drop_slice_all".
+        batch_size (int, typing.Sequence[int], optional): Number of samples in each batch. If None, load all samples in a single batch.
+        segment_length (int, typing.Sequence[int], optional): Number of time steps used in each training segment. If None, then treat the full episode as a segment.
+        segment_overlap (int, typing.Sequence[int], optional): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
+        shuffle (bool, typing.Sequence[bool], optional): Whether to shuffle the samples in each DataLoader. If None, only the first DataLoader is shuffled.
+        nan_handling (str, typing.Sequence[str], optional): Passed to make_time_dep_dataloader, see that function for details. Defaults to "drop_slice_all".
 
     Returns:
         list[DataLoader]: List of DataLoaders created from the input datasets.
     """
     if state_init_vars is None and (segment_length is not None or segment_overlap != 0):
-        raise ValueError("segment_length and segment_overlap are only valid when state_init_vars are provided")
+        raise ValueError(
+            "segment_length and segment_overlap are only valid for making time-dependent dataloaders, when state_init_vars are provided"
+        )
+
+    def _check_and_format_args(batch_size, segment_length, segment_overlap, shuffle, nan_handling):  # noqa: PLR0912
+        # Ensure all variables which may be passed in as a sequence are formatted as tuples of the same length as the number of datasets.
+        if batch_size is None:
+            batch_size = [None for _ in datasets]
+        elif isinstance(batch_size, int):
+            batch_size = [batch_size for _ in datasets]
+        elif isinstance(batch_size, typing.Sequence):
+            if len(batch_size) != len(datasets):
+                raise ValueError(
+                    f"If batch_size is provided as a list, it must be the same length as the number of datasets. Got {len(batch_size)} values for {len(datasets)} datasets."
+                )
+        else:
+            raise ValueError(f"batch_size must be an int, a sequence of ints, or None. Got {type(batch_size)}")
+
+        if segment_length is None:
+            segment_length = [None for _ in datasets]
+        elif isinstance(segment_length, int):
+            segment_length = [segment_length for _ in datasets]
+        elif isinstance(segment_length, typing.Sequence):
+            if len(segment_length) != len(datasets):
+                raise ValueError(
+                    f"If segment_length is provided as a list, it must be the same length as the number of datasets. Got {len(segment_length)} values for {len(datasets)} datasets."
+                )
+        else:
+            raise ValueError(f"segment_length must be an int, a sequence of ints, or None. Got {type(segment_length)}")
+
+        if segment_overlap is None:
+            segment_overlap = [0 for _ in datasets]
+        elif isinstance(segment_overlap, int):
+            segment_overlap = [segment_overlap for _ in datasets]
+        elif isinstance(segment_overlap, typing.Sequence):
+            if len(segment_overlap) != len(datasets):
+                raise ValueError(
+                    f"If segment_overlap is provided as a list, it must be the same length as the number of datasets. Got {len(segment_overlap)} values for {len(datasets)} datasets."
+                )
+        else:
+            raise ValueError(f"segment_overlap must be an int, a sequence of ints, or None. Got {type(segment_overlap)}")
+
+        # By default, only shuffle the first dataset.
+        if shuffle is None:
+            shuffle = [True if i == 0 else False for i in range(len(datasets))]
+        elif isinstance(shuffle, bool):
+            shuffle = [shuffle for _ in range(len(datasets))]
+        elif isinstance(shuffle, typing.Sequence):
+            if len(shuffle) != len(datasets):
+                raise ValueError(
+                    f"If shuffle is provided as a list, it must be the same length as the number of datasets. Got {len(shuffle)} values for {len(datasets)} datasets."
+                )
+
+        if isinstance(nan_handling, str):
+            nan_handling = [nan_handling for _ in datasets]
+        elif isinstance(nan_handling, typing.Sequence):
+            if len(nan_handling) != len(datasets):
+                raise ValueError(
+                    f"If nan_handling is provided as a list, it must be the same length as the number of datasets. Got {len(nan_handling)} values for {len(datasets)} datasets."
+                )
+        else:
+            raise ValueError(f"nan_handling must be a str, a sequence of str, or None. Got {type(nan_handling)}")
+
+        return batch_size, segment_length, segment_overlap, shuffle, nan_handling
+
+    batch_size, segment_length, segment_overlap, shuffle, nan_handling = _check_and_format_args(
+        batch_size, segment_length, segment_overlap, shuffle, nan_handling
+    )
+
     if state_init_vars is None:
 
-        def dl_fun(ds_, shuffle):
+        def dl_fun(ds_, batch_size, shuffle):
             return make_time_indep_dataloader(
                 ds=ds_,
                 time_coord=time_coord,
@@ -383,9 +456,11 @@ def make_dataloaders(
                 batch_size=batch_size,
                 shuffle=shuffle,
             )
+
+        return [dl_fun(ds_, batch_size, sh) for ds_, batch_size, sh in zip(datasets, batch_size, shuffle, strict=False)]
     else:
 
-        def dl_fun(ds_, shuffle):
+        def dl_fun(ds_, batch_size, segment_length, segment_overlap, shuffle, nan_handling):
             return make_time_dep_dataloader(
                 ds=ds_,
                 time_coord=time_coord,
@@ -402,10 +477,12 @@ def make_dataloaders(
                 nan_handling=nan_handling,
             )
 
-    # By default, only shuffle the first dataset.
-    if shuffle is None:
-        shuffle = (True if i == 0 else False for i in range(len(datasets)))
-    return [dl_fun(ds_, sh) for ds_, sh in zip(datasets, shuffle, strict=False)]
+        return [
+            dl_fun(ds_, batch_size, seg_len, seg_overlap, sh, nan_handling)
+            for ds_, batch_size, seg_len, seg_overlap, sh, nan_handling in zip(
+                datasets, batch_size, segment_length, segment_overlap, shuffle, nan_handling, strict=False
+            )
+        ]
 
 
 def make_time_indep_dataloader(
@@ -459,7 +536,7 @@ def make_time_indep_dataloader(
     nan_report, nans_found = sample_ds.popsim_ml.generate_nan_report()
 
     if nans_found:
-        warnings.warn(f"NaNs found in dataset. NaN report: \n{nan_report}", stacklevel=2)
+        logger.warning(f"NaNs found in dataset. NaN report: \n{nan_report}")
 
     # Load time coordinate into memory for consistency with time-dependent dataloader
     if sample_ds[time_coord].chunks is not None:
@@ -606,7 +683,7 @@ def make_time_dep_dataloader(
         original_n_samples = sample_ds.sizes[DEFAULT_SAMPLE_DIM]
         sample_ds = sample_ds.dropna(DEFAULT_SAMPLE_DIM, how="any", subset=training_vars)
         n_dropped_samples = original_n_samples - sample_ds.sizes[DEFAULT_SAMPLE_DIM]
-        warnings.warn(
+        logger.warning(
             f"Dropped {n_dropped_samples} out of {original_n_samples} samples with NaNs after segmenting and padding.\n\
             NaN report: \n{nan_report}\n\
             Consider preprocessing the dataset to handle NaNs before passing to dataloader creation.",
