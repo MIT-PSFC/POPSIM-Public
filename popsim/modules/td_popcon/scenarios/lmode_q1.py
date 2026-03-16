@@ -4,8 +4,8 @@ import popsim.modules.density as density_model
 import popsim.modules.hmode_dynamics as hmode
 from popsim.enums import FuelSpecies
 from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario_for_td_popcon
+from popsim.modules.td_popcon.model import TdPopcon
 from popsim.physics.geometry import GeometryCFSPopcon
-from popsim.simulators.td_popcon.model import TdPopcon
 
 
 def build_td_popcon_config():

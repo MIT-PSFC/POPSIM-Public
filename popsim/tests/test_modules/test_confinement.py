@@ -2,7 +2,7 @@ from popsim.modules.confinement import Confinement
 from popsim.physics.geometry import GeometryCFSPopcon
 import jax.numpy as jnp
 import diffrax
-from popsim.simulators.scenario_data.sparc_prd import load_cfspopcon_scenario_for_td_popcon
+from popsim.modules.td_popcon.scenarios.sparc_prd import load_cfspopcon_scenario_for_td_popcon
 from popsim.simulate import simulate, StepperType, SimInput
 
 def test_dynamics():

@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 
-import popsim.simulators.td_popcon.scenarios.sparc_prd as sparc_prd_td_popcon
-from popsim.simulators.scenario_data.sparc_prd import Sparc2020TestData
+import popsim.modules.td_popcon.scenarios.sparc_prd as sparc_prd_td_popcon
+from popsim.modules.td_popcon.scenarios.sparc_prd import Sparc2020TestData
 from popsim.simulate import simulate, SimInput
 
 

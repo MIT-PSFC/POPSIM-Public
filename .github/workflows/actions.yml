@@ -58,7 +58,6 @@ jobs:
           --ignore=popsim/tests/test_modules
           --ignore=popsim/tests/test_interfaces
           --ignore=popsim/tests/test_physics
-          --ignore=popsim/tests/test_simulators
           -n=auto
         env:
           JAX_ENABLE_X64: True
@@ -85,11 +84,6 @@ jobs:
 
       - name: Physics Tests (float64)
         run: uv run pytest popsim/tests/test_physics/ -n=auto
-        env:
-          JAX_ENABLE_X64: True
-
-      - name: Simulators Tests (float64)
-        run: uv run pytest popsim/tests/test_simulators/ -n=auto
         env:
           JAX_ENABLE_X64: True
 
