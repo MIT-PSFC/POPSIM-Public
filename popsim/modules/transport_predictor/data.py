@@ -73,7 +73,6 @@ def get_ds(
     ds["ne19_line_avg"] = ds["ne20_line_avg"] * 10
     ds["epsilon"] = ds["a_minor"] / ds["R0"]
 
-    # TODO(ZanderKeith): Later when we have multiple density treatments this should be handled better
     ds["ne20"] = ds["ne20_line_avg"]
     ds["ne19"] = ds["ne19_line_avg"]
 

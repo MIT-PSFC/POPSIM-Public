@@ -9,7 +9,6 @@ from popsim.modules.transport_predictor.training_run_builder import TransportPre
 # MODIFICATIONS FOR SUBMODULES BEFORE THEY'RE PUT INTO THE MAIN MODULE #
 ########################################################################
 
-# TODO(ZanderKeith): Deal with ne20_edge properly
 PROFILE_PREDICTOR_CONFIG = TrainConfig(**PROFILE_PREDICTOR_CONFIG)
 PROFILE_PREDICTOR_CONFIG = PROFILE_PREDICTOR_CONFIG.model_copy(
     update={

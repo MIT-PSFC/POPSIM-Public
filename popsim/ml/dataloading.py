@@ -55,13 +55,24 @@ class XarrayPreppedDataset:
         input_vars = training_metadata.input_vars
         if PRNG_KEY_VAR in ds and PRNG_KEY_VAR not in input_vars:
             input_vars = [*input_vars, PRNG_KEY_VAR]
+
+        def _sample_coords_to_drop(ds_in: xr.Dataset) -> list[str]:
+            sample_coords = [c for c in ds_in.coords if training_metadata.sample_dim in ds_in[c].dims]
+            sample_index = ds_in.indexes.get(training_metadata.sample_dim)
+            # Drop the parent MultiIndex coord together with its levels to avoid xarray deprecation warnings.
+            if sample_index is not None and getattr(sample_index, "names", None):
+                if training_metadata.sample_dim not in sample_coords and any(
+                    level_name in sample_coords for level_name in sample_index.names if level_name is not None
+                ):
+                    sample_coords.append(training_metadata.sample_dim)
+            return sample_coords
+
         if self.training_metadata.is_time_dependent:
             # Get the time and sample coordinate variable, then drop them from the dataset.
             # We want to drop them because having different coordinates will re-trigger JIT compilation.
             time = ds[training_metadata.time_dep_metadata.time_coord]
             samples = ds[training_metadata.sample_coord]
-            sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
-            ds = ds.drop_vars(sample_coords)
+            ds = ds.drop_vars(_sample_coords_to_drop(ds))
 
             inputs = ds[input_vars].load()
             targets = ds[training_metadata.target_vars].load()
@@ -89,8 +100,7 @@ class XarrayPreppedDataset:
             return env_input, targets
         else:
             # Time-independent case.
-            sample_coords = [c for c in ds.coords if training_metadata.sample_dim in ds[c].dims]
-            ds = ds.drop_vars(sample_coords)
+            ds = ds.drop_vars(_sample_coords_to_drop(ds))
             inputs = ds[input_vars].load()
             targets = ds[training_metadata.target_vars].load()
 
@@ -191,8 +201,12 @@ class DataLoader:
             # Get unique values of the coordinate and limit them
             coord_vals = np.unique(self.ds[coord].values)[:size]
 
-            if multiindex_dim or coord not in self.ds.indexes:
-                # Create boolean mask to handle multi-index or non-indexed coord
+            if multiindex_dim:
+                # Avoid xarray MultiIndex level drop deprecation from where(..., drop=True).
+                mask = np.isin(self.ds[coord].values, coord_vals)
+                lim_ds = self.ds.isel({multiindex_dim: mask})
+            elif coord not in self.ds.indexes:
+                # Non-indexed coord case.
                 mask = self.ds[coord].isin(coord_vals)
                 lim_ds = self.ds.where(mask, drop=True)
             else:
@@ -732,17 +746,24 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
         xr.Dataset: dataset with nan-padding at the end of the time dimension filled in.
     """
 
-    # Get the axis of the time dimension
-    time_axis = ds[time_coord].dims.index(time_dim)
-
-    # Identify the elements that are end padding.
-    padding_mask = contiguous_true_end_of_axis_mask(ds[time_coord].isnull().values, axis=time_axis)
-
-    padding_mask_da = xr.DataArray(padding_mask, dims=ds[time_coord].dims, coords=ds[time_coord].coords)
-
-    # For some reason, if we don't reset the time coordinate, in some cases the time coordinate is dropped.
+    # For some reason, if we don't reset the time coordinate, in some cases the time coordinate is dropped
     # by the xr.where operation.
     ds = ds.reset_coords(time_coord)
+
+    # xarray ffill and dataset variable assignment internally call drop_vars on MultiIndex level coords,
+    # which triggers a DeprecationWarning unless the parent MultiIndex coord is also dropped.
+    # Temporarily flatten the sample MultiIndex, perform all operations, then restore it.
+    sample_index_names = None
+    if DEFAULT_SAMPLE_DIM in ds.indexes:
+        sample_index = ds.indexes[DEFAULT_SAMPLE_DIM]
+        if getattr(sample_index, "names", None):
+            sample_index_names = list(sample_index.names)
+            ds = ds.reset_index(DEFAULT_SAMPLE_DIM)
+
+    # Build the mask after index reset so coords on the mask don't reintroduce MultiIndex coords.
+    time_axis = ds[time_coord].dims.index(time_dim)
+    padding_mask = contiguous_true_end_of_axis_mask(ds[time_coord].isnull().values, axis=time_axis)
+    padding_mask_da = xr.DataArray(padding_mask, dims=ds[time_coord].dims, coords=ds[time_coord].coords)
 
     ds = xr.where(padding_mask_da, ds.ffill(time_dim), ds)
 
@@ -751,4 +772,9 @@ def ffill_end_of_time_padding(ds: xr.Dataset, time_coord: str, time_dim: str) ->
         # Drop samples where time is all NaN.
         ds = ds.dropna(DEFAULT_SAMPLE_DIM, how="all", subset=[time_coord])
 
+    # Restore the MultiIndex that was temporarily flattened above,
+    # and put the time coordinate back
+    if sample_index_names is not None:
+        ds = ds.set_index({DEFAULT_SAMPLE_DIM: sample_index_names})
+    ds = ds.set_coords(time_coord)
     return ds

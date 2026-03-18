@@ -24,7 +24,7 @@ class TauePredictorInputs:
     kappa: float  # Elongation [-]
     epsilon: float  # Inverse aspect ratio [-]
 
-    # Including triangularity for the nn TODO toggle on and off to see if it's useful
+    # Including triangularity for the nn
     delta_top: float  # Upper triangularity [-]
     delta_bottom: float  # Lower triangularity [-]
 

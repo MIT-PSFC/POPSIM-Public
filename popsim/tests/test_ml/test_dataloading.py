@@ -22,7 +22,7 @@ def _run_dl_checks(dl, batch_size, expected_n_samps, shuffle, segment_length, co
         assert isinstance(batch, XarrayPreppedDataset)
 
         # Make sure the leading dimension is the sample dimension.
-        assert list(batch.ds.dims.keys())[0] == DEFAULT_SAMPLE_DIM
+        assert list(batch.ds.sizes.keys())[0] == DEFAULT_SAMPLE_DIM
 
         # Nominally, the batch size is just "batch_size_handle_none", but the last batch may be smaller.
         expected_sample_size = min(batch_size_handle_none, expected_n_samps - idx * batch_size_handle_none)
@@ -774,3 +774,47 @@ def test_make_standard_dataloaders():
         assert created_dl.batch_size == expected_dl.batch_size
         assert created_dl.shuffle == expected_dl.shuffle
         assert len(created_dl) == len(expected_dl)
+
+
+@pytest.mark.parametrize("time_dep", [True, False])
+def test_dl_keeps_coords(reduced_cmod_test_dataset, time_dep: bool):
+    """Ensure dataloader creation doesn't lose the original dataset's coords and the data hasn't been moved relative to the coords"""
+    ds_orig, state_init_vars, input_vars, target_vars = reduced_cmod_test_dataset
+
+    if time_dep:
+        dl = make_time_dep_dataloader(
+            ds=ds_orig,
+            time_coord="time",
+            episode_coord="shot",
+            state_init_vars=state_init_vars,
+            input_vars=input_vars,
+            target_vars=target_vars,
+        )
+    else:
+        dl = make_time_indep_dataloader(
+            ds=ds_orig,
+            time_coord="time",
+            episode_coord="shot",
+            input_vars=input_vars,
+            target_vars=target_vars,
+        )
+
+    # Ensure time and shot coords still exist
+    for coord in ["time", "shot"]:
+        assert coord in dl.ds.coords, f"{coord} is missing from dataloader dataset"
+    
+    # Ensure the sampled data hasn't been shifted in shot or time relative to the original dataset.
+    for batch in dl:
+        ds_batch = batch.ds
+        for sample in range(ds_batch.dims["sample"])[:1000]:  # Limit of 1000 to avoid long test time for time-independent module which has 10k+ samples
+            ds_sample = ds_batch.isel(sample=sample)
+            shot = ds_sample["shot"].data
+            ds_shot = ds_orig.sel(shot=shot)
+
+            # Sample times should be a subset of the original times for that shot, excepting forward-fill which we don't care about
+            ds_shot_sampled = ds_shot.where(ds_shot["time"].isin(ds_sample["time"]), drop=True)
+            ds_sample_real = ds_sample.where(ds_sample["time"].isin(ds_shot["time"]), drop=True)
+            
+            # For each variable, check the values in the dataloader sample match the values in the original dataset for the same shot and time
+            for var in set(input_vars + target_vars):
+                assert np.allclose(ds_sample_real[var].data, ds_shot_sampled[var].data, atol=1e-06), f"Values for variable {var} do not match between dataloader sample and original dataset for shot {shot} and overlapping times"

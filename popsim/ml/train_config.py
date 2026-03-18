@@ -3,7 +3,7 @@ import importlib.util
 import os
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from popsim.ml.train_run_builder import TrainRunBuilder
 
@@ -22,8 +22,7 @@ class TrainConfig(BaseModel):
     val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
 
-    class Config:
-        frozen = True  # Make the model immutable after creation.
+    model_config = ConfigDict(frozen=True)  # Make the model immutable after creation.
 
     def model_copy(self, *, update=None, deep=True, **kwargs):
         if not deep:
