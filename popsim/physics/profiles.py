@@ -1,6 +1,9 @@
+from functools import wraps
+
 import chex
 import interpax
 import jax.numpy as jnp
+import pandas as pd
 import xarray as xr
 from jaxtyping import Array
 from numpy import float64
@@ -9,7 +12,43 @@ from numpy.typing import NDArray
 from popsim.cfspopcon_jax import density_peaking, plasma_profiles
 from popsim.cfspopcon_jax.plasma_profile_data import density_and_temperature_profile_fits
 from popsim.enums import ProfileForm
-from popsim.interfaces import get_prf_profiles
+
+
+def _atleast1d_inputs(func):
+    """Decorator to ensure that all inputs to the function are at least 1D arrays."""
+
+    @wraps(func)
+    def wrapper(*args):
+        # Convert all arguments to at least 1D
+        new_args = [jnp.atleast_1d(arg) for arg in args]
+        return func(*new_args)
+
+    return wrapper
+
+
+def _build_interpolator(df: pd.DataFrame) -> interpax.Interpolator2D:
+    # By default, electron temperature is in eV and density is in 1e19.
+    # "log" means log10.
+    x = jnp.array([jnp.float64(x[1]) for x in df.columns.values])
+    y = jnp.array([jnp.float64(x[1]) for x in df.index.values])
+    f = jnp.array(df.T.values)
+
+    interp = interpax.Interpolator2D(
+        x=x,
+        y=y,
+        f=f,
+        method="linear",
+        extrap=True,
+    )
+
+    return _atleast1d_inputs(interp)
+
+
+def _read_prf_profiles(dataset: str = "PRF"):
+    width_interpolator, aLT_interpolator = density_and_temperature_profile_fits.read_prf_data(
+        dataset=dataset, build_interpolator=_build_interpolator
+    )
+    return width_interpolator, aLT_interpolator
 
 
 @chex.dataclass
@@ -19,7 +58,7 @@ class PRFProfiles:
 
     def __init__(self):
         """Get interpolators"""
-        self.width_interpolator, self.aLT_interpolator = get_prf_profiles.read_prf_profiles()
+        self.width_interpolator, self.aLT_interpolator = _read_prf_profiles()
 
     def __call__(
         self,
