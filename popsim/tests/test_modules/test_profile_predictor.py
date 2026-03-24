@@ -1,5 +1,5 @@
 from popsim.modules.profile_predictor.module import ProfileShape
-from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG, TCV_CONFIG
+from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG, TCV_CONFIG
 from popsim.ml.launch import launch_train
 from popsim.basis import BSplineBasis, InterpedLinearBasis
 import jax.numpy as jnp
@@ -33,7 +33,7 @@ def test_profile_shape(normalize, bspline):
         profile_shape(jnp.array([-1.0]))
 
 def test_train():
-    config = SPARC_CONFIG.copy()
+    config = DUMMY_CONFIG.copy()
     config["max_epochs"] = 10
     config["epochs_per_val"] = 5
     config["debug"] = True

@@ -174,11 +174,11 @@ def build_ordered_dict(keys: Array, vals: Array) -> collections.OrderedDict:
     return collections.OrderedDict(zip(keys, vals, strict=True))
 
 
-def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey | str) -> int | typing.Hashable | str:
+def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey | tu.FlattenedIndexKey | str) -> int | typing.Hashable | str:  # type: ignore  # noqa: PGH003
     """The different key types in Jax have different accessors. This is a wrapper function to get the key value.
 
     Args:
-        key (tu.SequenceKey | tu.DictKey | tu.GetAttrKey | str): key to access.
+        key (tu.SequenceKey | tu.DictKey | tu.GetAttrKey | tu.FlattenedIndexKey | str): key to access.
 
     Returns:
         int | typing.Hashable | str:: key value.
@@ -189,6 +189,8 @@ def get_key(key: tu.SequenceKey | tu.DictKey | tu.GetAttrKey | str) -> int | typ
         return key.key
     elif isinstance(key, tu.GetAttrKey):
         return key.name
+    elif isinstance(key, tu.FlattenedIndexKey):
+        return key.key
     elif isinstance(key, str):
         return key
     else:

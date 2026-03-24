@@ -53,12 +53,12 @@ def test_eval_and_loss(simple_model):
 
 def test_eval():
     from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
-    from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
+    from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG
 
 
-    _, train_dl, val_dl, _ = ProfilePredictorTrainRunBuilder.get_dataloaders(SPARC_CONFIG['dataloader_config'])
-    model = ProfilePredictorTrainRunBuilder.model_init(train_dl, SPARC_CONFIG['model_init_config'])
-    loss_fn = ProfilePredictorTrainRunBuilder.get_loss_fn(SPARC_CONFIG['loss_config'])
+    _, train_dl, val_dl, _ = ProfilePredictorTrainRunBuilder.get_dataloaders(DUMMY_CONFIG['dataloader_config'])
+    model = ProfilePredictorTrainRunBuilder.model_init(train_dl, DUMMY_CONFIG['model_init_config'])
+    loss_fn = ProfilePredictorTrainRunBuilder.get_loss_fn(DUMMY_CONFIG['loss_config'])
 
     # Test that we can evaluate the model on the training data.
     eval_data = eval_model_on_data(

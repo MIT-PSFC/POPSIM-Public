@@ -338,10 +338,10 @@ class ProfilePredictor(TimeIndepModule):
     @classmethod
     def load_latest_sparc(cls):
         from popsim.ml import TrainConfig
-        from popsim.modules.profile_predictor.train_configs import SPARC_CONFIG
+        from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG
         from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
 
-        config = TrainConfig.load(SPARC_CONFIG)
+        config = TrainConfig.load(DUMMY_CONFIG)
 
         _, train_dl, val_dl, test_dl = ProfilePredictorTrainRunBuilder.get_dataloaders(config.dataloader_config)
 

@@ -1,14 +1,14 @@
 from popsim.modules.profile_predictor.module import ShapeType
 from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
 
-SPARC_CONFIG = {
-    "project": "sparc_profile_predictor",
+DUMMY_CONFIG = {
+    "project": "dummy_profile_predictor",
     "train_run_builder": ProfilePredictorTrainRunBuilder,
     "max_epochs": 500,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
     "dataloader_config": {
-        "ds": "sparc",
+        "ds": "dummy",
         "debug": False,
         "input_vars": ["Ip_MA", "a_minor", "kappa", "delta", "Paux_MW", "ne20_line_avg", "Wtot_MJ", "B0", "R0", "ne20_edge"],
         "target_vars": ["ne20_rho", "Te_keV_rho"],
@@ -44,13 +44,13 @@ SPARC_CONFIG = {
         "freeze_shapes": True,
     },
     "test_eval_suite_config": {
-        "device": "sparc",
+        "device": "dummy",
     },
 }
 
 
-# TCV_CONFIG is a copy of SPARC_CONFIG with the "project" and "ds" fields changed
-TCV_CONFIG = SPARC_CONFIG.copy()
+# TCV_CONFIG is a copy of DUMMY_CONFIG with the "project" and "ds" fields changed
+TCV_CONFIG = DUMMY_CONFIG.copy()
 TCV_CONFIG["project"] = "tcv_profile_predictor"
 TCV_CONFIG["ds"] = "tcv"
 TCV_CONFIG["test_eval_suite_config"] = {

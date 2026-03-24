@@ -8,8 +8,8 @@ from popsim.data import get_path_to_ml_data_dump
 
 
 def get_ds(ds_str: str, debug: bool = False):
-    if ds_str == "sparc":
-        ds, episode_coord = get_sparc_torax_data(debug)
+    if ds_str == "dummy":
+        ds, episode_coord = get_dummy_torax_data(debug)
     elif ds_str == "tcv":
         ds, episode_coord = get_tcv_data(debug)
     else:
@@ -17,45 +17,27 @@ def get_ds(ds_str: str, debug: bool = False):
     return ds, episode_coord
 
 
-def get_sparc_torax_data(debug: bool = False):
-    ds = xr.open_dataset(os.path.join(DATA_DIR, "sparc/torax_profile_predictor.nc"))
+def get_dummy_torax_data(debug: bool = False):
+    ds = xr.open_dataset(os.path.join(DATA_DIR, "dummy/torax_profile_predictor.nc"))
     if debug:
         ds = ds.isel(simulation=slice(0, 50))
 
-    ds["Ip_MA"] = 1e-6 * ds["Ip_profile_face"].isel(rho_face_norm=-1)
-
     ds = ds.rename(
         {
-            "geometry.B0": "B0",
-            "geometry.Rmaj": "R0",
-            "geometry.Rmin": "a_minor",
-            "geometry.elongation_LCFS": "kappa",
             "ne": "ne20_rho",
             "temp_el": "Te_keV_rho",
             "rho_cell_norm": "rho",
         }
     )
-    ds["ne20_line_avg"] = ds["ne20_rho"].integrate("rho")  # 1e20 m^-3
-
-    ds["volume"] = ds["vpr"].integrate("rho")  # m^3
-    ds["surface_area"] = ds["spr"].integrate("rho")  # m^2
-
-    ds["Wtot_MJ"] = 1e-6 * ds["W_thermal_tot"]
-    ds["Paux_MW"] = 1e-6 * ds["P_external_tot"]  # Convert to MW
 
     ds["ne20_edge"] = ds["ne20_rho"].sel(rho=1.0, method="nearest")  # 1e20 m^-3
+
+    ds["ne20_line_avg"] = ds["ne20_rho"].integrate("rho")  # 1e20 m^-3
 
     # Compute means and shapes.
     ds["Te_keV_line_avg"] = ds["Te_keV_rho"].integrate("rho")
     ds["Te_shape"] = ds["Te_keV_rho"] / ds["Te_keV_line_avg"]
     ds["ne_shape"] = ds["ne20_rho"] / ds["ne20_line_avg"]
-
-    # Drop sims that have too much of a non-monotonic profile
-    sims_keep = ds.simulation.where(ds["ne_shape"].diff("rho").max("time").max("rho") < 1e-4, drop=True)
-    ds = ds.sel(simulation=sims_keep)
-
-    # Dummy values for delta
-    ds["delta"] = xr.zeros_like(ds["kappa"])
 
     episode_coord = "simulation"
     return ds, episode_coord

@@ -8,7 +8,7 @@ import xarray as xr
 from popsim import DATA_DIR
 
 def test_linear_encoder():
-    ds = xr.open_dataset(os.path.join(DATA_DIR, "sparc/torax_profile_predictor.nc")).stack(sample=("simulation", "time")).transpose("sample", ...)
+    ds = xr.open_dataset(os.path.join(DATA_DIR, "dummy/torax_profile_predictor.nc")).stack(sample=("simulation", "time")).transpose("sample", ...)
     n_latent = 20
 
     # Test fitting a single LinearAutoEncoder works, and that the round-trip error is small.

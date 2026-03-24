@@ -125,7 +125,7 @@ class ProfilePredictorTrainRunBuilder(TrainRunBuilder):
     def get_test_eval_suite(config):
         if config is None:  # No test eval suite config given, return None
             return None
-        elif config["device"] == "sparc":
+        elif config["device"] == "dummy":
             test_eval_suite = {
                 "violin_shapes_in_data": evals.violin_shapes_in_data,
                 "integrated_profile_error": evals.compute_integrated_error,

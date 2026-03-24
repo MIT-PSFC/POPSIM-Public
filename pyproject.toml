@@ -59,6 +59,7 @@ dev = [
     "mkdocstrings-python>=1.12.1,<2",
     "pytest-repeat>=0.9.4",
     "pytest-rerunfailures>=16.0.1",
+    "wandb>=0.25.1",
 ]
 data = ["disruption_py"]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
