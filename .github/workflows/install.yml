@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-install:
-    runs-on: runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: true
       matrix:
