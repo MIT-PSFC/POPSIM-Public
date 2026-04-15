@@ -11,13 +11,12 @@ env:
 
 jobs:
   tests-float64:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }},extras=s3-cache
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6
         with:
           submodules: "recursive"
@@ -88,13 +87,12 @@ jobs:
           JAX_ENABLE_X64: True
 
   tests-float32:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }},extras=s3-cache
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6
         with:
           submodules: "recursive"
@@ -144,13 +142,12 @@ jobs:
           JAX_ENABLE_X64: False
 
   cfspopcon-tests:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }},extras=s3-cache
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v3
         with:
           submodules: "recursive"
@@ -190,13 +187,12 @@ jobs:
           JAX_ENABLE_X64: True
 
   notebook-tests:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }},extras=s3-cache
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v3
         with:
           submodules: "recursive"
