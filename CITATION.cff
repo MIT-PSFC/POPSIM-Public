@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "POPSIM: Plasma OPerational SIMulation"
+version: 0.1.0
+repository-code: "https://github.com/MIT-PSFC/POPSIM-Public"
+license: MIT
+authors:
+  - family-names: Wang
+    given-names: Allen
+    email: allenw@mit.edu
+    affiliation: Massachusetts Institute of Technology
+    orcid: "https://orcid.org/0000-0002-1652-3354"
+  - family-names: Keith
+    given-names: Zander
+    email: zkeith@mit.edu
+    affiliation: Massachusetts Institute of Technology
+    orcid: "https://orcid.org/0000-0003-0590-9494"
+  - family-names: Boyer
+    given-names: M. Dan
+    affiliation: Commonwealth Fusion Systems
+  - family-names: Nelson
+    given-names: A. Oak
+    affiliation: Columbia University
+    orcid: "https://orcid.org/0000-0002-9612-1936"
