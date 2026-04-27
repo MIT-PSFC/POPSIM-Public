@@ -18,6 +18,8 @@ authors:
   - family-names: Boyer
     given-names: M. Dan
     affiliation: Commonwealth Fusion Systems
+    email: "dboyer@cfs.energy"
+    orcid: "https://orcid.org/0000-0002-6845-9155"
   - family-names: Nelson
     given-names: A. Oak
     affiliation: Columbia University
