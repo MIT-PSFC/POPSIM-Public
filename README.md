@@ -28,4 +28,5 @@ bash install.sh
 
 ## References
 [1] Wang, Allen, et al. "Magnetic Control with an Inverse Grad-Shafranov Neural Network." DPP 2025. 2025.
+
 [2] Wang, Allen M., et al. "Technical Aspects of Plasma Operational Simulation (POPSIM): A Framework for Data-Driven Simulation and Control." arXiv preprint arXiv:2509.10244 (2025).
