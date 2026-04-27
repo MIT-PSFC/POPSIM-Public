@@ -26,6 +26,18 @@ bash install.sh
    5. Install git lfs and do a `git lfs install` and a `git lfs pull` to get the necessary data files.
    6. Be sure to use either `uv run` to execute commands in the virtual environment. If you are confused, check out the [uv docs](https://docs.astral.sh/uv/)
 
+## Citing POPSIM
+To cite this repository:
+```
+@software{Wang_POPSIM_Plasma_OPerational,
+    author = {Wang, Allen and Keith, Zander and Boyer, M. Dan and Nelson, A. Oak},
+    license = {MIT},
+    title = {{POPSIM: Plasma OPerational SIMulation}},
+    url = {https://github.com/MIT-PSFC/POPSIM-Public},
+    version = {0.1.0},
+}
+```
+
 ## References
 [1] Wang, Allen, et al. "Magnetic Control with an Inverse Grad-Shafranov Neural Network." DPP 2025. 2025.
 

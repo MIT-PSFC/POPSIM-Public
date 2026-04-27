@@ -2,7 +2,6 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "POPSIM: Plasma OPerational SIMulation"
 version: 0.1.0
-doi: "10.48550/arXiv.2509.10244"
 repository-code: "https://github.com/MIT-PSFC/POPSIM-Public"
 license: MIT
 authors:
