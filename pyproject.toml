@@ -61,7 +61,6 @@ dev = [
     "pytest-rerunfailures>=16.0.1",
     "wandb>=0.25.1",
 ]
-data = ["disruption_py"]
 gpu = ["jax[cuda12]>=0.7.0,<0.8"]
 # For ORCD cluster: uses system CUDA 12.4 libraries instead of pip nvidia packages
 gpu-orcd = [
@@ -78,7 +77,6 @@ default = true
 
 [tool.uv.sources]
 xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", rev = "a857c610134d195d975dbc43be72c8c661714ced" }
-disruption_py = { git = "https://github.com/MIT-PSFC/disruption-py.git", rev = "zk/popsim" }
 
 [tool.hatch.build.targets.sdist]
 include = ["popsim"]
