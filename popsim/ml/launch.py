@@ -38,12 +38,14 @@ def launch_train(
     return _run_train(training_config, use_wandb=use_wandb)
 
 
-def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_config_path: str | os.PathLike[str] | dict):
+def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_config_path: str | os.PathLike[str] | dict, kwargs_sweep: dict | None = None, kwargs_agent: dict | None = None):
     """Launch a hyperparameter sweep using Weights & Biases.
 
     Args:
         config (str | os.PathLike[str] | dict | TrainConfig): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
         sweep_config_path (str | os.PathLike[str] | dict): "Path to a yaml file, toml file, or a python module path pointing to a sweep config dict (e.g. `popsim.modules.fun_module.SWEEP_CONFIG)"
+        kwargs_sweep (dict | None, optional): Additional keyword arguments to pass to `wandb.sweep`. Defaults to None.
+        kwargs_agent (dict | None, optional): Additional keyword arguments to pass to `wandb.agent`. Defaults to None.
     """
     import wandb
 
@@ -52,16 +54,23 @@ def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_conf
     else:
         training_config = TrainConfig.load(config)
     sweep_config = load_dict(sweep_config_path)
-    sweep_id = wandb.sweep(sweep_config, project=training_config.project)
-    launch_agent(training_config, sweep_id)
+
+    if kwargs_sweep is None:
+        kwargs_sweep = {}
+    if kwargs_agent is None:
+        kwargs_agent = {}
+
+    sweep_id = wandb.sweep(sweep_config, project=training_config.project, **kwargs_sweep)
+    launch_agent(training_config, sweep_id, kwargs_agent)
 
 
-def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: str):
+def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: str, kwargs_agent: dict | None = None):
     """Launch a Weights & Biases agent as a part of a hyperparameter sweep.
 
     Args:
         config (str | os.PathLike[str] | dict | TrainConfig): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
         sweep_id (str): The ID of the sweep to join.
+        kwargs_agent (dict | None, optional): Additional keyword arguments to pass to `wandb.agent`. Defaults to None.
 
     """
     import wandb
@@ -71,10 +80,13 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
     else:
         training_config = TrainConfig.load(config)
 
+    if kwargs_agent is None:
+        kwargs_agent = {}
+
     def _train_fn():
         return _run_train(training_config, use_wandb=True)
 
-    wandb.agent(sweep_id, function=_train_fn, project=training_config.project)
+    wandb.agent(sweep_id, function=_train_fn, project=training_config.project, **kwargs_agent)
 
 
 def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
