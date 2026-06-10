@@ -12,6 +12,7 @@ VALID_INPUT_EXAMPLE = {
     "max_epochs": 10,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
+    "patience": None,
     "dataloader_config": {},
     "model_init_config": {},
     "loss_config": {},

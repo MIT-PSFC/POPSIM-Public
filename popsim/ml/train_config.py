@@ -14,6 +14,7 @@ class TrainConfig(BaseModel):
     max_epochs: int  # Maximum number of training epochs.
     epochs_per_val: int  # Number of epochs between each validation.
     checkpoint_dir: str | None = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
+    patience: int | None = None  # Number of validation steps with no improvement before early stopping. If None, no early stopping.
     dataloader_config: dict  # Configuration dictionary for building the dataloaders.
     model_init_config: dict  # Configuration dictionary for initializing the model.
     loss_config: dict  # Configuration dictionary used to initialize the loss function.

@@ -18,7 +18,7 @@ from popsim.ml.dataloading import DataLoader
 from popsim.ml.debug_utils import diagnose_nans
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import EvalData, EvaluationSuite, batch_loss, make_val_loss_eval_fn, run_evals
-from popsim.ml.loggers import ConsoleLogger, LoggerBase
+from popsim.ml.loggers import ConsoleLogger, LoggerBase, WandbLogger
 from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
 from popsim.tree_util import any_nans
@@ -68,8 +68,9 @@ def train_epoch(
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
     logger: LoggerBase,
-) -> TrainState:
-    """Train the model for one epoch."""
+) -> tuple[TrainState, dict[str, typing.Any] | None]:
+    """Train the model for one epoch. Returns the new train state and the metrics of the last step."""
+    train_metrics = None
     for batch in train_dl:
         tstart_prep = time.time()
         inputs, targets = batch.get_inputs_and_targets()
@@ -100,22 +101,43 @@ def train_epoch(
 
         tend_step = time.time()
 
-        logger.log(
-            {
-                "train/loss": loss_value,
-                "train/step": train_state.step,
-                "train/step_time": tend_step - tstart_step,
-                "train/prep_time": tend_prep - tstart_prep,
-            }
-        )
         train_state = TrainState(
             step=train_state.step + 1,
             epoch=train_state.epoch,
             model=model,
             opt_state=opt_state,
         )
+        train_metrics = {
+            "train/loss": loss_value,
+            "train/step": train_state.step,
+            "train/step_time": tend_step - tstart_step,
+            "train/prep_time": tend_prep - tstart_prep,
+        }
+
+    # Only log the last step's values
+    # Logging every batch overloads the W&B backend for fast-training models.
+    # For wandb, train_metrics are instead logged by Trainer.train at the validation cadence.
+    if (not isinstance(logger, WandbLogger)) and train_metrics is not None:
+        logger.log(train_metrics)
     train_state.epoch += 1
-    return train_state
+    return train_state, train_metrics
+
+
+class EarlyStopping:
+    """Track the validation loss and signal when it has stopped improving for `patience` checks."""
+
+    def __init__(self, patience: int):
+        self.patience = patience
+        self.best_loss = float("inf")
+        self.counter = 0
+
+    def should_stop(self, loss: float) -> bool:
+        if loss < self.best_loss:
+            self.best_loss = loss
+            self.counter = 0
+            return False
+        self.counter += 1
+        return self.counter >= self.patience
 
 
 class Trainer:
@@ -172,6 +194,7 @@ class Trainer:
         test_eval_suite: EvaluationSuite | None = None,
         max_epochs: int = 1000,
         epochs_per_val: int = 1,
+        patience: int | None = None,
         logger: LoggerBase | None = None,
     ):
         """Train the model with periodic validation.
@@ -182,6 +205,7 @@ class Trainer:
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
             max_epochs (int, optional): Maximum number of epochs to train for. Defaults to 1000.
             epochs_per_val (int, optional): How often to run evaluations. Defaults to 1.
+            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping).
             logger (typing.Optional[LoggerBase], optional): Logger to record results. Defaults to None.
         """
         logger = logger or ConsoleLogger()
@@ -195,23 +219,31 @@ class Trainer:
         # Log summary metrics of the dataloaders.
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
+        early_stopping = EarlyStopping(patience) if patience is not None else None
+
         # epoch_range accounts for restarting training from a checkpoint.
         epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs + 1)
 
         for epoch in tqdm(epoch_range, desc="Epochs", initial=epoch_range[0], total=epoch_range[-1]):
             tstart_epoch = time.time()
 
-            new_train_state = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger)
+            new_train_state, train_metrics = train_epoch(
+                self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger
+            )
             self.train_state = new_train_state
 
             tend_epoch = time.time()
 
-            logger.log(
-                {
+            # For fast-training models, W&B can't handle logging on every epoch, so log at the validation cadence.
+            if (not isinstance(logger, WandbLogger)) or (epoch % epochs_per_val == 0):
+                epoch_train_metrics = {
                     "train/epoch": epoch,
                     "train/epoch_time": tend_epoch - tstart_epoch,
                 }
-            )
+                # For W&B, include the latest train-step metrics at the same cadence as validation logs.
+                if isinstance(logger, WandbLogger) and train_metrics is not None:
+                    epoch_train_metrics = epoch_train_metrics | train_metrics
+                logger.log(epoch_train_metrics)
 
             if val_dl and epoch % epochs_per_val == 0:
                 tstart_val = time.time()
@@ -219,6 +251,7 @@ class Trainer:
                 tend_val = time.time()
 
                 val_loss = np.asarray(eval_results["loss"]).item()
+                val_loss_mean = float(val_loss["mean"])
 
                 # Pre-pend "val/" to the keys in the eval_results dictionary.
                 eval_results = {f"val/{k}": v for k, v in eval_results.items()}
@@ -232,7 +265,13 @@ class Trainer:
                 )
 
                 if self.checkpoint_manager:
-                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=float(val_loss["mean"]))
+                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss_mean)
+
+                if early_stopping is not None and early_stopping.should_stop(val_loss_mean):
+                    loguru.logger.info(
+                        f"Early stopping: validation loss has not improved for {patience} validation steps ({patience * epochs_per_val} epochs)."
+                    )
+                    break
 
         if self.checkpoint_manager is None or test_dl is None or test_eval_suite is None:
             loguru.logger.info("No checkpoint manager or test DataLoader provided. Skipping test evaluation.")
