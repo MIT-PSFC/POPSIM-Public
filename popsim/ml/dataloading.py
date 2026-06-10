@@ -1,3 +1,4 @@
+import time
 import typing
 
 import jax
@@ -16,6 +17,28 @@ from popsim.ml.utils import pad_time_with_epsilon_xr
 
 DEFAULT_SAMPLE_DIM = "sample"
 PRNG_KEY_VAR = "prng_key"
+
+
+def _load_with_retry(ds: xr.Dataset, max_attempts: int = 3) -> xr.Dataset:
+    """Load a dataset into memory, retrying transient I/O failures.
+
+    Reads from network filesystems or zarr stores can fail intermittently, so retry a few times
+    before giving up. Only I/O-type errors (OSError, RuntimeError) are retried so that genuine
+    bugs propagate immediately.
+    """
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return ds.load()
+        except (OSError, RuntimeError) as exc:
+            last_exc = exc
+            if attempt < max_attempts:
+                logger.warning(
+                    f"Dataset load failed on attempt {attempt}/{max_attempts}; retrying. "
+                    f"error_type={type(exc).__name__}, error={exc!r}"
+                )
+                time.sleep(0.1 * attempt)
+    raise RuntimeError(f"Dataset load failed after {max_attempts} attempts") from last_exc
 
 
 class XarrayPreppedDataset:
@@ -74,16 +97,16 @@ class XarrayPreppedDataset:
             samples = ds[training_metadata.sample_coord]
             ds = ds.drop_vars(_sample_coords_to_drop(ds))
 
-            inputs = ds[input_vars].load()
-            targets = ds[training_metadata.target_vars].load()
+            inputs = _load_with_retry(ds[input_vars])
+            targets = _load_with_retry(ds[training_metadata.target_vars])
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
             if training_metadata.sample_dim not in time.dims:
                 time = time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
-            state_init = (
-                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0}).load()
+            state_init = _load_with_retry(
+                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
             )
 
             if training_metadata.convert_xr_to_jnp:
@@ -101,8 +124,8 @@ class XarrayPreppedDataset:
         else:
             # Time-independent case.
             ds = ds.drop_vars(_sample_coords_to_drop(ds))
-            inputs = ds[input_vars].load()
-            targets = ds[training_metadata.target_vars].load()
+            inputs = _load_with_retry(ds[input_vars])
+            targets = _load_with_retry(ds[training_metadata.target_vars])
 
             if training_metadata.convert_xr_to_jnp:
                 inputs = ds_to_dict_jnp(inputs)

@@ -1,31 +1,33 @@
-from jaxtyping import PyTree
-from popsim.simulate import StepperType
-from popsim.tests.fixtures import oscillator_dataset
-from popsim.ml.trainer import Trainer
-from popsim.ml.dataloading import make_time_dep_dataloader
-from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.loss import IntegralLoss
-from popsim.ml.partition import make_partition_by_members
-from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim import TimeDepModule
+import os
+
 import chex
 import equinox as eqx
-import jax.nn as jnn
 import jax
+import jax.nn as jnn
 import jax.numpy as jnp
 import optax
 import pytest
-import os
+
+from popsim import TimeDepModule
+from popsim.ml.dataloading import make_time_dep_dataloader
+from popsim.ml.envs import ModuleTrainingEnv
+from popsim.ml.loggers import LoggerBase
+from popsim.ml.loss import IntegralLoss
+from popsim.ml.split_utils import split_dataset_by_fracs
+from popsim.ml.trainer import Trainer
+from popsim.simulate import StepperType
+from popsim.tests.fixtures import oscillator_dataset  # noqa: F401
+
 
 class NeuralODE(TimeDepModule):
     @chex.dataclass
     class Config:
         nn: eqx.Module
-    
+
     @chex.dataclass
     class State:
         state: dict[str, float]
-    
+
     @chex.dataclass
     class Inputs:
         pass
@@ -38,7 +40,7 @@ class NeuralODE(TimeDepModule):
 
     def __init__(self, config):
         self.config = config
-    
+
     def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         state_flat = jnp.asarray(jax.tree.leaves(state.state))
         state_dot_flat = self.config.nn(state_flat)
@@ -51,11 +53,11 @@ class NeuralODEEnv(ModuleTrainingEnv):
     @staticmethod
     def create_state(observations, inputs):
         return NeuralODE.State(state={"y0": observations["y0"], "y1": observations["y1"]})
-    
+
     @staticmethod
     def create_inputs(inputs):
         return NeuralODE.Inputs()
-    
+
     def get_trainable(self):
         return self.module.config.nn
 
@@ -165,3 +167,63 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
         # Check that the restored new_trainer is the same as the old trainer at the end of training.
         chex.assert_trees_all_equal(trainer.train_state, new_trainer.train_state)
+
+
+class CountingLogger(LoggerBase):
+    def __init__(self):
+        self.val_epochs = []
+
+    def log(self, dictionary):
+        if "val/epoch" in dictionary:
+            self.val_epochs.append(dictionary["val/epoch"])
+
+
+def test_early_stopping_patience(oscillator_dataset):
+    """With a zero learning rate the validation loss never improves, so training should stop
+    after the first validation establishes the best loss and `patience` further validations pass."""
+    ds = oscillator_dataset
+
+    nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=16, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
+    module = NeuralODE(config=NeuralODE.Config(nn=nn))
+    env = NeuralODEEnv(module=module, stepper=StepperType.SIMPLE_EULER)
+
+    def loss(predictions, targets):
+        y0_loss = optax.losses.l2_loss(predictions.state["y0"], targets["y0"])
+        y1_loss = optax.losses.l2_loss(predictions.state["y1"], targets["y1"])
+        return y0_loss + y1_loss
+
+    ds, val_ds = split_dataset_by_fracs(ds, (0.8, 0.2), "simulation", 42)
+    dl_kwargs = dict(
+        time_coord="time",
+        episode_coord="simulation",
+        state_init_vars=["y0", "y1"],
+        input_vars=[],
+        target_vars=["y0", "y1"],
+        segment_length=None,
+        batch_size=None,
+        # Keep sample order deterministic so the validation loss is bit-identical between epochs.
+        shuffle=False,
+    )
+    dl = make_time_dep_dataloader(ds, **dl_kwargs)
+    val_dl = make_time_dep_dataloader(val_ds, **dl_kwargs)
+
+    trainer = Trainer(
+        model=env,
+        loss_fn=IntegralLoss(loss),
+        optimizer=optax.sgd(learning_rate=0.0),
+    )
+
+    patience = 1
+    counting_logger = CountingLogger()
+    trainer.train(
+        train_dl=dl,
+        val_dl=val_dl,
+        max_epochs=20,
+        epochs_per_val=1,
+        patience=patience,
+        logger=counting_logger,
+    )
+
+    # One validation to set the best loss, then `patience` validations with no improvement.
+    assert len(counting_logger.val_epochs) == 1 + patience
+    assert trainer.train_state.epoch < 20

@@ -152,6 +152,7 @@ def _run_train(
         val_dl,
         max_epochs=training_config.max_epochs,
         epochs_per_val=training_config.epochs_per_val,
+        patience=training_config.patience,
         logger=logger or NullLogger(),
         eval_suite=train_run_builder.get_val_eval_suite(training_config.val_eval_suite_config),
         test_dl=test_dl,

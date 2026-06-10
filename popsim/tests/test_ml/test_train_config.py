@@ -1,8 +1,10 @@
-from popsim.ml.train_config import TrainConfig, TrainConfig
 import tempfile
-import yaml
+
 import pytest
+import yaml
 from pydantic import ValidationError
+
+from popsim.ml.train_config import TrainConfig
 
 VALID_INPUT_EXAMPLE = {
     "project": "test_project",
@@ -10,6 +12,7 @@ VALID_INPUT_EXAMPLE = {
     "max_epochs": 10,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
+    "patience": None,
     "dataloader_config": {},
     "model_init_config": {},
     "loss_config": {},
