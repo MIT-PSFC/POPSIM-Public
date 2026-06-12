@@ -336,6 +336,97 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
         assert ds_shot.equals(ds2_shot)
 
 @pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store_with_dim_sizes(test_number):
+    """With dim_sizes provided, every episode is padded to the bound and the store is never extended."""
+    np.random.seed(test_number)
+    dummy_generator = dummy.generate_simple_scalar_dataset(3)
+    dim_sizes = {"time_idx": 5}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+
+        for ds in dummy_generator:
+            success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode", dim_sizes=dim_sizes)
+            assert success
+            # The store should always be at the upper-bound size, even after the first episode
+            ds_store = xr.open_zarr(zarr_path, consolidated=False)
+            assert ds_store.sizes["time_idx"] == 5
+
+        ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
+        expected_var = xr.DataArray(np.array([[0.0, np.nan, np.nan, np.nan, np.nan],
+                                              [0.0, 1.0, np.nan, np.nan, np.nan],
+                                              [0.0, 1.0, 2.0, np.nan, np.nan]]),
+                                    dims=["episode", "time_idx"],
+                                    coords={"episode": ("episode", [0, 1, 2])})
+        assert ds_store["var"].equals(expected_var)
+
+
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store_dim_sizes_exceeded(test_number):
+    """An episode larger than the dim_sizes upper bound raises an error."""
+    np.random.seed(test_number)
+    dummy_generator = dummy.generate_simple_scalar_dataset(3)
+    dim_sizes = {"time_idx": 2}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+
+        datasets = list(dummy_generator)
+        # First two episodes have 1 and 2 timesteps, within the bound
+        for ds in datasets[:2]:
+            assert add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode", dim_sizes=dim_sizes)
+        # Third episode has 3 timesteps, exceeding the bound
+        with pytest.raises(ValueError):
+            add_to_zarr_store(datasets[2], zarr_path, time_dim="time_idx", episode_dim="episode", dim_sizes=dim_sizes)
+
+
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_build_tensorized_dataset_with_dim_sizes(test_number):
+    """dim_sizes overshoot is trimmed away during the rechunking pass."""
+    np.random.seed(test_number)
+    episode_lengths = {"test1": 10, "test2": 30, "test3": 20}
+
+    def build_fn(path: str) -> xr.Dataset:
+        nt = episode_lengths[path]
+        ds = xr.Dataset(
+            {
+                "data": (("time_idx", "space"), np.random.rand(nt, 5)),
+            },
+            coords={
+                "time": ("time_idx", np.arange(nt, dtype=float)),
+                "space": ("space", np.arange(5)),
+                "shot": path
+            }
+        )
+        return ds
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+
+        # Upper bound of 50 deliberately overshoots the largest episode (30)
+        ds = build_tensorized_dataset(
+            process_fn=build_fn,
+            zarr_path=zarr_path,
+            identifiers=["test1", "test2", "test3"],
+            time_dim="time_idx",
+            episode_dim="shot",
+            dim_sizes={"time_idx": 50, "space": 5},
+        )
+
+        assert ds.sizes["shot"] == 3
+        # The overshoot beyond the largest episode should have been trimmed away
+        assert ds.sizes["time_idx"] == 30
+        assert ds.sizes["space"] == 5
+
+        # Data must round-trip unchanged for each episode
+        ds = ds.load()
+        for path, nt in episode_lengths.items():
+            episode = ds.sel(shot=path)
+            assert episode["data"].isel(time_idx=slice(0, nt)).notnull().all()
+            assert episode["data"].isel(time_idx=slice(nt, None)).isnull().all()
+
+
+@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
 @pytest.mark.parametrize('extend_existing', [True, False])
 def test_build_tensorized_dataset_no_successful(test_number, extend_existing):
     np.random.seed(test_number)
