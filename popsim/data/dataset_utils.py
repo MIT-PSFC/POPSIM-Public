@@ -231,6 +231,18 @@ def add_to_zarr_store(  # noqa: PLR0912
     else:
         ds_store = xr.open_zarr(zarr_path, consolidated=True)
 
+        # Appending a variable the store doesn't have creates it with a single episode,
+        # leaving the store with conflicting episode-dim sizes that break every later open.
+        store_vars = set(ds_store.data_vars)
+        ds_vars = set(ds.data_vars)
+        if ds_vars != store_vars:
+            raise ValueError(
+                f"Variable mismatch between dataset and existing zarr store: "
+                f"missing from dataset {sorted(store_vars - ds_vars)}, "
+                f"new in dataset {sorted(ds_vars - store_vars)}. "
+                f"All episodes must provide the same set of variables."
+            )
+
         # Handle dimension size changes for all dimensions except episode_dim
         pad_dims = {}
         extend_dims = {}
