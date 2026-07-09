@@ -62,6 +62,42 @@ def create_default_checkpoint_manager(directory: PathLike) -> ocp.CheckpointMana
     return manager
 
 
+def create_latest_checkpoint_manager(directory: PathLike) -> ocp.CheckpointManager:
+    """Create a CheckpointManager which only keeps the most recent checkpoint.
+
+    Used for resuming interrupted training runs. Unlike the default manager,
+    which keeps the best checkpoint by validation loss, this one always keeps
+    the highest-epoch checkpoint so training can continue from where it left
+    off. With no best_fn, orbax's best_step() falls back to latest_step(), so
+    restore_train_state works with this manager unchanged.
+
+    Args:
+        directory (PathLike): the directory to save the checkpoints in.
+
+    Returns:
+        ocp.CheckpointManager: the CheckpointManager.
+    """
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    options = ocp.CheckpointManagerOptions(
+        max_to_keep=1,
+        save_interval_steps=1,
+    )
+
+    manager = ocp.CheckpointManager(
+        directory=directory,
+        options=options,
+        item_names=("model", "opt_state", "metadata"),
+    )
+    return manager
+
+
+def latest_checkpoint_dir(checkpoint_dir: PathLike) -> str:
+    """Return the sibling directory used for latest-checkpoint (resume) saves."""
+    return f"{os.fspath(checkpoint_dir)}_latest"
+
+
 def partition_saveable(pytree: PyTree) -> tuple[PyTree, PyTree]:
     """Partition a pytree into saveable and non-saveable parts."""
     return eqx.partition(pytree, eqx.is_array_like)

@@ -13,7 +13,14 @@ from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
-from popsim.ml.checkpointing import TrainState, create_default_checkpoint_manager, restore_train_state, save_train_state
+from popsim.ml.checkpointing import (
+    TrainState,
+    create_default_checkpoint_manager,
+    create_latest_checkpoint_manager,
+    latest_checkpoint_dir,
+    restore_train_state,
+    save_train_state,
+)
 from popsim.ml.dataloading import DataLoader
 from popsim.ml.debug_utils import diagnose_nans
 from popsim.ml.envs import ModuleTrainingEnv
@@ -156,6 +163,7 @@ class Trainer:
         checkpoint_dir: PathLike | None = None,
         trainable_getter: typing.Callable[[TrainableModel], PyTree] | None = None,
         grad_clip: optax.GradientTransformation | None = None,
+        resume: bool = False,
     ):
         """Initialize a Trainer object.
 
@@ -166,6 +174,7 @@ class Trainer:
             checkpoint_dir (typing.Optional[PathLike], optional): path to the directory to save checkpoints at / load checkpoints from. Defaults to None.
             trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
             grad_clip (typing.Optional[optax.GradientTransformation], optional): Gradient clipping to apply before optimizer to avoid training instability. If None, then will default to optax.clip_by_global_norm(0.5). Defaults to None.
+            resume (bool, optional): If True and a latest checkpoint exists in <checkpoint_dir>_latest, restore it (model, optimizer state, and epoch counter) and continue training from there. Defaults to False.
 
         """
         if isinstance(model, ModuleTrainingEnv):
@@ -184,6 +193,23 @@ class Trainer:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_dir) if checkpoint_dir else None
+        # Created lazily so restore-only Trainers (e.g. results collection) do not
+        # leave empty <checkpoint_dir>_latest directories behind
+        self._latest_checkpoint_dir = latest_checkpoint_dir(checkpoint_dir) if checkpoint_dir else None
+        self._latest_checkpoint_manager: ocp.CheckpointManager | None = None
+
+        if resume and self.latest_checkpoint_manager and self.latest_checkpoint_manager.latest_step() is not None:
+            self.train_state = restore_train_state(self.latest_checkpoint_manager, self.train_state)
+            loguru.logger.info(
+                f"Resumed train state from latest checkpoint at epoch {self.train_state.epoch} (step {self.train_state.step})"
+            )
+
+    @property
+    def latest_checkpoint_manager(self) -> ocp.CheckpointManager | None:
+        """CheckpointManager keeping the most recent checkpoint, used for resuming interrupted runs."""
+        if self._latest_checkpoint_manager is None and self._latest_checkpoint_dir is not None:
+            self._latest_checkpoint_manager = create_latest_checkpoint_manager(self._latest_checkpoint_dir)
+        return self._latest_checkpoint_manager
 
     def train(
         self,
@@ -196,6 +222,7 @@ class Trainer:
         epochs_per_val: int = 1,
         patience: int | None = None,
         logger: LoggerBase | None = None,
+        max_wall_seconds: float | None = None,
     ):
         """Train the model with periodic validation.
 
@@ -203,10 +230,11 @@ class Trainer:
             train_dl (DataLoader): DataLoader for training the model.
             val_dl (typing.Optional[DataLoader]): DataLoader for validating the model. Defaults to None.
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
-            max_epochs (int, optional): Maximum number of epochs to train for. Defaults to 1000.
+            max_epochs (int, optional): Total epoch budget. When resuming from a checkpoint at epoch N, training continues from N up to max_epochs (absolute target, not additive). Defaults to 1000.
             epochs_per_val (int, optional): How often to run evaluations. Defaults to 1.
-            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping).
+            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). Note the patience counter is not persisted across resumed runs.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. Defaults to None.
+            max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish. Defaults to None (no budget).
         """
         logger = logger or ConsoleLogger()
         eval_suite = eval_suite or {}
@@ -220,11 +248,18 @@ class Trainer:
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
         early_stopping = EarlyStopping(patience) if patience is not None else None
+        timed_out = False
+        tstart_train = time.time()
 
-        # epoch_range accounts for restarting training from a checkpoint.
-        epoch_range = range(self.train_state.epoch, self.train_state.epoch + max_epochs + 1)
+        # max_epochs is an absolute target: a run resumed at epoch N trains N..max_epochs.
+        # An empty range (resumed run that already finished training but died before
+        # the test eval) skips straight to restoring the best checkpoint and evaluating.
+        start_epoch = self.train_state.epoch
+        if start_epoch > 0:
+            loguru.logger.info(f"Resuming training at epoch {start_epoch} of {max_epochs}")
+        epoch_range = range(start_epoch, max_epochs + 1)
 
-        for epoch in tqdm(epoch_range, desc="Epochs", initial=epoch_range[0], total=epoch_range[-1]):
+        for epoch in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
             tstart_epoch = time.time()
 
             new_train_state, train_metrics = train_epoch(
@@ -264,14 +299,20 @@ class Trainer:
                     | eval_results
                 )
 
-                if self.checkpoint_manager:
-                    save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss_mean)
+                self._save_checkpoints(val_loss_mean)
 
                 if early_stopping is not None and early_stopping.should_stop(val_loss_mean):
                     loguru.logger.info(
                         f"Early stopping: validation loss has not improved for {patience} validation steps ({patience * epochs_per_val} epochs)."
                     )
                     break
+
+            if self._wall_budget_exceeded(tstart_train, max_wall_seconds, early_stopping):
+                timed_out = True
+                break
+
+        if timed_out:
+            return None
 
         if self.checkpoint_manager is None or test_dl is None or test_eval_suite is None:
             loguru.logger.info("No checkpoint manager or test DataLoader provided. Skipping test evaluation.")
@@ -283,6 +324,31 @@ class Trainer:
             test_results = {f"test/{k}": v for k, v in test_results.items()}
             logger.log(test_results)
             return test_results
+
+    def _save_checkpoints(self, val_loss_mean: float):
+        """Save the best-by-val-loss checkpoint and the latest (resume) checkpoint."""
+        if self.checkpoint_manager:
+            save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss_mean)
+        if self.latest_checkpoint_manager:
+            save_train_state(train_state=self.train_state, checkpoint_manager=self.latest_checkpoint_manager, loss=val_loss_mean)
+
+    def _wall_budget_exceeded(self, tstart_train: float, max_wall_seconds: float | None, early_stopping: "EarlyStopping | None") -> bool:
+        """Check the wall-clock budget, saving the latest checkpoint before reporting it exceeded."""
+        if max_wall_seconds is None or (time.time() - tstart_train) <= max_wall_seconds:
+            return False
+        if self.latest_checkpoint_manager and self.latest_checkpoint_manager.latest_step() != self.train_state.epoch:
+            # Save progress made since the last validation checkpoint. The loss
+            # metric is informational only, this manager keeps the latest step.
+            save_train_state(
+                train_state=self.train_state,
+                checkpoint_manager=self.latest_checkpoint_manager,
+                loss=early_stopping.best_loss if early_stopping is not None else float("inf"),
+            )
+        loguru.logger.info(
+            f"Wall-clock budget of {max_wall_seconds} s exceeded at epoch {self.train_state.epoch}. "
+            "Saved the latest checkpoint and stopping without the test eval so a resumed job can finish training."
+        )
+        return True
 
     def restore_best_checkpoint(self, path: PathLike | None = None):
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
