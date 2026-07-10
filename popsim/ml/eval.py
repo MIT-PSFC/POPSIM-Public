@@ -213,6 +213,48 @@ def batch_loss(
     return losses.mean()
 
 
+def masked_batch_loss(
+    trainable: TrainableModel,
+    static: TrainableModel,
+    loss_fn: LossFunction,
+    inputs: PyTree[Array],
+    targets: PyTree[Array],
+    sample_mask: Array,
+) -> float:
+    """Mean batch loss over only the samples where sample_mask is True.
+
+    Masking the loss alone is not enough to mask a sample's gradient: if the forward pass
+    at a bad sample is non-finite, its cotangent is NaN and 0 * NaN = NaN poisons the whole
+    batch gradient. So the masked-out samples' inputs and targets are first replaced with
+    those of the first masked-in sample, keeping the differentiated computation finite
+    everywhere, and then given zero weight in the mean. Masked-out samples therefore
+    contribute exactly zero loss and zero gradient.
+
+    Args:
+        trainable (TrainableModel): the trainable part of the model.
+        static (TrainableModel): the static part of the model.
+        loss_fn (LossFunction): the loss function to use.
+        inputs (PyTree[Array]): the inputs to the model, leading dim is the sample dim.
+        targets (PyTree[Array]): the targets, leading dim is the sample dim.
+        sample_mask (Array): boolean vector over the sample dim, True = include the sample.
+            Must have at least one True entry (the caller is expected to check host-side).
+
+    Returns:
+        float: the mean batch loss over the masked-in samples.
+    """
+    model = eqx.combine(trainable, static)
+    good_idx = jnp.argmax(sample_mask)
+
+    def _replace_masked_out(leaf):
+        mask = sample_mask.reshape((leaf.shape[0],) + (1,) * (leaf.ndim - 1))
+        return jnp.where(mask, leaf, jax.lax.dynamic_index_in_dim(leaf, good_idx, keepdims=True))
+
+    safe_inputs, safe_targets = jax.tree.map(_replace_masked_out, (inputs, targets))
+    losses = batched_model_eval_and_loss(model, loss_fn, safe_inputs, safe_targets)
+    weights = sample_mask.astype(losses.dtype)
+    return jnp.sum(losses * weights) / jnp.sum(weights)
+
+
 def make_val_loss_eval_fn(
     loss_fn: LossFunction,
 ) -> EvaluationFn:
