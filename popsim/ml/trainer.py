@@ -29,7 +29,7 @@ from popsim.ml.eval import (
     EvalData,
     EvaluationSuite,
     batch_loss,
-    batched_model_eval_and_loss,
+    jit_batched_model_eval_and_loss,
     make_val_loss_eval_fn,
     masked_batch_loss,
     run_evals,
@@ -173,7 +173,7 @@ def _retry_step_with_nan_samples_masked(
     loss), or the masked step itself still produced NaN/Inf.
     """
     step, epoch = train_state.step, train_state.epoch
-    sample_losses = jax.block_until_ready(batched_model_eval_and_loss(train_state.model, loss_fn, inputs, targets))
+    sample_losses = jax.block_until_ready(jit_batched_model_eval_and_loss(train_state.model, loss_fn, inputs, targets))
     finite_mask = np.isfinite(np.asarray(sample_losses))
     new_bad = _record_bad_samples(batch, finite_mask, bad_sample_ids)
 

@@ -1,7 +1,8 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import Array, PyTree
@@ -20,10 +21,34 @@ This module contains utilities for evaluating models on data.
 """
 
 
-class EvalData(NamedTuple):
-    model: TrainableModel  # The model to train.
-    dataloader: DataLoader  # DataLoader that was used to evaluate the module.
-    output_ds: xr.Dataset  # The output of the model converted to an xarray dataset.
+class EvalData:
+    """Holds a model, the dataloader it was evaluated on, and the model outputs.
+
+    output_ds is built lazily on first access so evaluation functions that only
+    need the model and dataloader (for example the validation loss) do not pay
+    for the full forward pass and xarray assembly.
+    """
+
+    def __init__(
+        self,
+        model: TrainableModel,
+        dataloader: DataLoader,
+        output_ds: xr.Dataset | None = None,
+        output_ds_builder: Callable[[], xr.Dataset] | None = None,
+    ):
+        self.model = model
+        self.dataloader = dataloader
+        self._output_ds = output_ds
+        self._output_ds_builder = output_ds_builder
+
+    @property
+    def output_ds(self) -> xr.Dataset:
+        """The output of the model converted to an xarray dataset, built on first access."""
+        if self._output_ds is None:
+            if self._output_ds_builder is None:
+                raise ValueError("EvalData was created without an output_ds or an output_ds_builder")
+            self._output_ds = self._output_ds_builder()
+        return self._output_ds
 
     @property
     def input_ds(self):
@@ -44,6 +69,9 @@ EvaluationSuite = dict[str, EvaluationFn]
 
 def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalData:
     """Evaluate a module on data from a dataloader.
+
+    The returned EvalData builds output_ds lazily, so evaluation functions that
+    only use the model and dataloader do not pay for the full forward pass.
 
     Args:
         env (TrainableModel): the module wrapped in an evaluation environment.
@@ -103,15 +131,18 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     else:
         eval_fn = eval_model_return_xarray
 
-    sim_outs_and_batches = [(eval_fn(model, batch), batch) for batch in dataloader]
+    def _build_output_ds() -> xr.Dataset:
+        sim_outs = [eval_fn(model, batch) for batch in dataloader]
 
-    sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
+        ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
 
-    ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
+        # Drop padded duplicate samples from a pad_last dataloader before reindexing
+        ds_sim = ds_sim.isel({DEFAULT_SAMPLE_DIM: slice(0, dataloader.dataset.n_samples)})
 
-    ds_sim = ds_sim.reindex_like(dataloader.ds)
+        ds_sim = ds_sim.reindex_like(dataloader.ds)
+        return ds_sim
 
-    eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds=ds_sim)
+    eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds_builder=_build_output_ds)
     return eval_fn_input
 
 
@@ -187,6 +218,24 @@ def batched_model_eval_and_loss(
     )
 
     return losses
+
+
+@eqx.filter_jit
+def jit_batched_model_eval_and_loss(
+    model: TrainableModel,
+    loss_fn: LossFunction,
+    inputs: PyTree[Array],
+    targets: PyTree[Array],
+) -> Array:
+    """batched_model_eval_and_loss under a persistent module level jit.
+
+    Eager one-off callers should use this so the whole batched forward is
+    compiled instead of traced op by op. Callers that evaluate repeatedly
+    with one fixed model and loss, such as validation loss suites, should
+    instead create their own eqx.filter_jit(batched_model_eval_and_loss)
+    scoped to that model, see make_val_loss_eval_fn.
+    """
+    return batched_model_eval_and_loss(model, loss_fn, inputs, targets)
 
 
 def batch_loss(
@@ -267,11 +316,23 @@ def make_val_loss_eval_fn(
         EvaluationFn: the evaluation function.
     """
 
+    # A fresh closure per suite, jitted once here, so the compiled forward
+    # persists across every validation of this training run while its cache
+    # stays isolated from other runs in the same process. Sharing a single
+    # module level filter_jit cache across unrelated models can raise instead
+    # of just retracing: filter_jit compares static fields for cache hits, and
+    # some statics (for example an xarray attrs dict holding a multi-element
+    # numpy array) raise on __eq__ when two incompatible calls collide.
+    def _eval_and_loss(model, loss_fn, inputs, targets):
+        return batched_model_eval_and_loss(model, loss_fn, inputs, targets)
+
+    jit_eval_and_loss = eqx.filter_jit(_eval_and_loss)
+
     def eval_fn(inp: EvalData) -> float:
         loss_vecs = []
         for batch in inp.dataloader:
             inputs, targets = batch.get_inputs_and_targets()
-            loss_vec = batched_model_eval_and_loss(
+            loss_vec = jit_eval_and_loss(
                 inp.model,
                 loss_fn,
                 inputs,
@@ -279,6 +340,8 @@ def make_val_loss_eval_fn(
             )
             loss_vecs.append(loss_vec)
         loss_vec = jnp.concatenate(loss_vecs)
+        # Drop padded duplicate samples from a pad_last dataloader
+        loss_vec = loss_vec[: inp.dataloader.dataset.n_samples]
         out = {
             "mean": loss_vec.mean(),
             "vec": loss_vec,
