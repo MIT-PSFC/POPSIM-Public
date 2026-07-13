@@ -26,11 +26,17 @@ INVALID_INPUT_EXAMPLE = {
     "foo": "bar",
 }
 
+# Fields not in VALID_INPUT_EXAMPLE take their defaults on load.
+EXPECTED_DUMP = VALID_INPUT_EXAMPLE | {
+    "resume": False,
+    "max_wall_seconds": None,
+}
+
 def test_valid_input():
     # From dictionary
     config = TrainConfig.load(VALID_INPUT_EXAMPLE)
     assert isinstance(config, TrainConfig)
-    assert config.model_dump() == VALID_INPUT_EXAMPLE
+    assert config.model_dump() == EXPECTED_DUMP
 
     # From YAML file
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml", encoding="utf-8") as temp_file:
@@ -39,12 +45,12 @@ def test_valid_input():
 
     config_from_yaml = TrainConfig.load(temp_file_path)
     assert isinstance(config_from_yaml, TrainConfig)
-    assert config_from_yaml.model_dump() == VALID_INPUT_EXAMPLE
+    assert config_from_yaml.model_dump() == EXPECTED_DUMP
 
     # From module path
     config_from_module = TrainConfig.load(__name__ + ".VALID_INPUT_EXAMPLE")
     assert isinstance(config_from_module, TrainConfig)
-    assert config_from_module.model_dump() == VALID_INPUT_EXAMPLE
+    assert config_from_module.model_dump() == EXPECTED_DUMP
 
 def test_invalid_input():
     with pytest.raises(ValueError):

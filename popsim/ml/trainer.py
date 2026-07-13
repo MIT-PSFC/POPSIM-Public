@@ -59,6 +59,12 @@ SKIP_FRACTION_ABORT_THRESHOLD = 0.5
 MAX_HIGH_SKIP_EPOCHS = 3
 
 
+class TrainingDivergedError(RuntimeError):
+    """Optimization walked the model into a region where train steps produce NaN/Inf
+    and cannot recover. Distinct from data errors (NaN inputs/targets) so callers can
+    fall back to the best checkpoint instead of failing the run."""
+
+
 def _format_sample_ids(sample_ids) -> str:
     """Format a collection of sample coordinate values for logging, truncated to MAX_LOGGED_BAD_SAMPLES."""
     ids = sorted(sample_ids, key=str)
@@ -324,7 +330,7 @@ def train_epoch(
         # cannot make progress, so surface the failure with diagnostics rather than looping
         # forever on skipped steps.
         diagnose_nans(train_state.model, batch)
-        raise RuntimeError(
+        raise TrainingDivergedError(
             f"All {n_skipped} steps this epoch produced NaN/Inf after train_step and could not be recovered "
             "by masking, training cannot make progress."
         )
@@ -483,18 +489,7 @@ class Trainer:
 
             tend_epoch = time.time()
 
-            consecutive_high_skip_epochs = self._check_persistent_nan_skips(train_metrics, consecutive_high_skip_epochs, epoch)
-
-            # For fast-training models, W&B can't handle logging on every epoch, so log at the validation cadence.
-            if (not isinstance(logger, WandbLogger)) or (epoch % epochs_per_val == 0):
-                epoch_train_metrics = {
-                    "train/epoch": epoch,
-                    "train/epoch_time": tend_epoch - tstart_epoch,
-                }
-                # For W&B, include the latest train-step metrics at the same cadence as validation logs.
-                if isinstance(logger, WandbLogger) and train_metrics is not None:
-                    epoch_train_metrics = epoch_train_metrics | train_metrics
-                logger.log(epoch_train_metrics)
+            self._log_epoch_metrics(logger, epoch, epochs_per_val, train_metrics, tend_epoch - tstart_epoch)
 
             if val_dl and epoch % epochs_per_val == 0:
                 tstart_val = time.time()
@@ -541,6 +536,21 @@ class Trainer:
             logger.log(test_results)
             return test_results
 
+    @staticmethod
+    def _log_epoch_metrics(logger: LoggerBase, epoch: int, epochs_per_val: int, train_metrics: dict | None, epoch_time: float):
+        """Log per-epoch training metrics. For fast-training models, W&B can't handle
+        logging on every epoch, so log at the validation cadence."""
+        if isinstance(logger, WandbLogger) and epoch % epochs_per_val != 0:
+            return
+        epoch_train_metrics = {
+            "train/epoch": epoch,
+            "train/epoch_time": epoch_time,
+        }
+        # For W&B, include the latest train-step metrics at the same cadence as validation logs.
+        if isinstance(logger, WandbLogger) and train_metrics is not None:
+            epoch_train_metrics = epoch_train_metrics | train_metrics
+        logger.log(epoch_train_metrics)
+
     def _save_checkpoints(self, val_loss_mean: float):
         """Save the best-by-val-loss checkpoint and the latest (resume) checkpoint."""
         if self.checkpoint_manager:
@@ -559,7 +569,7 @@ class Trainer:
             return 0
         consecutive_high_skip_epochs += 1
         if consecutive_high_skip_epochs >= MAX_HIGH_SKIP_EPOCHS:
-            raise RuntimeError(
+            raise TrainingDivergedError(
                 f"More than {SKIP_FRACTION_ABORT_THRESHOLD:.0%} of train steps skipped due to NaN/Inf "
                 f"for {consecutive_high_skip_epochs} consecutive epochs "
                 f"(epoch {epoch}: {skip_fraction:.0%} skipped). Training cannot make reliable progress."
