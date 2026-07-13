@@ -66,6 +66,22 @@ def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpnes
     # Apply the soft clipping using a scaled hyperbolic tangent.
     return center + half_range * jnp.tanh(sharpness * (x - center) / effective_half_range)
 
+def smooth_clamp(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, min_width: float, max_width: float) -> ArrayLike:
+    """Another smooth alternative to clipping using softplus
+    Close to x in (min_value + min_width, max_value - max_width),
+    smooths to min_value and max_value as x approaches the bounds.
+    Larger width has more gradual smoothing, but encroaches on the range of x that is unchanged.
+
+    Args:
+        x (ArrayLike): the value(s) to be clamped.
+        min_value (ArrayLike): the minimum value(s) to clamp to.
+        max_value (ArrayLike): the maximum value(s) to clamp to.
+        min_width (float): the width of the smoothing region near min_value.
+        max_width (float): the width of the smoothing region near max_value.
+    """
+    x = max_value - max_width * jnp.logaddexp(0, (max_value - x) / max_width)
+    x = min_value + min_width * jnp.logaddexp(0, (x - min_value) / min_width)
+    return x
 
 def padded_relative_error(predicted: ArrayLike, target: ArrayLike, pad: float = 1.0) -> ArrayLike:
     """Relative error with a denominator padding term to avoid division by zero.
