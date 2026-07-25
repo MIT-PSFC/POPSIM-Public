@@ -383,6 +383,7 @@ class Trainer:
         trainable_getter: typing.Callable[[TrainableModel], PyTree] | None = None,
         grad_clip: optax.GradientTransformation | None = None,
         resume: bool = False,
+        checkpoint_max_to_keep: int = 1,
     ):
         """Initialize a Trainer object.
 
@@ -394,6 +395,7 @@ class Trainer:
             trainable_getter (typing.Optional[typing.Callable[[TrainableModel], PyTree]], optional): A function to specify what parameters in the model to train; the rest will be not be trained. This function takes in a model instance and outputs a PyTree (e.g. tuple or list) of parameters to train. Defaults to None.
             grad_clip (typing.Optional[optax.GradientTransformation], optional): Gradient clipping to apply before optimizer to avoid training instability. If None, then will default to optax.clip_by_global_norm(0.5). Defaults to None.
             resume (bool, optional): If True and a latest checkpoint exists in <checkpoint_dir>_latest, restore it (model, optimizer state, and epoch counter) and continue training from there. Defaults to False.
+            checkpoint_max_to_keep (int, optional): How many best-by-validation-loss checkpoints to keep. Defaults to 1.
 
         """
         if isinstance(model, ModuleTrainingEnv):
@@ -411,7 +413,7 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_dir) if checkpoint_dir else None
+        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep) if checkpoint_dir else None
         # Created lazily so restore-only Trainers (e.g. results collection) do not
         # leave empty <checkpoint_dir>_latest directories behind
         self._latest_checkpoint_dir = latest_checkpoint_dir(checkpoint_dir) if checkpoint_dir else None

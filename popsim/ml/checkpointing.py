@@ -34,11 +34,17 @@ class TrainState:
         return cls(step=0, epoch=0, model=model, opt_state=opt_state)
 
 
-def create_default_checkpoint_manager(directory: PathLike) -> ocp.CheckpointManager:
-    """Create the default CheckpointManager which only saves the best checkpoint based on the validation loss.
+def create_default_checkpoint_manager(directory: PathLike, max_to_keep: int = 1) -> ocp.CheckpointManager:
+    """Create the default CheckpointManager which saves the best checkpoint(s) based on the validation loss.
+
+    Checkpoints beyond max_to_keep are deleted only when save() is called, so
+    restore-only managers opened on an existing directory never garbage-collect
+    checkpoints saved with a larger max_to_keep. Metrics are persisted per step,
+    so best_step() on a reopened directory still picks the true best.
 
     Args:
         directory (PathLike): the directory to save the checkpoints in.
+        max_to_keep (int): how many best-by-validation-loss checkpoints to keep.
 
     Returns:
         ocp.CheckpointManager: the CheckpointManager.
@@ -48,7 +54,7 @@ def create_default_checkpoint_manager(directory: PathLike) -> ocp.CheckpointMana
         os.makedirs(directory)
 
     options = ocp.CheckpointManagerOptions(
-        max_to_keep=1,
+        max_to_keep=max_to_keep,
         save_interval_steps=1,
         best_fn=lambda val_metrics: val_metrics["loss"],
         best_mode="min",
@@ -167,17 +173,18 @@ def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: Tra
     return train_state
 
 
-def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel) -> TrainableModel:
+def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel, step: int | None = None) -> TrainableModel:
     """Restore just the model from a checkpoint.
 
     Args:
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager that was used to save the checkpoint.
         template (TrainableModel): a template of the model to restore. This should have the same structure as the model that was saved.
+        step (int | None): the step to restore. Defaults to None, which restores the best step.
 
     Returns:
         TrainableModel: the restored model.
     """
-    step_to_restore = checkpoint_manager.best_step()
+    step_to_restore = step if step is not None else checkpoint_manager.best_step()
 
     model_saveable, model_non_saveable = partition_saveable(template)
 

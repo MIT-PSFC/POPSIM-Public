@@ -113,7 +113,7 @@ def resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_ep
     return optimizer_config
 
 
-def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
+def get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
     """Get the training run builder class from a string, path, or class."""
     if inspect.isclass(train_run_builder):
         if not issubclass(train_run_builder, TrainRunBuilder):
@@ -147,11 +147,11 @@ def _run_train(
         logger = NullLogger()
 
     loguru.logger.info(f"Building training run for {training_config.project}")
-    train_run_builder = _get_train_run_builder_class(training_config.train_run_builder)
+    train_run_builder = get_train_run_builder_class(training_config.train_run_builder)
     loguru.logger.info("Loading the dataset and creating dataloaders...")
     # If this is a submodule, use the dataloader construction logic from the main module. Fallback to using the submodule's own logic otherwise.
     if training_config.dataloader_config.get("data_train_run_builder"):
-        data_train_run_builder = _get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
+        data_train_run_builder = get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
         _, train_dl, val_dl, test_dl = data_train_run_builder.get_dataloaders(training_config.dataloader_config)
     else:
         _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
@@ -171,6 +171,7 @@ def _run_train(
         checkpoint_dir=training_config.checkpoint_dir,
         trainable_getter=train_run_builder.get_trainable_getter(training_config.model_init_config),
         resume=training_config.resume,
+        checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
     )
     loguru.logger.info("Trainer built.")
 
