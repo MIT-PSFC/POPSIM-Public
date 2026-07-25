@@ -23,6 +23,7 @@ class TrainConfig(BaseModel):
     val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
     resume: bool = False  # Resume from the latest checkpoint in <checkpoint_dir>_latest if one exists.
+    checkpoint_max_to_keep: int = 1  # How many best-by-validation-loss checkpoints to keep in checkpoint_dir.
     max_wall_seconds: float | None = None  # Wall-clock training budget. When exceeded, save the latest checkpoint and stop without running the test eval, so a later job can resume. If None, no budget.
 
     model_config = ConfigDict(frozen=True)  # Make the model immutable after creation.
