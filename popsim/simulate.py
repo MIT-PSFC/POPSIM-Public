@@ -8,8 +8,10 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import xarray as xr
+import xarray_jax
 from jaxtyping import PyTree
 from loguru import logger
+from xarray_jax import dims_change_on_unflatten
 
 from popsim import TimeDepModule, config
 from popsim.array_utils import min_greater_than_thresh
@@ -20,7 +22,7 @@ from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
-    SimInput,  # noqa: F401. Import is used to allow the user to import this function from this module.
+    SimInput,
     make_time_base,  # noqa: F401
 )
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
@@ -209,14 +211,15 @@ def _single_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float
 @eqx.filter_jit
 def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
     """Perform a vectorized simulation."""
-    sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
+    sol = run_function_with_dim_removed(simulate_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME, in_axes=(None, 0))
 
-    vec_sim_fun = jax.vmap(simulate_fun, in_axes=(None, sim_input_axes))
-
-    sol = run_function_with_dim_removed(vec_sim_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME)
-
-    # Remove extraneous dimensions.
-    sol = jax.tree.map(jnp.squeeze, sol)
+    # Remove extraneous dimensions. Skip xr.Variables: squeezing their data without
+    # updating dims would fail xarray_jax's dims-vs-shape validation on unflatten.
+    sol = jax.tree.map(
+        lambda x: x if isinstance(x, xr.Variable) else jnp.squeeze(x),
+        sol,
+        is_leaf=lambda x: isinstance(x, xr.Variable),
+    )
     return sol
 
 
@@ -233,19 +236,31 @@ def _diffrax_simulate(
     if solver is None:
         solver = diffrax.Tsit5()
 
-    def module_f(t, y, inputs, return_aux=False):
+    # Diffrax internally tree-maps shape-changed leaves (e.g. stacked Runge-Kutta stages,
+    # time-stacked save buffers) over the state treedef, which xarray_jax's validating
+    # unflatten rejects. Run diffrax purely on flat leaves and rebuild the xarray types
+    # only at the module boundary and after the solve.
+    y0_leaves, state_treedef = jax.tree.flatten(sim_input.initial_state)
+
+    def _eval_module(t, y_leaves, inputs):
+        y = jax.tree.unflatten(state_treedef, y_leaves)
         inputs_resolved = resolve_paths(inputs, t)
         state_dot, out = module(y, inputs_resolved)
-        if return_aux:
-            return out, inputs_resolved
-        else:
-            return state_dot
+        return state_dot, out, inputs_resolved, y
 
-    # Function to save auxiliary information.
-    def saveat_fn(t, y, args):
-        output, inputs_resolved = module_f(t, y, args, return_aux=True)
+    def module_f(t, y_leaves, inputs):
+        state_dot, _, _, _ = _eval_module(t, y_leaves, inputs)
+        return jax.tree.leaves(state_dot)
+
+    # Function to save auxiliary information, returned as flat leaves (see above).
+    save_treedef = None
+
+    def saveat_fn(t, y_leaves, args):
+        nonlocal save_treedef
+        _, output, inputs_resolved, y = _eval_module(t, y_leaves, args)
         out = generate_save_output(y, inputs_resolved, output, record_state=record_state)
-        return out
+        out_leaves, save_treedef = jax.tree.flatten(out)
+        return out_leaves
 
     # Get the minimum time step that is greater than the maximum time padding amount.
     dt0 = min_greater_than_thresh(jnp.diff(sim_input.time), jnp.max(time_epsilon(sim_input.time)))
@@ -256,13 +271,15 @@ def _diffrax_simulate(
         t0=sim_input.time[0],
         t1=sim_input.time[-1],
         dt0=dt0,
-        y0=sim_input.initial_state,
+        y0=y0_leaves,
         args=sim_input.inputs,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=max_steps,
     )
-    # Add simulation dimension to any xr.Variable instances.
-    sol = add_dim_to_vars(sol, DEFAULT_TIME_DIM_NAME)
+    # Rebuild the saved outputs with the time dimension as the leading dimension.
+    with dims_change_on_unflatten(lambda dims: (DEFAULT_TIME_DIM_NAME, *dims)):
+        ys = jax.tree.unflatten(save_treedef, sol.ys)
+    sol = eqx.tree_at(lambda s: s.ys, sol, ys)
     return sol
 
 
@@ -290,10 +307,12 @@ def _simple_euler_simulate_uniform_timestep(module: TimeDepModule, sim_input: Si
     if dts.size == 1:
         # We only have one time step, which makes things simpler.
         outputs = _step(sim_input.initial_state, sim_input.time)
+        # Add time dimension to any xr.Variable instances.
+        outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
     else:
-        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=sim_input.time)
-    # Add simulation dimension to any xr.Variable instances.
-    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+        # xarray_jax.scan flattens the per-step outputs and unflattens the stacked
+        # result with the time dimension prepended, keeping dims consistent with data.
+        _, outputs = xarray_jax.scan(_step, sim_input.initial_state, dim=DEFAULT_TIME_DIM_NAME, xs=sim_input.time)
     return outputs
 
 
@@ -315,10 +334,12 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
     if dts.size == 1:
         # We only have one time step, which makes things simpler.
         outputs = _step(sim_input.initial_state, sim_input.time, dts[0])
+        # Add time dimension to any xr.Variable instances.
+        outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
     else:
         dts_padded = jnp.concatenate([dts, jnp.array([time_epsilon(sim_input.time[0])])], axis=0)  # Pad dts to match time size.
         timing_info = {"ts": sim_input.time, "dts": dts_padded}
-        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=timing_info)
-    # Add simulation dimension to any xr.Variable instances.
-    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+        # xarray_jax.scan flattens the per-step outputs and unflattens the stacked
+        # result with the time dimension prepended, keeping dims consistent with data.
+        _, outputs = xarray_jax.scan(_step, sim_input.initial_state, dim=DEFAULT_TIME_DIM_NAME, xs=timing_info)
     return outputs

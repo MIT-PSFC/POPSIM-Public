@@ -355,11 +355,11 @@ def make_dataloaders(
     convert_xr_to_jnp: bool = True,
     extra_vars: list[str] | None = None,
     state_init_vars: list[str] | None = None,
-    batch_size: int | None | typing.Sequence[int | None] = None,
-    segment_length: int | None | typing.Sequence[int | None] = None,
-    segment_overlap: int | None | typing.Sequence[int | None] = 0,
-    shuffle: bool | None | typing.Sequence[bool] = None,
-    nan_handling: str | None | typing.Sequence[str] = "drop_slice_all",
+    batch_size: int | typing.Sequence[int | None] | None = None,
+    segment_length: int | typing.Sequence[int | None] | None = None,
+    segment_overlap: int | typing.Sequence[int | None] | None = 0,
+    shuffle: bool | typing.Sequence[bool] | None = None,
+    nan_handling: str | typing.Sequence[str] | None = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
     """Create DataLoaders from a list of datasets. Each dataset is processed independently to create a DataLoader.
 

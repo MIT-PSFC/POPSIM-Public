@@ -2,7 +2,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import Array, PyTree
@@ -61,10 +60,8 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     def eval_env_return_xarray(env: ModuleEvalEnv, dataset: XarrayPreppedDataset) -> xr.Dataset:
         ds_in = dataset.ds
         inputs, _ = dataset.get_inputs_and_targets()
-        inputs_spec = jax.tree.map(lambda _: 0, inputs)
-        vec_env = jax.vmap(env, in_axes=(inputs_spec,))
 
-        sol = run_function_with_dim_removed(vec_env, (inputs,), DEFAULT_SAMPLE_DIM)
+        sol = run_function_with_dim_removed(env, (inputs,), DEFAULT_SAMPLE_DIM, in_axes=(0,))
 
         training_meta = dataset.training_metadata
 
@@ -77,10 +74,8 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
 
     def eval_model_return_xarray(model: TrainableModel, dataset: XarrayPreppedDataset) -> xr.Dataset:
         inputs, _ = dataset.get_inputs_and_targets()
-        inputs_spec = jax.tree.map(lambda _: 0, inputs)
-        fn = jax.vmap(model, in_axes=(inputs_spec,))
 
-        out = run_function_with_dim_removed(fn, (inputs,), DEFAULT_SAMPLE_DIM)
+        out = run_function_with_dim_removed(model, (inputs,), DEFAULT_SAMPLE_DIM, in_axes=(0,))
 
         ds_out = pytree_to_xarray(out, base_dims=[DEFAULT_SAMPLE_DIM], base_coords={DEFAULT_SAMPLE_DIM: dataset.sample_coord})
 
@@ -177,11 +172,9 @@ def batched_model_eval_and_loss(
     Returns:
         Array: the vector of losses for the samples.
     """
-    inputs_spec, targets_spec = jax.tree.map(lambda _: 0, (inputs, targets))
-
-    vec_model_eval_and_loss = jax.vmap(model_eval_and_loss, in_axes=(None, None, inputs_spec, targets_spec))
-
-    losses = run_function_with_dim_removed(vec_model_eval_and_loss, (model, loss_fn, inputs, targets), DEFAULT_SAMPLE_DIM)
+    losses = run_function_with_dim_removed(
+        model_eval_and_loss, (model, loss_fn, inputs, targets), DEFAULT_SAMPLE_DIM, in_axes=(None, None, 0, 0)
+    )
 
     return losses
 

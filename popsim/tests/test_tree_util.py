@@ -143,7 +143,7 @@ def test_any_nans_and_no_nans(tree, has_nans):
     assert tree_util.no_nans(tree) == (not has_nans)
 
 
-def test_tree_transpose():
+def test_tree_transpose_xarray():
 
     da = xr.DataArray(jnp.array([1.0, 2.0, 3.0]), dims=["x"])
 

@@ -108,7 +108,8 @@ def meqstructs2xarray(mat_contents: dict, debug: bool = False, non_arrays_as_att
 
     known_das = make_known_datarrays(arrays)
 
-    ds = ds.update(known_das)
+    # Dataset.update mutates in place and returns None (xarray >= 2026).
+    ds.update(known_das)
 
     unknown_arrays = {k: v for k, v in arrays.items() if k not in known_das.keys()}
 
@@ -116,7 +117,7 @@ def meqstructs2xarray(mat_contents: dict, debug: bool = False, non_arrays_as_att
 
     inferred_das = {k: v for k, v in inferred_das.items() if v is not None}
 
-    ds = ds.update(inferred_das)
+    ds.update(inferred_das)
 
     unknown_das = {k: v for k, v in unknown_arrays.items() if k not in inferred_das.keys()}
 

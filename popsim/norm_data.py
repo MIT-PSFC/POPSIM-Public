@@ -101,8 +101,11 @@ def norm_data_xr(
         elif scaling_type == ScalingType.MIN_MAX:
             return x.max(dim=sample_dim) - x.min(dim=sample_dim)
         elif scaling_type == ScalingType.QUANTILE_50:
-            q75 = x.quantile(0.75, dim=sample_dim)
-            q25 = x.quantile(0.25, dim=sample_dim)
+            # Drop the scalar "quantile" coordinate: with xarray_jax's global
+            # arithmetic_compat="override" option, q75 - q25 would otherwise silently
+            # keep the left operand's conflicting coordinate on the result.
+            q75 = x.quantile(0.75, dim=sample_dim).drop_vars("quantile")
+            q25 = x.quantile(0.25, dim=sample_dim).drop_vars("quantile")
             return q75 - q25
         elif scaling_type == ScalingType.L2:
             # Take the L2 norm across all non-sample dimensions and average over samples.

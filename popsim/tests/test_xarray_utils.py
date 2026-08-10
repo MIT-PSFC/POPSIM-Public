@@ -172,13 +172,14 @@ def test_run_function_with_dim_removed():
 
     @jax.jit
     def fn(v):
-        assert 'simulation' not in v._dims
-        assert 'time' in v._dims
-        assert 'foo' in v._dims
+        assert 'simulation' not in v.dims
+        assert 'time' in v.dims
+        assert 'foo' in v.dims
         return v
 
-    res = run_function_with_dim_removed(fn, (var,), remove_dim)
-    assert res._dims == var._dims
+    res = run_function_with_dim_removed(fn, (var,), remove_dim, in_axes=0)
+    assert res.dims == var.dims
+    np.testing.assert_allclose(np.asarray(res.data), np.asarray(var.data))
 
 
 # Sample test data

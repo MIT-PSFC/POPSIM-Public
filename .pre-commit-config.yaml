@@ -5,7 +5,7 @@ repos:
       - id: jupyter-nb-clear-output
         name: jupyter-nb-clear-output
         files: \.ipynb$
-        stages: [commit]
+        stages: [pre-commit]
         language: system
         entry: uv run jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
       - id: ruff_format
@@ -22,3 +22,8 @@ repos:
         types: [python]
         files: "^popsim/"
         exclude: "^popsim/tests/"
+      - id: isort
+        name: isort
+        entry: uv tool run ruff check --select I001 --fix
+        language: system
+        types: [python]

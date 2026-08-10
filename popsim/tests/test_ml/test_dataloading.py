@@ -806,8 +806,9 @@ def test_dl_keeps_coords(reduced_cmod_test_dataset, time_dep: bool):
     # Ensure the sampled data hasn't been shifted in shot or time relative to the original dataset.
     for batch in dl:
         ds_batch = batch.ds
-        for sample in range(ds_batch.dims["sample"])[:1000]:  # Limit of 1000 to avoid long test time for time-independent module which has 10k+ samples
-            ds_sample = ds_batch.isel(sample=sample)
+        for sample in range(ds_batch.sizes["sample"])[:1000]:  # Limit of 1000 to avoid long test time for time-independent module which has 10k+ samples
+            # Materialize to numpy: xarray's where(drop=True) indexing rejects jax-array indexers.
+            ds_sample = ds_batch.isel(sample=sample).as_numpy()
             shot = ds_sample["shot"].data
             ds_shot = ds_orig.sel(shot=shot)
 
