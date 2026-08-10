@@ -201,17 +201,12 @@ def _single_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float
 
 @eqx.filter_jit
 def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
-    """Perform a vectorized simulation."""
-    sol = run_function_with_dim_removed(simulate_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME, in_axes=(None, 0))
+    """Perform a vectorized simulation.
 
-    # Remove extraneous dimensions. Skip xr.Variables: squeezing their data without
-    # updating dims would fail xarray_jax's dims-vs-shape validation on unflatten.
-    sol = jax.tree.map(
-        lambda x: x if isinstance(x, xr.Variable) else jnp.squeeze(x),
-        sol,
-        is_leaf=lambda x: isinstance(x, xr.Variable),
-    )
-    return sol
+    Assumes stray size-1 axes are prevented beforehand (e.g. tree_transpose stacks without squeezing),
+    so leaf shapes here match the single-simulation path plus the leading simulation axis.
+    """
+    return run_function_with_dim_removed(simulate_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME, in_axes=(None, 0))
 
 
 @eqx.filter_jit

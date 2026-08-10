@@ -87,11 +87,11 @@ def tree_transpose(
     # not the data, so the decision must be made up front.
     if isinstance(tree, list):
         if len(tree) > 1:
-            # jnp.array(xs) stacks a leading axis of size len(tree) > 1, which .squeeze() keeps.
+            # jnp.stack adds a leading axis of size len(tree).
             def dims_change_fn(dims):
                 return (extra_dim_name, *dims)
         else:
-            # Single-tree forward case: .squeeze() removes the size-1 stacked axis again.
+            # Single-tree forward case: leaves are not stacked, so dims are unchanged.
             def dims_change_fn(dims):
                 return dims
     else:
@@ -111,10 +111,19 @@ def _tree_transpose(
         if len(tree) == 0:
             return {}
 
-        def fun(*xs):
-            return jnp.array(xs).squeeze()
+        if len(tree) == 1:
+            # Single tree: no stacking needed. Leaves keep their original shapes,
+            # including legitimate size-1 dimensions.
+            result = jax.tree.map(jnp.asarray, tree[0])
+        else:
 
-        return jax.tree.map(fun, *tree)
+            def fun(*xs):
+                # jnp.stack adds exactly one leading axis of size len(tree).
+                # Legitimate size-1 dimensions in the leaves are preserved.
+                return jnp.stack(xs)
+
+            result = jax.tree.map(fun, *tree)
+        return result
 
     # If not a sequence, assume it's a PyTree of arrays
     elif isinstance(tree, PyTree):
