@@ -1,13 +1,14 @@
-import pytest
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
+import pytest
 
 from popsim.ml.debug_utils import (
     check_large_model_weights,
     check_large_values,
     check_zero_variance_variables,
 )
+
 
 def test_check_large_model_weights():
     class SimpleModel(eqx.Module):

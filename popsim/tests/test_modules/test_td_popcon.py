@@ -4,7 +4,7 @@ from xarray_jax import dims_change_on_unflatten
 
 import popsim.modules.td_popcon.scenarios.sparc_prd as sparc_prd_td_popcon
 from popsim.modules.td_popcon.scenarios.sparc_prd import Sparc2020TestData
-from popsim.simulate import simulate, SimInput
+from popsim.simulate import SimInput, simulate
 
 
 def generate_sim_and_checks(only_return_final: bool = True):

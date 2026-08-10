@@ -1,9 +1,11 @@
-from popsim.modules.confinement import Confinement
-from popsim.physics.geometry import GeometryCFSPopcon
-import jax.numpy as jnp
 import diffrax
+import jax.numpy as jnp
+
+from popsim.modules.confinement import Confinement
 from popsim.modules.td_popcon.scenarios.sparc_prd import load_cfspopcon_scenario_for_td_popcon
-from popsim.simulate import simulate, StepperType, SimInput
+from popsim.physics.geometry import GeometryCFSPopcon
+from popsim.simulate import SimInput, StepperType, simulate
+
 
 def test_dynamics():
     input_parameters, species_container, species_concentrations = load_cfspopcon_scenario_for_td_popcon("SPARC_PRD")

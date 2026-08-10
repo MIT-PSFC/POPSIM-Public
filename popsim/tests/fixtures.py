@@ -1,12 +1,15 @@
-import xarray as xr
 import os
-import pytest
-import popsim
+from functools import lru_cache
+
+import diffrax
 import jax
 import jax.numpy as jnp
-import diffrax
+import pytest
+import xarray as xr
+
+import popsim
 from popsim.xarray_utils import solution_to_xarray
-from functools import lru_cache
+
 
 @lru_cache(maxsize=1)  # Caches only one result since it's always the same dataset
 def load_cmod_test_dataset():

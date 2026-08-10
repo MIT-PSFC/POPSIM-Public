@@ -1,14 +1,15 @@
-from popsim.data.dataset_utils import build_tensorized_dataset, add_to_zarr_store
-from popsim.tests.fixtures import tcv_fbt_test_dataset
-from popsim.data.data_generators import dummy
-import xarray as xr
-import numpy as np
-import tempfile
-import pytest
 import os
 import shutil
-import pytest
 import sys
+import tempfile
+
+import numpy as np
+import pytest
+import xarray as xr
+
+from popsim.data.data_generators import dummy
+from popsim.data.dataset_utils import add_to_zarr_store, build_tensorized_dataset
+from popsim.tests.fixtures import tcv_fbt_test_dataset
 
 # Generation of test examples uses PRNG. We found failure modes by repeating tests at some point, so
 # lets make repeats of tests a part of testing.

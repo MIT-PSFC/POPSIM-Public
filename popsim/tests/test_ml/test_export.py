@@ -1,9 +1,12 @@
-from popsim.tests.fixtures import profile_predictor_latest_sparc
-from popsim.ml._export import export
+import json
 import tempfile
 from pathlib import Path
+
 import numpy as np
-import json
+
+from popsim.ml._export import export
+from popsim.tests.fixtures import profile_predictor_latest_sparc
+
 
 def test_export(profile_predictor_latest_sparc):
     model, _, _, test_dl = profile_predictor_latest_sparc

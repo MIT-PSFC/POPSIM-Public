@@ -1,11 +1,23 @@
-from popsim.xarray_utils import make_data_array, time_and_pytree_to_xarray, DEFAULT_SIM_DIM_NAME, DEFAULT_TIME_DIM_NAME, run_function_with_dim_removed, add_dim_to_vars, remove_dim_from_vars, pytree_to_xarray, scramble_xr
+import chex
+import equinox as eqx
+import jax
 import numpy as np
 import pytest
 import xarray as xr
-import jax
-import chex
-import equinox as eqx
+
 from popsim.tree_util import tree_transpose
+from popsim.xarray_utils import (
+    DEFAULT_SIM_DIM_NAME,
+    DEFAULT_TIME_DIM_NAME,
+    add_dim_to_vars,
+    make_data_array,
+    pytree_to_xarray,
+    remove_dim_from_vars,
+    run_function_with_dim_removed,
+    scramble_xr,
+    time_and_pytree_to_xarray,
+)
+
 
 @pytest.mark.parametrize("arr, expected_dims, expected_output, expect_warning", [
     (

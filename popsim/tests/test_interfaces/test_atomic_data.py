@@ -1,14 +1,16 @@
 
-import cfspopcon
-from cfspopcon.unit_handling import ureg
-import jax.numpy as jnp
-import xarray as xr
 from pathlib import Path
 
+import cfspopcon
+import jax.numpy as jnp
+import xarray as xr
+from cfspopcon.unit_handling import ureg
+
 from popsim.cfspopcon_jax import impurity_effects
+from popsim.enums import Impurity
 from popsim.interfaces import atomic_data
 from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario
-from popsim.enums import Impurity
+
 
 def test_interpolator_modes():
     atomic_data_cfspopcon, _ = cfspopcon.formulas.atomic_data.atomic_data.read_atomic_data(radas_dir=Path("./atomic_data"))

@@ -1,11 +1,11 @@
-import pytest
 import os
-import xarray as xr
 import tempfile
+
 import numpy as np
+import pytest
+import xarray as xr
 
 from popsim.data._paths import get_path_to_ml_data_dump
-
 from popsim.interfaces.defuse2xarray import h5_to_xarray, path_from_shot
 
 # Skip all tests in this module if ML data dump path is not available

@@ -1,21 +1,24 @@
+import os
+
+import chex
+import equinox as eqx
+import jax
+import jax.nn as jnn
+import jax.numpy as jnp
+import optax
+import pytest
 from jaxtyping import PyTree
-from popsim.simulate import StepperType
-from popsim.tests.fixtures import oscillator_dataset
-from popsim.ml.trainer import Trainer
+
+from popsim import TimeDepModule
 from popsim.ml.dataloading import make_time_dep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim import TimeDepModule
-import chex
-import equinox as eqx
-import jax.nn as jnn
-import jax
-import jax.numpy as jnp
-import optax
-import pytest
-import os
+from popsim.ml.trainer import Trainer
+from popsim.simulate import StepperType
+from popsim.tests.fixtures import oscillator_dataset
+
 
 class NeuralODE(TimeDepModule):
     @chex.dataclass

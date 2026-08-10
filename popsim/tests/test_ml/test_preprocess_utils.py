@@ -1,13 +1,14 @@
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 import xarray as xr
-import numpy as np
-import os
-from popsim import PACKAGE_ROOT
-import matplotlib.pyplot as plt
 
-from popsim.ml.preprocess_utils import mask_to_largest_group_mask, shift_time_to_not_nan, expand_time_dim, trim_time_to_not_nan
-from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset
+from popsim import PACKAGE_ROOT
 from popsim.ml.dataloading import make_time_dep_dataloader
+from popsim.ml.preprocess_utils import expand_time_dim, mask_to_largest_group_mask, shift_time_to_not_nan, trim_time_to_not_nan
+from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset
 
 
 @pytest.fixture(scope="session")

@@ -2,9 +2,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from popsim.physics.impurities import calc_impurity_charge_state
 from popsim.enums import Impurity
 from popsim.interfaces.atomic_data import read_atomic_data
+from popsim.physics.impurities import calc_impurity_charge_state
 
 radas_curves = read_atomic_data()
 

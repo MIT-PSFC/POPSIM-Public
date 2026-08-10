@@ -1,12 +1,14 @@
-import pytest
-import chex
 from dataclasses import field
+
+import chex
 import jax
+import pytest
+
 from popsim.field_labels import (
+    create_filter_spec,
+    discrete_no_save_field,
     discrete_time_field,
     no_save_field,
-    discrete_no_save_field,
-    create_filter_spec,
     partition_discrete_cont,
     partition_save_no_save,
 )

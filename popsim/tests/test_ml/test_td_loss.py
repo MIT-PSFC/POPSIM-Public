@@ -4,29 +4,31 @@ Test that time-dependent loss functions properly handle variable-length shots wi
 This test creates a synthetic dataset with shots of different lengths and verifies
 that the loss function properly ignores forward-filled NaN padding at the end of shots.
 """
-import pytest
-import numpy as np
-import xarray as xr
-import jax
-import jax.numpy as jnp
-import equinox as eqx
-import optax
 import time
 
-from popsim.tests.fixtures import load_cmod_test_dataset
-from popsim.ml.dataloading import make_time_dep_dataloader, ffill_end_of_time_padding
-from popsim.ml.loss import IntegralLoss
+import chex
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+import numpy as np
+import optax
+import pytest
+import xarray as xr
+
+from popsim.ml.dataloading import ffill_end_of_time_padding, make_time_dep_dataloader
 from popsim.ml.eval import batched_model_eval_and_loss
+from popsim.ml.loss import IntegralLoss
 from popsim.ml.preprocess_utils import force_drop_nans
 from popsim.modules.power_balance.module import PowerBalance, PowerBalanceEnv
-from popsim.modules.transport_predictor.module import TransportPredictor, TransportPredictorEnv
 from popsim.modules.power_balance.p_oh.module import OhmicPower
 from popsim.modules.power_balance.p_rad.module import RadiatedPower
 from popsim.modules.profile_predictor.module import Outputs as ProfilePredictorOutputs
+from popsim.modules.transport_predictor.module import TransportPredictor, TransportPredictorEnv
 from popsim.simulate import StepperType
+from popsim.tests.fixtures import load_cmod_test_dataset
 from popsim.tree_util import any_nans
 from popsim.utils import time_epsilon
-import chex
+
 
 def create_variable_length_dataset(num_shots: int = 4, shadowed_inputs: bool | None = False, shadowed_0D_targets: bool | None = False, shadowed_1D_targets: bool | None = False, no_nan_time: bool | None = False, target_sentinel: float | None = None) -> xr.Dataset:
     """Synthetic dataset with ragged data along the time_idx dimension.

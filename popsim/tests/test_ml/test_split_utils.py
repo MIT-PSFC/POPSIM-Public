@@ -2,12 +2,13 @@ import math
 import random
 
 import jax
-import pytest
 import jax.numpy as jnp
+import pytest
 import xarray as xr
 
 from popsim.ml.split_utils import fracs_to_lengths, random_split, split_dataset_by_fracs, split_dataset_by_vals
 from popsim.tests.fixtures import cmod_test_dataset
+
 
 def test_fracs_to_lengths():
     def generate_three_numbers_sum_to_one():

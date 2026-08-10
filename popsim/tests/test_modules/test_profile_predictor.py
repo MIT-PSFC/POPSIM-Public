@@ -1,10 +1,12 @@
-from popsim.modules.profile_predictor.module import ProfileShape
-from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG, TCV_CONFIG
-from popsim.ml.launch import launch_train
-from popsim.basis import BSplineBasis, InterpedLinearBasis
+import equinox as eqx
 import jax.numpy as jnp
 import pytest
-import equinox as eqx
+
+from popsim.basis import BSplineBasis, InterpedLinearBasis
+from popsim.ml.launch import launch_train
+from popsim.modules.profile_predictor.module import ProfileShape
+from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG, TCV_CONFIG
+
 
 @pytest.mark.parametrize("normalize", [True, False])
 @pytest.mark.parametrize("bspline", [True, False])

@@ -1,7 +1,8 @@
 import jax.numpy as jnp
 
 from popsim.modules.lti import LTI
-from popsim.simulate import simulate, SimInput
+from popsim.simulate import SimInput, simulate
+
 
 def test_lti_identity_system():
     """

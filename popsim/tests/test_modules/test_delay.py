@@ -1,6 +1,8 @@
-from popsim.modules import delay
 import jax.numpy as jnp
-from popsim.simulate import simulate, SimInput
+
+from popsim.modules import delay
+from popsim.simulate import SimInput, simulate
+
 
 def test_delay_buffer():
     ts = 0.01 * jnp.arange(100)

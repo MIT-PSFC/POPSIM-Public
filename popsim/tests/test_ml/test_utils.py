@@ -1,9 +1,11 @@
 import jax
-import pytest
 import jax.numpy as jnp
 import numpy as np
-from popsim.ml.utils import pad_time_with_epsilon, pad_time_with_epsilon_xr
+import pytest
 import xarray as xr
+
+from popsim.ml.utils import pad_time_with_epsilon, pad_time_with_epsilon_xr
+
 
 @pytest.mark.parametrize("times, expected", [
     (jnp.array([0., 1., 2., 3., 4., jnp.nan,jnp.nan]), 

@@ -1,11 +1,14 @@
-from popsim.modules.linear_autoencoder import LinearAutoEncoder
+import os
+
+import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import chex
-import os
 import xarray as xr
+
 from popsim import DATA_DIR
+from popsim.modules.linear_autoencoder import LinearAutoEncoder
+
 
 def test_linear_encoder():
     ds = xr.open_dataset(os.path.join(DATA_DIR, "dummy/torax_profile_predictor.nc")).stack(sample=("simulation", "time")).transpose("sample", ...)

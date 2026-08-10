@@ -1,9 +1,11 @@
-import pytest
-from popsim.interfaces.meq2xarray import tcv_db_to_xr, loadmat, mat_to_xr_cli
 import os
-from popsim import DATA_DIR
-import xarray as xr
 import tempfile
+
+import pytest
+import xarray as xr
+
+from popsim import DATA_DIR
+from popsim.interfaces.meq2xarray import loadmat, mat_to_xr_cli, tcv_db_to_xr
 
 
 @pytest.fixture

@@ -1,8 +1,10 @@
-from popsim.basis import BSplineBasis, InterpedLinearBasis
-from interpax import CubicHermiteSpline
-import pytest
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
+import pytest
+from interpax import CubicHermiteSpline
+
+from popsim.basis import BSplineBasis, InterpedLinearBasis
+
 
 # Helper function to check properties of the generated splines
 def check_splines_properties(splines, num_splines_expected, boundary_zero=None):

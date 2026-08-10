@@ -1,6 +1,8 @@
-from popsim.modules.signal_rms import SignalRMS
 import jax.numpy as jnp
 from scipy.signal import sawtooth
+
+from popsim.modules.signal_rms import SignalRMS
+
 
 def test_signal_rms_default_state():
 

@@ -1,7 +1,9 @@
-import numpy as np
-import popsim.array_utils as array_utils
-import pytest
 import jax.numpy as jnp
+import numpy as np
+import pytest
+
+import popsim.array_utils as array_utils
+
 
 @pytest.mark.parametrize("arr, axis, expected", [
     # Test case 1: 1D array with contiguous True values at the end
