@@ -78,16 +78,16 @@ def _integral_loss(
     # vmap over the leading (time) axis on flat leaves: any xarray types in the
     # predictions/targets are rebuilt inside the vmap with their leading dimension
     # dropped, which keeps dims consistent with the per-step data slices.
-    pred_leaves, pred_treedef = jax.tree.flatten(predictions)
-    targ_leaves, targ_treedef = jax.tree.flatten(targets)
+    leaves_pred, treedef_pred = jax.tree.flatten(predictions)
+    leaves_targ, treedef_targ = jax.tree.flatten(targets)
 
-    def _loss_at_step(p_leaves, t_leaves):
+    def _loss_at_step(leaves_p, leaves_t):
         with dims_change_on_unflatten(lambda dims: dims[1:]):
-            pred_step = jax.tree.unflatten(pred_treedef, p_leaves)
-            targ_step = jax.tree.unflatten(targ_treedef, t_leaves)
-        return instantaneous_loss(pred_step, targ_step)
+            step_pred = jax.tree.unflatten(treedef_pred, leaves_p)
+            step_targ = jax.tree.unflatten(treedef_targ, leaves_t)
+        return instantaneous_loss(step_pred, step_targ)
 
-    instantaneous_values = jax.vmap(_loss_at_step, in_axes=(0, 0))(pred_leaves, targ_leaves)
+    instantaneous_values = jax.vmap(_loss_at_step, in_axes=(0, 0))(leaves_pred, leaves_targ)
 
     if nan_strategy == "raise":
         instantaneous_values = eqx.error_if(

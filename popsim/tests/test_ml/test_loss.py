@@ -1,10 +1,8 @@
 import jax.numpy as jnp
+import pytest
+import xarray as xr
 
 from popsim.ml.loss import IntegralLoss
-import pytest
-
-
-
 
 # Hard-coded test cases
 test_cases = [
@@ -15,7 +13,8 @@ test_cases = [
         "time": jnp.array([0.0, 0.5, 1.0]),
         "nan_strategy": "raise",
         "expected_result": 0.02,
-        "expected_exception": None
+        "expected_exception": None,
+        "loss_fn": "jnp",
     },
     # Case 2: With NaNs, using "zero" strategy
     {
@@ -24,7 +23,8 @@ test_cases = [
         "time": jnp.array([0.0, 0.5, 1.0]),
         "nan_strategy": "zero",
         "expected_result": 0.01,
-        "expected_exception": None
+        "expected_exception": None,
+        "loss_fn": "jnp",
     },
     # Case 3: With NaNs, using "raise" strategy
     {
@@ -33,7 +33,8 @@ test_cases = [
         "time": jnp.array([0.0, 0.5, 1.0]),
         "nan_strategy": "raise",
         "expected_result": None,
-        "expected_exception": True
+        "expected_exception": True,
+        "loss_fn": "jnp",
     },
     # Case 4: With NaNs, using "forward_fill" strategy
     {
@@ -42,15 +43,57 @@ test_cases = [
         "time": jnp.array([0.0, 0.5, 1.0]),
         "nan_strategy": "forward_fill",
         "expected_result": 0.02,
-        "expected_exception": None
-    }
+        "expected_exception": None,
+        "loss_fn": "jnp",
+    },
+    # Case 5: Without NaNs, two features which are 0D time-evolving scalars
+    # Each leaf carries only the time dim, so inside the vmap each feature is a 0D scalar
+    {
+        "predictions": {
+            "a": xr.DataArray([1.0, 3.0, 5.0], coords={"time": [0.0, 0.5, 1.0]}, dims=["time"]),
+            "b": xr.DataArray([2.0, 4.0, 6.0], coords={"time": [0.0, 0.5, 1.0]}, dims=["time"]),
+        },
+        "targets": {
+            "a": xr.DataArray([1.1, 3.1, 5.1], coords={"time": [0.0, 0.5, 1.0]}, dims=["time"]),
+            "b": xr.DataArray([2.1, 4.1, 6.1], coords={"time": [0.0, 0.5, 1.0]}, dims=["time"]),
+        },
+        "time": jnp.array([0.0, 0.5, 1.0]),
+        "nan_strategy": "raise",
+        "expected_result": 0.02,
+        "expected_exception": None,
+        "loss_fn": "xarray_0d",
+    },
+    # Case 6: Without NaNs, one feature which is a 1D time-evolving array
+    # The leaf carries (time, rho), so inside the vmap the feature is a 1D profile over rho
+    {
+        "predictions": xr.DataArray([[1.0, 1.1, 1.2, 1.3], [2.0, 2.1, 2.2, 2.3], [3.0, 3.1, 3.2, 3.3]], coords={"time": [0.0, 0.5, 1.0], "rho": [0.0, 0.25, 0.5, 1.0]}, dims=["time", "rho"]),
+        "targets": xr.DataArray([[1.1, 1.2, 1.3, 1.4], [2.1, 2.2, 2.3, 2.4], [3.1, 3.2, 3.3, 3.4]], coords={"time": [0.0, 0.5, 1.0], "rho": [0.0, 0.25, 0.5, 1.0]}, dims=["time", "rho"]),
+        "time": jnp.array([0.0, 0.5, 1.0]),
+        "nan_strategy": "raise",
+        "expected_result": 0.01,
+        "expected_exception": None,
+        "loss_fn": "xarray_1d",
+    },
 ]
-
 @pytest.mark.parametrize("case", test_cases)
 def test_integral_loss(case):
     def l2loss(pred, target):
         return jnp.sum((pred - target) ** 2)
-    integral_loss = IntegralLoss(l2loss, case["nan_strategy"])
+    
+    def l2loss_xarray_0d(pred, target):
+        # pred/target are dicts of 0D DataArrays at this point, one per feature.
+        return sum(jnp.sum((pred[key].data - target[key].data) ** 2) for key in pred)
+
+    def l2loss_xarray_1d(pred, target):
+        # pred/target are 1D DataArrays over rho at this point, so integrate the error over rho.
+        return jnp.trapezoid((pred.data - target.data) ** 2, x=pred.coords["rho"].data)
+
+    if case["loss_fn"] == "jnp":
+        integral_loss = IntegralLoss(l2loss, case["nan_strategy"])
+    elif case["loss_fn"] == "xarray_0d":
+        integral_loss = IntegralLoss(l2loss_xarray_0d, case["nan_strategy"])
+    elif case["loss_fn"] == "xarray_1d":
+        integral_loss = IntegralLoss(l2loss_xarray_1d, case["nan_strategy"])
 
     if case["expected_exception"]:
         # TODO(allenw): when jitted, this exception is not raised
