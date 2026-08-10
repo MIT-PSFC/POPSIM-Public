@@ -3,6 +3,7 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import xarray as xr
 from jaxtyping import Array, ArrayLike
 
 from popsim import TimeDepModule
@@ -52,7 +53,7 @@ class TransportPredictor(TimeDepModule):
         power_balance_output: "PowerBalance.Output"
         p_oh_output: "OhmicPower.Output"
         p_rad_output: "RadiatedPower.Output"
-        rho: Array
+        rho: Array | xr.Variable
 
     def __init__(
         self,
@@ -131,9 +132,11 @@ class TransportPredictor(TimeDepModule):
         )
         profile_predictor_output = self.profile_predictor(profile_predictor_inputs)
 
+        # Keep the named rho dimension by passing xr.Variables through the simulation
+        # Coordinates are dropped since only dims survive the scan and vmap machinery
         profile_predictor_output = ProfilePredictorOutputs(
-            ne=profile_predictor_output.ne.data,
-            te=profile_predictor_output.te.data,
+            ne=profile_predictor_output.ne.variable,
+            te=profile_predictor_output.te.variable,
         )
 
         outputs = TransportPredictor.Output(
@@ -141,7 +144,7 @@ class TransportPredictor(TimeDepModule):
             power_balance_output=power_balance_output,
             p_oh_output=p_oh_predictor_output,
             p_rad_output=p_rad_predictor_output,
-            rho=jnp.array(self.rhogrid),
+            rho=xr.Variable(("rho",), jnp.array(self.rhogrid)),
         )
         state_dot = TransportPredictor.State(power_balance_state=power_balance_state_dot)
 

@@ -669,7 +669,29 @@ def make_time_dep_dataloader(
         )
     )
 
-    # By convention, the BatchGenerator adds "_input" to the time dimension.
+    def _restore_non_episode_time_dims(sample_ds, non_episode_time_dims):
+        """Restore the original names of the non-episode time dimensions in the sample dataset
+
+        The BatchGenerator adds "_input" to every input dimension to avoid name collisions in the patches
+        (Consider the case where time is [1, 2, 3] and gets segmented into [1, 2] and [2, 3])
+        That is only needed for the windowed time dimension, whose coords differ per patch.
+        Non-windowed dims span the full dimension with identical coords in every patch,
+        so they can be restored to their original names for everything downstream to use.
+        """
+
+        for dim in non_episode_time_dims:
+            suffixed_dim = f"{dim}_input"
+            if suffixed_dim in sample_ds.dims:
+                if dim in sample_ds.coords:
+                    # The BatchGenerator demoted the original dim coordinate onto the suffixed dim.
+                    # Swapping promotes it back to an indexed dimension coordinate.
+                    sample_ds = sample_ds.swap_dims({suffixed_dim: dim})
+                else:
+                    sample_ds = sample_ds.rename({suffixed_dim: dim})
+        return sample_ds
+
+    sample_ds = _restore_non_episode_time_dims(sample_ds, non_episode_time_dims)
+
     time_dim_sample_ds = f"{time_var_dim}_input"
 
     # Drop samples made from the batching process where the data is all NaN.

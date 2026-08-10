@@ -103,17 +103,18 @@ class TransportPredictorTrainRunBuilder(TrainRunBuilder):
     def get_loss_fn(loss_config: dict) -> Callable[[Any, Any], jnp.ndarray]:
         def loss_fn(pred, targ):
             # Profile predictor losses
+            # ne, te, and rho are xr.Variables, so unwrap the underlying arrays for optax.
             ne_rho_loss = (
                 jnp.trapezoid(
-                    optax.huber_loss(pred.profile_predictor_output.ne, targ["ne20_rho"].data, delta=loss_config["huber_delta"]),
-                    x=pred.rho,
+                    optax.huber_loss(pred.profile_predictor_output.ne.data, targ["ne20_rho"].data, delta=loss_config["huber_delta"]),
+                    x=pred.rho.data,
                 )
                 * targ["fresh_profiles"].data
             )  # Only apply loss to time steps with fresh profile measurements
             te_rho_loss = (
                 jnp.trapezoid(
-                    optax.huber_loss(pred.profile_predictor_output.te, targ["Te_keV_rho"].data, delta=loss_config["huber_delta"]),
-                    x=pred.rho,
+                    optax.huber_loss(pred.profile_predictor_output.te.data, targ["Te_keV_rho"].data, delta=loss_config["huber_delta"]),
+                    x=pred.rho.data,
                 )
                 * targ["fresh_profiles"].data
             )  # Only apply loss to time steps with fresh profile measurements

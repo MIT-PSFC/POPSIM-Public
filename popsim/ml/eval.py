@@ -10,7 +10,7 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.dataloading import DEFAULT_SAMPLE_DIM, DataLoader, XarrayPreppedDataset
 from popsim.ml.envs import ModuleEvalEnv, ModuleTrainingEnv
 from popsim.ml.loss import IntegralLoss, LossFunction
-from popsim.xarray_utils import pytree_to_xarray, run_function_with_dim_removed
+from popsim.xarray_utils import DEFAULT_TIME_DIM_NAME, pytree_to_xarray, run_function_with_dim_removed
 
 if TYPE_CHECKING:
     import diffrax
@@ -64,8 +64,15 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         sol = run_function_with_dim_removed(env, (inputs,), DEFAULT_SAMPLE_DIM, in_axes=(0,))
 
         training_meta = dataset.training_metadata
+        time_dim = training_meta.time_dep_metadata.time_dim
 
-        ds_out = pytree_to_xarray(sol.ys, [training_meta.sample_dim, training_meta.time_dep_metadata.time_dim], {})
+        ds_out = pytree_to_xarray(sol.ys, [training_meta.sample_dim, time_dim], {})
+
+        # xr.Variable outputs get their time dimension named by the simulation machinery.
+        # Rename it to match the dataset's time dimension used for the array outputs,
+        # unless they already match in case we don't need to do anything
+        if DEFAULT_TIME_DIM_NAME in ds_out.dims and time_dim != DEFAULT_TIME_DIM_NAME:
+            ds_out = ds_out.rename({DEFAULT_TIME_DIM_NAME: time_dim})
 
         # Make sure the output data has access to the same coordinates as the input data.
         ds_out = ds_out.assign_coords(ds_in.coords)
