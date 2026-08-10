@@ -384,5 +384,5 @@ def process_sc(sc_dict: dict) -> xr.Dataset:
 
     das = [x for x in das if x is not None]
 
-    ds = xr.merge(das)
+    ds = xr.merge(das, compat="no_conflicts", join="exact")
     return ds

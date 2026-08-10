@@ -59,7 +59,7 @@ def eval_ia_pred_targ(eval_data):
 def eval_sorted_gui(eval_data):
     input_ds, output_ds = eval_data.input_ds, eval_data.output_ds
     mean_errors = np.abs(input_ds["LY.Ia"] - output_ds["Ia"]).mean("active_coils")
-    ds = xr.merge([input_ds, output_ds, mean_errors.rename("mean_error")])
+    ds = xr.merge([input_ds, output_ds, mean_errors.rename("mean_error")], compat="no_conflicts", join="exact")
     ds = ds[["LY.Ia", "Ia", "mean_error", "LY.SC.rc", "LY.SC.zc"]].sortby("mean_error").drop_vars("sample").isel(sample=slice(0, None, 10))
     out = ds.hvplot.scatter(x="LY.SC.rc", y="LY.SC.zc", groupby="sample") + (
         ds.hvplot.scatter(x="active_coils", y="LY.Ia", groupby="sample") * ds.hvplot.scatter(x="active_coils", y="Ia", groupby="sample")

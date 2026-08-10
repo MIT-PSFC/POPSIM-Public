@@ -136,10 +136,13 @@ def pytree_to_xarray(
     dataarrays = [da for da in das_and_ds if isinstance(da, xr.DataArray)]
     datasets = [da for da in das_and_ds if isinstance(da, xr.Dataset)]
 
-    ds = xr.merge(datasets)
+    # compat="no_conflicts" keeps pre-2026 xarray merge behavior for overlapping variables.
+    # join="exact" requires indexed coords to align across leaves, raising instead of
+    # silently unioning misaligned grids and filling with NaN.
+    ds = xr.merge(datasets, compat="no_conflicts", join="exact")
 
-    ds_from_das = xr.merge(dataarrays)
-    ds = xr.merge([ds, ds_from_das])
+    ds_from_das = xr.merge(dataarrays, compat="no_conflicts", join="exact")
+    ds = xr.merge([ds, ds_from_das], compat="no_conflicts", join="exact")
     return ds
 
 
@@ -263,8 +266,8 @@ def run_function_with_dim_removed(
 
     Note: `fun` must be the un-vmapped function; the vmap (with `in_axes`) is applied here.
     xarray_jax validates dims against data shapes on unflatten, so input-side dim removal and
-    output-side dim re-addition need separate dims_change_on_unflatten contexts; returning
-    flat leaves from the vmapped body keeps vmap's own output unflatten xarray-free.
+    output-side dim re-addition need separate dims_change_on_unflatten contexts.
+    Returning flat leaves from the vmapped body keeps vmap's own output unflatten xarray-free.
 
     Args:
         fun (Callable[..., Any]): The un-vmapped function to execute.
@@ -285,9 +288,8 @@ def run_function_with_dim_removed(
 
     vec_fun = jax.vmap(_flat_output_fun, in_axes=in_axes)
 
-    # Inside the vmap, xarray variables are rebuilt without their leading axis: drop
-    # dim_remove so dims match. No-op for nested unflattens (e.g. an inner jax.jit)
-    # whose variables do not carry dim_remove.
+    # Inside the vmap, xarray variables are rebuilt without their leading axis: drop dim_remove so dims match.
+    # No-op for nested unflattens (e.g. an inner jax.jit) whose variables do not carry dim_remove.
     with dims_change_on_unflatten(lambda dims: tuple(d for d in dims if d != dim_remove)):
         out_leaves = vec_fun(*fun_inputs)
 

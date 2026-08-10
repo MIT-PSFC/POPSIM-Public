@@ -55,7 +55,7 @@ def get_tcv_data(debug: bool = False):
     dt = dt.sel(shot=shots)
 
     fast_samps_at_thomson = dt["fast"].sel(time=dt["thomson"]["time"])
-    ds = xr.merge([dt["thomson"].ds, fast_samps_at_thomson.ds])
+    ds = xr.merge([dt["thomson"].ds, fast_samps_at_thomson.ds], compat="no_conflicts", join="exact")
 
     ds["Paux"] = ds["NBI"] + ds["ECRH"]
 

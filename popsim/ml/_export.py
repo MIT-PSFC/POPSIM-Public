@@ -104,7 +104,7 @@ def export(module: TrainableModel, path: str | Path, dataloader: DataLoader):
     input_ds = input_ds.rename_vars({var: f"input.{var}" for var in input_ds.data_vars})
     output_ds = output_ds.rename_vars({var: f"output.{var}" for var in output_ds.data_vars})
 
-    ds = xr.merge([input_ds, output_ds])
+    ds = xr.merge([input_ds, output_ds], compat="no_conflicts", join="exact")
 
     ds = ds.reset_index(DEFAULT_SAMPLE_DIM)
 
