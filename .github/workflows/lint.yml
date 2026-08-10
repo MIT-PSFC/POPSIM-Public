@@ -5,6 +5,14 @@ on:
   push:
     branches:
       - "main"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint_and_format:
     runs-on: ubuntu-22.04
@@ -17,19 +25,17 @@ jobs:
       - name: Git LFS Pull
         run: git lfs pull
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.13"
-
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python with uv
+      - name: Install Python 3.13
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --python 3.13 --group dev
 
       - name: Run pre-commit
         run: uv run pre-commit run --show-diff-on-failure --color=always --all-files

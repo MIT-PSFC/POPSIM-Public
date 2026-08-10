@@ -130,7 +130,7 @@ lint.pyupgrade.keep-runtime-typing=true
 lint.pydocstyle.convention = "google"
 
 extend-exclude = ["submodules", "tests", "*.ipynb"]
-target-version = "py311"
+target-version = "py312"
 line-length = 140
 
 [tool.ruff.lint.pylint]

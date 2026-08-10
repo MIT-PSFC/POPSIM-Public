@@ -7,23 +7,23 @@ repos:
         files: \.ipynb$
         stages: [pre-commit]
         language: system
-        entry: uv run jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
+        entry: uv run --no-sync jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
       - id: ruff_format
         name: ruff_format 
-        entry: uv tool run ruff format
+        entry: uv run --no-sync ruff format
         language: system
         types: [python]
         files: "^popsim/"
         exclude: "^popsim/tests/"
       - id: ruff_check
         name: ruff_check
-        entry: uv tool run ruff check --fix
+        entry: uv run --no-sync ruff check --fix
         language: system
         types: [python]
         files: "^popsim/"
         exclude: "^popsim/tests/"
       - id: isort
         name: isort
-        entry: uv tool run ruff check --select I001 --fix
+        entry: uv run --no-sync ruff check --select I001 --fix
         language: system
         types: [python]
