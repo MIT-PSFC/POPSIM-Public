@@ -1,21 +1,21 @@
-import popsim.simulate as simulate
-import pytest
-import chex
 import typing
-from popsim import TimeDepModule, discrete_time_field, discrete_no_save_field
-from popsim.modules.module_examples import DiscreteTimeExample, HybridExample, ExampleDisruptedState
+
+import chex
+import jax
 import jax.numpy as jnp
-from popsim.xarray_utils import time_and_pytree_to_xarray, solution_to_xarray, DEFAULT_SIM_DIM_NAME
+import pytest
 import xarray as xr
 from jaxtyping import Array
-import jax
+
+from popsim import TimeDepModule, discrete_time_field, simulate
 from popsim.input_utils import input_specs_to_paths
 from popsim.interp import InterpType
-from popsim.tree_util import tree_transpose
-from popsim.sim_utils import make_time_base
 from popsim.ml.utils import pad_time_with_epsilon
-
+from popsim.modules.module_examples import DiscreteTimeExample, ExampleDisruptedState, HybridExample
+from popsim.sim_utils import make_time_base
 from popsim.simulate import SimInput, StepperType, _simple_euler_simulate, _simple_euler_simulate_uniform_timestep
+from popsim.tree_util import tree_transpose
+from popsim.xarray_utils import DEFAULT_SIM_DIM_NAME, solution_to_xarray, time_and_pytree_to_xarray
 
 
 class ContinuousTimeModule(TimeDepModule):
@@ -98,8 +98,8 @@ def test_simulate_continuous_module(pure_continuous_time_module, return_xarray, 
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
-    
-    
+
+
     # After 10 seconds, expect a significant amount of exponential decay of the state.
     assert (jnp.abs(sol["state.x1"].isel(time=-1).values) < 1.1 * jnp.exp(-jnp.max(time_base)) * jnp.abs(initial_state.x1)).all()
 
@@ -137,12 +137,12 @@ def test_simulate_discrete(pure_discrete_time_module, return_xarray, stepper_typ
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
-        
+
     # Check not disrupted at the start.
-    assert (sol['state.disrupted_state'].sel(time=slice(0.0, 0.4)) == ExampleDisruptedState.NOT_DISRUPTED).all()
+    assert (sol["state.disrupted_state"].sel(time=slice(0.0, 0.4)) == ExampleDisruptedState.NOT_DISRUPTED).all()
 
     # Check disrupted for the latter half.
-    assert (sol['state.disrupted_state'].sel(time=slice(0.5, 1.0)) == ExampleDisruptedState.DISRUPTED).all()
+    assert (sol["state.disrupted_state"].sel(time=slice(0.5, 1.0)) == ExampleDisruptedState.DISRUPTED).all()
 
 @pytest.mark.parametrize("return_xarray", [True, False])
 @pytest.mark.parametrize("stepper_type", [StepperType.SIMPLE_EULER, StepperType.DIFFRAX_TSIT5])
@@ -169,7 +169,7 @@ def test_simulate_hybrid_module(hybrid_time_module, return_xarray, stepper_type,
             sol = solution_to_xarray(sol, multi_simulation=multi_sim)
         else:
             raise ValueError("Stepper type not recognized.")
-    
+
     pad = 0.01
     assert (sol["state.y"] <= sol["inputs.ylims.1"] + pad).all()
 
@@ -240,15 +240,15 @@ def test_run_single_timestep(hybrid_time_module):
     dts = jnp.diff(time_base)
     state = initial_state
     inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
-    
+
     for i in range(n_steps):
         state, _ = simulate.single_step(module, state, inputs, dts[i])
 
     # Test that the final time step is the same as if we call simulate.simulate.
     out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER, return_xarray=False)
-    
-    assert out['state'].y[-1] == state.y
-    assert out['state'].sign[-1] == state.sign
+
+    assert out["state"].y[-1] == state.y
+    assert out["state"].sign[-1] == state.sign
 
 def test_run_single_timestep_uniform(hybrid_time_module):
     module, time_base, initial_state, inputs = hybrid_time_module
@@ -256,15 +256,15 @@ def test_run_single_timestep_uniform(hybrid_time_module):
     dt = time_base[1] - time_base[0]
     state = initial_state
     inputs = HybridExample.Inputs(speed=1.0, ylims=(-1.0, 1.0))
-    
+
     for _ in range(n_steps):
         state, _ = simulate.single_step(module, state, inputs, dt)
 
     # Test that the final time step is the same as if we call simulate.simulate.
     out = simulate.simulate(module, SimInput(time=time_base, initial_state=initial_state, inputs=inputs), stepper_type=simulate.StepperType.SIMPLE_EULER_UNIFORM, return_xarray=False)
-    
-    assert out['state'].y[-1] == state.y
-    assert out['state'].sign[-1] == state.sign
+
+    assert out["state"].y[-1] == state.y
+    assert out["state"].sign[-1] == state.sign
 
 def test_simple_euler_simulate_variable_timestep_match(pure_continuous_time_module):
     # Ensure the variable time step produces the same output as the original fixed time step implementation
@@ -286,7 +286,7 @@ def test_simple_euler_simulate_variable_timestep_match(pure_continuous_time_modu
         sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
         sol = simulate_fun(module, sim_inputs_vectorized)
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol)
-    
+
     sol_fixed = _simulate(_simple_euler_simulate_uniform_timestep, sim_inputs)
     sol_variable = _simulate(_simple_euler_simulate, sim_inputs)
 
@@ -316,7 +316,7 @@ def test_simple_euler_simulate_epsilon_dt(pure_continuous_time_module):
         sim_inputs_vectorized = tree_transpose(sim_inputs, DEFAULT_SIM_DIM_NAME)
         sol = simulate_fun(module, sim_inputs_vectorized)
         return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol)
-    
+
     sol = _simulate(_simple_euler_simulate, sim_inputs)
 
     # Ensure no nans in output
@@ -328,9 +328,107 @@ def test_simple_euler_simulate_epsilon_dt(pure_continuous_time_module):
     last_normal_index = normal_times.size - 1
     ref_x1 = sol["state.x1"].isel(time=last_normal_index).values
     ref_x2 = sol["state.x2"].isel(time=last_normal_index).values
-    
+
     sol_x1 = sol["state.x1"].isel(time=slice(last_normal_index + 1, None)).values
     sol_x2 = sol["state.x2"].isel(time=slice(last_normal_index + 1, None)).values
 
     assert jnp.allclose(sol_x1, ref_x1, rtol=1e-5, atol=1e-5)
     assert jnp.allclose(sol_x2, ref_x2, rtol=1e-5, atol=1e-5)
+
+class SizeOneOutputModule(TimeDepModule):
+    """Module whose output has a raw array leaf with a size-1 dimension."""
+
+    @chex.dataclass
+    class Config:
+        pass
+
+    @chex.dataclass
+    class State:
+        x: float
+
+    @chex.dataclass
+    class Output:
+        y: Array
+
+    @chex.dataclass
+    class Inputs:
+        z: float = 0.0
+
+    config: Config
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
+        state_dot = SizeOneOutputModule.State(x=-state.x)
+        out = SizeOneOutputModule.Output(y=jnp.reshape(state.x * 2.0, (1,)))
+        return state_dot, out
+
+
+def test_multi_sim_output_shapes_match_single_sim():
+    """A module whose output contains a raw array leaf with a size-1 dimension
+    should produce the same per-sim leaf shapes when run with 1 sim and N sims.
+    The multi-sim path shouldn't squeeze output leaves, so shapes must only
+    differ by the leading simulation dimension.
+    """
+    module = SizeOneOutputModule(config=SizeOneOutputModule.Config())
+    time_base = make_time_base(0.0, 1.0, 0.1)
+
+    def make_sim_input(x0):
+        return SimInput(time=time_base, initial_state=SizeOneOutputModule.State(x=x0), inputs=SizeOneOutputModule.Inputs())
+
+    sol_single = simulate.simulate(module, make_sim_input(1.0), return_xarray=False)
+    sol_multi = simulate.simulate(module, [make_sim_input(1.0), make_sim_input(2.0)], return_xarray=False)
+
+    # The size-1 output dimension survives in both cases
+    assert sol_single["output"].y.shape == (time_base.size, 1)
+    assert sol_multi["output"].y.shape == (2, time_base.size, 1)
+
+    # Every multi-sim leaf is the single-sim leaf shape plus the leading simulation axis
+    single_leaves = jax.tree.leaves(sol_single)
+    multi_leaves = jax.tree.leaves(sol_multi)
+    assert len(single_leaves) == len(multi_leaves)
+    for single_leaf, multi_leaf in zip(single_leaves, multi_leaves, strict=True):
+        assert multi_leaf.shape == (2, single_leaf.shape[0])
+
+
+def test_shape_one_inputs_keep_shape_through_vectorization():
+    """Inputs given as shape (1,) arrays should keep that shape when seen inside
+    the module, for both single-sim and multi-sim runs.
+    """
+    module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
+    initial_state = ContinuousTimeModule.State(x1=-1.0, x2=1.0)
+    time_base = make_time_base(0.0, 1.0, 0.1)
+
+    def make_sim_input(z):
+        return SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=z))
+
+    # The recorded resolved inputs reflect the shape the module sees at each step
+    sol_single = simulate.simulate(module, make_sim_input(jnp.ones(1)), return_xarray=False)
+    assert sol_single["inputs"].z.shape == (time_base.size, 1)
+
+    sol_multi = simulate.simulate(module, [make_sim_input(jnp.ones(1)), make_sim_input(jnp.zeros(1))], return_xarray=False)
+    assert sol_multi["inputs"].z.shape == (2, time_base.size, 1)
+    assert jnp.allclose(sol_multi["inputs"].z[0], 1.0)
+    assert jnp.allclose(sol_multi["inputs"].z[1], 0.0)
+
+
+def test_scalar_inputs_unchanged_by_stacking():
+    """Inputs given as plain scalars should behave as per-sim slices inside
+    the module and result in unchanged output dataset shapes.
+    """
+    module = ContinuousTimeModule(config=ContinuousTimeModule.Config())
+    initial_state = ContinuousTimeModule.State(x1=-1.0, x2=1.0)
+    time_base = make_time_base(0.0, 1.0, 0.1)
+
+    def make_sim_input(z):
+        return SimInput(time=time_base, initial_state=initial_state, inputs=ContinuousTimeModule.Inputs(z=z))
+
+    sol_single = simulate.simulate(module, make_sim_input(0.5))
+    assert sol_single["inputs.z"].dims == ("time",)
+    assert jnp.allclose(sol_single["inputs.z"].values, 0.5)
+
+    sol_multi = simulate.simulate(module, [make_sim_input(0.5), make_sim_input(1.5)])
+    assert sol_multi["inputs.z"].dims == (DEFAULT_SIM_DIM_NAME, "time")
+    assert jnp.allclose(sol_multi["inputs.z"].sel({DEFAULT_SIM_DIM_NAME: 0}).values, 0.5)
+    assert jnp.allclose(sol_multi["inputs.z"].sel({DEFAULT_SIM_DIM_NAME: 1}).values, 1.5)
