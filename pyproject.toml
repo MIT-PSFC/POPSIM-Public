@@ -69,11 +69,6 @@ dev = [
     "git-filter-repo>=2.47.0",
 ]
 gpu = ["jax[cuda13]>=0.10.0,<0.12"]
-# For ORCD cluster: uses system CUDA 13.1 libraries instead of pip nvidia packages
-gpu-orcd = [
-    "jax-cuda13-plugin==0.10.2",
-    "jax-cuda13-pjrt==0.10.2",
-]
 
 [tool.uv]
 
