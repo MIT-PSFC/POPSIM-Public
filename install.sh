@@ -71,11 +71,6 @@ if [[ "$install_dev" =~ ^[yY] ]]; then
     SYNC_ARGS+=(--group dev)
 fi
 
-install_data=$(prompt_user "Do you want to install data dependencies? (y/n):" "$INSTALL_DATA")
-if [[ "$install_data" =~ ^[yY] ]]; then
-    SYNC_ARGS+=(--group data)
-fi
-
 # Install dependencies with selected groups
 if [[ ${#SYNC_ARGS[@]} -gt 0 ]]; then
     echo "Installing with groups: ${SYNC_ARGS[*]}"
