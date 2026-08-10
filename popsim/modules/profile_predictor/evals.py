@@ -45,10 +45,10 @@ def compute_integrated_error(eval_data: EvalData, q=None, return_distributions=F
     output_ds = eval_data.output_ds
     input_ds = eval_data.input_ds
 
-    output_ds["integrated_ne_error"] = xr.apply_ufunc(jnp.abs, output_ds["ne"] - input_ds["ne20_rho"]).integrate("rho")
-    output_ds["integrated_te_error"] = xr.apply_ufunc(jnp.abs, output_ds["te"] - input_ds["Te_keV_rho"]).integrate("rho")
-    output_ds["integrated_ne_percent_error"] = 100.0 * (output_ds["integrated_ne_error"] / input_ds["ne20_rho"].integrate("rho"))
-    output_ds["integrated_te_percent_error"] = 100.0 * (output_ds["integrated_te_error"] / input_ds["Te_keV_rho"].integrate("rho"))
+    integrated_ne_error = xr.apply_ufunc(jnp.abs, output_ds["ne"] - input_ds["ne20_rho"]).integrate("rho")
+    integrated_te_error = xr.apply_ufunc(jnp.abs, output_ds["te"] - input_ds["Te_keV_rho"]).integrate("rho")
+    integrated_ne_percent_error = 100.0 * (integrated_ne_error / input_ds["ne20_rho"].integrate("rho"))
+    integrated_te_percent_error = 100.0 * (integrated_te_error / input_ds["Te_keV_rho"].integrate("rho"))
 
     def quantile_dict(da, q):
         quants = da.quantile(q, dim="sample")
@@ -57,16 +57,16 @@ def compute_integrated_error(eval_data: EvalData, q=None, return_distributions=F
     out_dict = {}
 
     # Compute quantiles.
-    out_dict["integrated_ne_error_quantiles"] = quantile_dict(output_ds["integrated_ne_error"], q)
-    out_dict["integrated_te_error_quantiles"] = quantile_dict(output_ds["integrated_te_error"], q)
-    out_dict["integrated_ne_percent_error_quantiles"] = quantile_dict(output_ds["integrated_ne_percent_error"], q)
-    out_dict["integrated_te_percent_error_quantiles"] = quantile_dict(output_ds["integrated_te_percent_error"], q)
+    out_dict["integrated_ne_error_quantiles"] = quantile_dict(integrated_ne_error, q)
+    out_dict["integrated_te_error_quantiles"] = quantile_dict(integrated_te_error, q)
+    out_dict["integrated_ne_percent_error_quantiles"] = quantile_dict(integrated_ne_percent_error, q)
+    out_dict["integrated_te_percent_error_quantiles"] = quantile_dict(integrated_te_percent_error, q)
 
     if return_distributions:
-        out_dict["integrated_ne_error"] = output_ds["integrated_ne_error"]
-        out_dict["integrated_te_error"] = output_ds["integrated_te_error"]
-        out_dict["integrated_ne_percent_error"] = output_ds["integrated_ne_percent_error"]
-        out_dict["integrated_te_percent_error"] = output_ds["integrated_te_percent_error"]
+        out_dict["integrated_ne_error"] = integrated_ne_error
+        out_dict["integrated_te_error"] = integrated_te_error
+        out_dict["integrated_ne_percent_error"] = integrated_ne_percent_error
+        out_dict["integrated_te_percent_error"] = integrated_te_percent_error
 
     return out_dict
 
