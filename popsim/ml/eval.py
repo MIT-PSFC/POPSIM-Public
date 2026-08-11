@@ -91,7 +91,10 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
         sample_dim = dataset.training_metadata.sample_dim
         coords_to_drop = [c for c in ds_out.coords if c in dataset.sample_coord.coords and c != sample_dim]
         if coords_to_drop:
-            ds_out = ds_out.drop_vars(coords_to_drop)
+            # Also drop the multi-index dim coordinate itself
+            # (deleting only its levels is deprecated in xarray)
+            # It is restored by the assign_coords below
+            ds_out = ds_out.drop_vars([*coords_to_drop, sample_dim])
         ds_out = ds_out.assign_coords({sample_dim: dataset.sample_coord})
         return ds_out
 

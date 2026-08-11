@@ -533,6 +533,13 @@ def make_time_indep_dataloader(
 
     ds = ds[input_vars + target_vars + extra_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+
+    # Load time coordinate into memory for consistency with time-dependent dataloader.
+    # Must happen before the stack
+    # (replacing a multi-index level coordinate after stacking is deprecated in xarray)
+    if ds[time_coord].chunks is not None:
+        ds[time_coord] = ds[time_coord].load()
+
     sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM)
     sample_ds = sample_ds.transpose(DEFAULT_SAMPLE_DIM, ...)
 
@@ -551,10 +558,6 @@ def make_time_indep_dataloader(
 
     if nans_found:
         logger.warning(f"NaNs found in dataset. NaN report: \n{nan_report}")
-
-    # Load time coordinate into memory for consistency with time-dependent dataloader
-    if sample_ds[time_coord].chunks is not None:
-        sample_ds[time_coord] = sample_ds[time_coord].load()
 
     prepped_ds = XarrayPreppedDataset(
         ds=sample_ds,
