@@ -22,7 +22,7 @@ def test_lti_identity_system():
     sim_inputs = SimInput(
         time=timebase,
         initial_state=LTI.State(x=x0),
-        inputs = LTI.Params(u=jnp.zeros((n,1)))
+        inputs = LTI.Params(u=jnp.zeros(n))
     )
     out = simulate(lti, sim_inputs)
     
