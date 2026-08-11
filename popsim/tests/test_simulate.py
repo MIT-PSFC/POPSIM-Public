@@ -389,7 +389,7 @@ def test_multi_sim_output_shapes_match_single_sim():
     multi_leaves = jax.tree.leaves(sol_multi)
     assert len(single_leaves) == len(multi_leaves)
     for single_leaf, multi_leaf in zip(single_leaves, multi_leaves, strict=True):
-        assert multi_leaf.shape == (2, single_leaf.shape[0])
+        assert multi_leaf.shape == (2, *single_leaf.shape)
 
 
 def test_shape_one_inputs_keep_shape_through_vectorization():
