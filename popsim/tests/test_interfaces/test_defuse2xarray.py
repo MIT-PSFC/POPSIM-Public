@@ -6,7 +6,6 @@ import pytest
 import xarray as xr
 
 from popsim.data._paths import get_path_to_ml_data_dump
-from popsim.interfaces.defuse2xarray import h5_to_xarray, path_from_shot
 
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(
@@ -40,6 +39,7 @@ DATASET_SIGNALS["gas_valve"] = "S_GAS/valve1/actual_ampl"
 )
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_h5_to_xarray(shot: int, requested_dataset_signals: dict, should_pass: bool, dtype: np.dtype):
+    from popsim.interfaces.defuse2xarray import h5_to_xarray, path_from_shot
     # Ensure the interface works on shots where all requested data is present
     # and properly errors out if the shot has missing data
     # TCV shots included in this test were manually curated

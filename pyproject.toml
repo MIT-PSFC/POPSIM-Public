@@ -68,6 +68,7 @@ dev = [
     "ipdb>=0.13.13",
     "git-filter-repo>=2.47.0",
     "anywidget>=0.11.0",
+    "h5py>=3.14,<4",
 ]
 gpu = ["jax[cuda13]>=0.10.0,<0.12"]
 
