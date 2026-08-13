@@ -6,6 +6,7 @@ from typing import Any
 
 import jax
 import loguru
+import numpy as np
 import xarray as xr
 import zarr
 from tqdm import tqdm
@@ -132,6 +133,22 @@ def extend_zarr_along_dim(zarr_path: os.PathLike, dim: str, n_extend: int) -> No
     ds_padding.to_zarr(zarr_path, mode="a-", append_dim=dim, consolidated=True, align_chunks=True)
 
 
+def _set_integer_fill_values(ds: xr.Dataset) -> xr.Dataset:
+    """Give integer variables a _FillValue so NaN padding survives the zarr round-trip.
+
+    Padding (ds.pad) promotes integer variables to float64 with NaN. Without a
+    _FillValue in the store's encoding, appending re-encodes NaN to the stale
+    integer dtype, producing garbage values plus Serialization/RuntimeWarnings.
+    """
+    for var in ds.data_vars:
+        dtype = ds[var].dtype
+        if np.issubdtype(dtype, np.integer):
+            info = np.iinfo(dtype)
+            fill = info.min if np.issubdtype(dtype, np.signedinteger) else info.max
+            ds[var].encoding.setdefault("_FillValue", fill)
+    return ds
+
+
 def add_to_zarr_store(  # noqa: PLR0912
     ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: int | None = None
 ) -> bool:
@@ -163,6 +180,7 @@ def add_to_zarr_store(  # noqa: PLR0912
 
     if not os.path.exists(zarr_path):
         loguru.logger.info(f"Zarr store at {zarr_path} does not exist. Creating a new one.")
+        ds = _set_integer_fill_values(ds)
         ds.to_zarr(zarr_path, mode="w", consolidated=True)
         return True
     else:

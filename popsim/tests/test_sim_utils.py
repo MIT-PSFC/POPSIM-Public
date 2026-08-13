@@ -1,9 +1,11 @@
-from popsim.sim_utils import SimInput, make_time_base, MultiCases, CombinatorialCases, StaticSampler, draw_sample, sample_samplers
 import chex
-import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+
+from popsim.sim_utils import CombinatorialCases, MultiCases, SimInput, StaticSampler, draw_sample, make_time_base, sample_samplers
+
 
 def test_generate_cases():
     @chex.dataclass

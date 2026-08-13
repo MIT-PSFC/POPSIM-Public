@@ -1,9 +1,11 @@
 import os
+
 import pytest
 
 from popsim import DATA_DIR
 from popsim.ml.launch import launch_train
 from popsim.modules.transport_predictor.train_configs import BASE_CONFIG
+
 
 def test_oneshot_training():
     # Test training for the primary module and all submodules at once

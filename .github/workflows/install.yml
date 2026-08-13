@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-install:
     runs-on: ubuntu-22.04
@@ -26,7 +33,7 @@ jobs:
           submodules: "recursive"
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -49,3 +56,27 @@ jobs:
             exit 1
           fi
           echo "Files successfully installed in atomic_data/output."
+
+  test-torax-extra:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: "recursive"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Sync environment with torax extra
+        run: uv sync --extra torax
+
+      - name: Verify torax import
+        run: |
+          uv run python -c "import torax; print('TORAX version:', torax.__version__)"

@@ -1,6 +1,7 @@
+import pytest
+
 import popsim.ml.envs as envs
 from popsim.modules.module_examples import HybridExample
-import pytest
 
 
 def test_eval_env_specification():

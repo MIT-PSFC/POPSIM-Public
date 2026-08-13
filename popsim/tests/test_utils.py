@@ -1,5 +1,7 @@
-import popsim.utils as utils
 import pytest
+
+import popsim.utils as utils
+
 
 @pytest.mark.parametrize(
     "d, parent_key, sep, expected",

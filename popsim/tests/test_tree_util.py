@@ -1,25 +1,26 @@
+import copy
+
 import chex
+import equinox as eqx
+import jax
 import jax.numpy as jnp
+import pytest
+import xarray as xr
 
 from popsim import tree_util
 from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import CombinatorialCases, MultiCases
-import pytest
-import xarray as xr
-import jax
-import equinox as eqx
-import copy
 
 # Sample data structures for testing
 sample_tree_1 = {
-    'a': [1, 2, 3],
-    'b': {'c': 'hello', 'd': [4.5, 6.7], 'comb_cases': CombinatorialCases(cases={"a": 4, "b": [5, 6]})},
-    'e': 42
+    "a": [1, 2, 3],
+    "b": {"c": "hello", "d": [4.5, 6.7], "comb_cases": CombinatorialCases(cases={"a": 4, "b": [5, 6]})},
+    "e": 42
 }
 
 sample_tree_2 = [
-    [1, 'two', 3.0],
-    {'a': 4, 'b': '5', 'c': [6, '7']},
+    [1, "two", 3.0],
+    {"a": 4, "b": "5", "c": [6, "7"]},
     8,
     MultiCases(cases={"foo": [1, 2, 3], "bar": PRNGModule.State(seed=42)}),
 ]
@@ -27,7 +28,7 @@ sample_tree_2 = [
 @pytest.mark.parametrize("tree, type_, expected", [
     (sample_tree_1, int, [1, 2, 3, 4, 5, 6, 42]),
     (sample_tree_1, float, [4.5, 6.7]),
-    (sample_tree_1, str, ['hello']),
+    (sample_tree_1, str, ["hello"]),
     (sample_tree_1, CombinatorialCases, [sample_tree_1["b"]["comb_cases"]]),
     (sample_tree_1, complex, []),
     (sample_tree_2, MultiCases, [sample_tree_2[3]]),
@@ -80,7 +81,7 @@ def test_tree_transpose(input_tree, expected_output):
 def test_tree_transpose_invalid_input():
     with pytest.raises(ValueError):
         tree_util.tree_transpose({"a": jnp.array([1.0, 2.0]), "b": jnp.array([3.0, 4.0, 5.0])})
-    
+
     with pytest.raises(ValueError):
         tree_util.tree_transpose({"a": jnp.array([1.0, 2.0]), "b": jnp.array([3.0]), "c": xr.Variable("foo", [1, 2, 3])})
 
@@ -89,7 +90,7 @@ def test_tree_transpose_docstring_example():
     seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
     tree_of_arrays = tree_util.tree_transpose(seq_of_trees)
     expected_tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
-    
+
     assert tree_of_arrays.keys() == expected_tree_of_arrays.keys()
     for key in tree_of_arrays:
         assert jnp.array_equal(tree_of_arrays[key], expected_tree_of_arrays[key])
@@ -98,16 +99,16 @@ def test_tree_transpose_docstring_example():
     tree_of_arrays = {"a": jnp.array([0.0, 2.0]), "b": jnp.array([1.0, 3.0])}
     seq_of_trees = tree_util.tree_transpose(tree_of_arrays)
     expected_seq_of_trees = [{"a": 0.0, "b": 1.0}, {"a": 2.0, "b": 3.0}]
-    
+
     assert len(seq_of_trees) == len(expected_seq_of_trees)
-    for actual, expected in zip(seq_of_trees, expected_seq_of_trees):
+    for actual, expected in zip(seq_of_trees, expected_seq_of_trees, strict=True):
         assert actual == expected
 
     # Test: List of xr.DataArray to xr.DataArray
     seq_of_xr = [xr.DataArray([0.0, 1.0], dims="x"), xr.DataArray([2.0, 3.0], dims="x")]
     xr_array = tree_util.tree_transpose(seq_of_xr, extra_dim_name="new_dim")
     expected_xr_array = xr.DataArray([[0.0, 1.0], [2.0, 3.0]], dims=("new_dim", "x"))
-    
+
     xr.testing.assert_equal(xr_array, expected_xr_array)
 
 def test_leaves_as_array():
@@ -143,7 +144,7 @@ def test_any_nans_and_no_nans(tree, has_nans):
     assert tree_util.no_nans(tree) == (not has_nans)
 
 
-def test_tree_transpose():
+def test_tree_transpose_xarray():
 
     da = xr.DataArray(jnp.array([1.0, 2.0, 3.0]), dims=["x"])
 
@@ -195,43 +196,112 @@ def test_json_compatible():
         key=jax.random.PRNGKey(42),
     )
     tree2b = tree_util.to_json_compatible(nn)
-    
+
     test_write_json(tree2b)
 
     assert isinstance(tree2b, dict)
-    assert isinstance(tree2b['activation'], str)
-    assert tree2b['final_activation'] is None
+    assert isinstance(tree2b["activation"], str)
+    assert tree2b["final_activation"] is None
 
-    layer0 = tree2b['layers'][0]
-    layer1 = tree2b['layers'][1]
+    layer0 = tree2b["layers"][0]
+    layer1 = tree2b["layers"][1]
 
     assert layer0["bias"] == nn.layers[0].bias.tolist()
     assert layer0["weight"] == nn.layers[0].weight.tolist()
 
     assert layer1["bias"] == nn.layers[1].bias.tolist()
     assert layer1["weight"] == nn.layers[1].weight.tolist()
-    
+
 def test_convert_to_real():
     # Tree where some arrays have complex dtype, but all complex parts are zero.
     tree_real = {
-        'a': jnp.array([1.0 + 0.0j, 3.0]),
-        'b': {
-            'c': 2.0,
-            'd': jnp.array([5.0, 6.0+ 0.0j]),
+        "a": jnp.array([1.0 + 0.0j, 3.0]),
+        "b": {
+            "c": 2.0,
+            "d": jnp.array([5.0, 6.0+ 0.0j]),
         }
     }
-    
+
     tree_real_out = tree_util.convert_to_real(tree_real)
     chex.assert_trees_all_close(tree_real_out, tree_real)
-    
+
     # Tree where some arrays have non-zero complex parts.
     tree_imag = copy.deepcopy(tree_real)
-    tree_imag['a'] = tree_imag['a'] + 1.0j
+    tree_imag["a"] = tree_imag["a"] + 1.0j
     # By default, should raise an error.
     with pytest.raises(ValueError):
         tree_util.convert_to_real(tree_imag)
-        
+
     # If we disable the check, should work.
     tree_imag_out = tree_util.convert_to_real(tree_imag, check=False)
     chex.assert_trees_all_close(tree_imag_out, tree_real)
-    
+
+
+def test_tree_transpose_preserves_size_one_dims_multi():
+    """Forward transpose of multiple trees whose leaves have a legitimate size-1
+    dimension (e.g. shape (1, n)) should stack to (n_trees, 1, n) and keep the
+    size-1 dimension instead of squeezing it away.
+    """
+    trees = [
+        {"a": jnp.ones((1, 3)), "b": jnp.full((1,), 2.0)},
+        {"a": jnp.zeros((1, 3)), "b": jnp.full((1,), 3.0)},
+    ]
+
+    transposed = tree_util.tree_transpose(trees)
+
+    assert transposed["a"].shape == (2, 1, 3)
+    assert transposed["b"].shape == (2, 1)
+    chex.assert_trees_all_close(transposed["a"][0], trees[0]["a"])
+    chex.assert_trees_all_close(transposed["a"][1], trees[1]["a"])
+    chex.assert_trees_all_close(transposed["b"][0], trees[0]["b"])
+    chex.assert_trees_all_close(transposed["b"][1], trees[1]["b"])
+
+
+def test_tree_transpose_preserves_size_one_dims_single():
+    """Forward transpose of a single tree should leave leaf shapes unchanged,
+    including leaves of shape (1,).
+    """
+    tree = {"a": jnp.ones((1, 3)), "b": jnp.full((1,), 2.0)}
+
+    transposed = tree_util.tree_transpose([tree])
+
+    assert transposed["a"].shape == (1, 3)
+    assert transposed["b"].shape == (1,)
+    chex.assert_trees_all_close(transposed, tree)
+
+
+def test_tree_transpose_variable_with_size_one_dim():
+    """Forward transpose of trees containing xr.Variable leaves with a size-1
+    dimension should produce dims consistent with the stacked data
+    """
+    trees = [
+        {"v": xr.Variable(("channel", "x"), jnp.ones((1, 3)))},
+        {"v": xr.Variable(("channel", "x"), jnp.zeros((1, 3)))},
+    ]
+
+    transposed = tree_util.tree_transpose(trees, extra_dim_name="sim")
+
+    assert transposed["v"].dims == ("sim", "channel", "x")
+    assert transposed["v"].shape == (2, 1, 3)
+    chex.assert_trees_all_close(jnp.asarray(transposed["v"].data[0]), jnp.ones((1, 3)))
+    chex.assert_trees_all_close(jnp.asarray(transposed["v"].data[1]), jnp.zeros((1, 3)))
+
+
+def test_tree_transpose_round_trip_preserves_shapes():
+    """Forward then inverse transpose of trees with size-1 leaf dimensions
+    should return leaves with the original shapes.
+    """
+    trees = [
+        {"a": jnp.ones((1, 3)), "v": xr.Variable(("channel",), jnp.full((1,), 2.0))},
+        {"a": jnp.zeros((1, 3)), "v": xr.Variable(("channel",), jnp.full((1,), 3.0))},
+    ]
+
+    transposed = tree_util.tree_transpose(trees, extra_dim_name="sim")
+    round_tripped = tree_util.tree_transpose(transposed, extra_dim_name="sim")
+
+    assert len(round_tripped) == len(trees)
+    for result, original in zip(round_tripped, trees, strict=True):
+        assert result["a"].shape == original["a"].shape
+        assert result["v"].dims == original["v"].dims
+        assert result["v"].shape == original["v"].shape
+    chex.assert_trees_all_close(round_tripped, trees)

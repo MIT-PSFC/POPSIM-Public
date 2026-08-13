@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.integrate import trapezoid
 from jaxtyping import Array, ArrayLike, PyTree
+from xarray_jax import dims_change_on_unflatten
 
 from popsim.interp import interp_over_nans
 
@@ -74,9 +75,19 @@ def _integral_loss(
     instantaneous_loss: InstantaneousLoss,
     nan_strategy: str,
 ) -> float:
-    pred_spec = jax.tree.map(lambda _: 0, predictions)
-    targ_spec = jax.tree.map(lambda _: 0, targets)
-    instantaneous_values = jax.vmap(instantaneous_loss, in_axes=(pred_spec, targ_spec))(predictions, targets)
+    # vmap over the leading (time) axis on flat leaves: any xarray types in the
+    # predictions/targets are rebuilt inside the vmap with their leading dimension
+    # dropped, which keeps dims consistent with the per-step data slices.
+    leaves_pred, treedef_pred = jax.tree.flatten(predictions)
+    leaves_targ, treedef_targ = jax.tree.flatten(targets)
+
+    def _loss_at_step(leaves_p, leaves_t):
+        with dims_change_on_unflatten(lambda dims: dims[1:]):
+            step_pred = jax.tree.unflatten(treedef_pred, leaves_p)
+            step_targ = jax.tree.unflatten(treedef_targ, leaves_t)
+        return instantaneous_loss(step_pred, step_targ)
+
+    instantaneous_values = jax.vmap(_loss_at_step, in_axes=(0, 0))(leaves_pred, leaves_targ)
 
     if nan_strategy == "raise":
         instantaneous_values = eqx.error_if(

@@ -1,6 +1,8 @@
-from popsim.modules.prng import PRNGModule
 import jax.numpy as jnp
-from popsim.simulate import simulate, make_time_base, SimInput
+
+from popsim.modules.prng import PRNGModule
+from popsim.simulate import SimInput, make_time_base, simulate
+
 
 def test_prng_module():
     module = PRNGModule()

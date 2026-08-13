@@ -1,7 +1,15 @@
 import pytest
 import xarray as xr
+
 import popsim.ml
-from popsim.tests.fixtures import cmod_test_dataset, mast_thomson_test_dataset, tcv_fbt_test_dataset, oscillator_dataset, profile_predictor_latest_sparc, scrambled_multishot_liuqe_dataset
+from popsim.tests.fixtures import (
+    cmod_test_dataset,
+    mast_thomson_test_dataset,
+    oscillator_dataset,
+    profile_predictor_latest_sparc,
+    scrambled_multishot_liuqe_dataset,
+    tcv_fbt_test_dataset,
+)
 
 
 @pytest.fixture(scope="session")

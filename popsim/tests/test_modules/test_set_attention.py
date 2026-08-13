@@ -1,7 +1,8 @@
-from popsim.modules.set_attention import SetAttentionBlock
 import jax
 import jax.numpy as jnp
 import pytest
+
+from popsim.modules.set_attention import SetAttentionBlock
 
 
 @pytest.mark.parametrize("layernorm", [True, False])

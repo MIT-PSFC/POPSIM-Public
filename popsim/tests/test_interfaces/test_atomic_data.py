@@ -1,14 +1,16 @@
 
-import cfspopcon
-from cfspopcon.unit_handling import ureg
-import jax.numpy as jnp
-import xarray as xr
 from pathlib import Path
 
+import cfspopcon
+import jax.numpy as jnp
+import xarray as xr
+from cfspopcon.unit_handling import ureg
+
 from popsim.cfspopcon_jax import impurity_effects
+from popsim.enums import Impurity
 from popsim.interfaces import atomic_data
 from popsim.interfaces.cfspopcon_scenario import load_cfspopcon_scenario
-from popsim.enums import Impurity
+
 
 def test_interpolator_modes():
     atomic_data_cfspopcon, _ = cfspopcon.formulas.atomic_data.atomic_data.read_atomic_data(radas_dir=Path("./atomic_data"))
@@ -26,10 +28,13 @@ def test_interpolator_modes():
             continue
 
         # Test that the interpolators are the same.
+        # Call the interpolator directly with magnitudes: the unit-wrapped .eval is broken
+        # for scalar Quantities in cfspopcon 8 with numpy 2.4 (np.vectorize raises
+        # "setting an array element with a sequence").
         interpolator = atomic_data_cfspopcon.get_coronal_Lz_interpolator(species_cfs)
-        cfspopcon_charge_state = interpolator.eval(test_density, test_temp, allow_extrap=True)
+        cfspopcon_charge_state = interpolator(test_density.magnitude, test_temp.magnitude, allow_extrap=True)
         popsim_charge_state = impurity_effects.calc_impurity_charge_state_impl(
             test_density.magnitude, test_temp.magnitude, atomic_data_popsim[species_popsim].coronal_Lz_interpolator
         )
 
-        assert jnp.isclose(cfspopcon_charge_state.magnitude, popsim_charge_state)
+        assert jnp.isclose(cfspopcon_charge_state, popsim_charge_state)

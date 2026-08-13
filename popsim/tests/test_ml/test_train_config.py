@@ -1,8 +1,10 @@
-from popsim.ml.train_config import TrainConfig, TrainConfig
 import tempfile
-import yaml
+
 import pytest
+import yaml
 from pydantic import ValidationError
+
+from popsim.ml.train_config import TrainConfig
 
 VALID_INPUT_EXAMPLE = {
     "project": "test_project",

@@ -1,8 +1,9 @@
-from popsim.math_utils import signed_log, inverse_signed_log, soft_clip, safe_log
-import jax.numpy as jnp
-import jax
-import pytest
 import equinox as eqx
+import jax
+import jax.numpy as jnp
+import pytest
+
+from popsim.math_utils import inverse_signed_log, safe_log, signed_log, soft_clip
 
 
 def test_normal_log_nan_issue():

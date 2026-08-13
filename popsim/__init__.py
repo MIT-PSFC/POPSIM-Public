@@ -2,7 +2,8 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-# This import statement registers xarray types with JAX
+# This import statement registers xarray types with JAX.
+# Note: gdm xarray_jax also globally sets xr.set_options(arithmetic_compat="override").
 import xarray_jax  # noqa: F401
 from jax import config as jax_config
 

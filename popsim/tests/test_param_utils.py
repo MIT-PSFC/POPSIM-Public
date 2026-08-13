@@ -1,17 +1,15 @@
 import dataclasses
-import jax
+
 import chex
+import jax
+import numpy as np
 import pytest
 from jaxtyping import ArrayLike
-import numpy as np
 
 import popsim.enums as penums
 import popsim.interp as pinterp
-from popsim.simulate import make_time_base, SimInput
-from popsim.input_utils import (
-    build_input_paths,
-    input_specs_to_paths
-)
+from popsim.input_utils import build_input_paths, input_specs_to_paths
+from popsim.simulate import SimInput, make_time_base
 
 
 @chex.dataclass

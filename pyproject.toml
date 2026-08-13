@@ -1,72 +1,76 @@
 [project]
 name = "popsim"
-version = "0.1.0"
-description = ""
+version = "0.2.0"
+description = "Framework for developing control-oriented dynamics models in JAX"
 authors = [{ name = "Allen Wang", email = "allenw@mit.edu" }]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 readme = "README.md"
 dependencies = [
-    "diffrax>=0.7.0,<0.8",
-    "equinox>=0.13.1,<0.14",
-    "jax>=0.7.2,<0.8",
-    "interpax>=0.3.4,<0.4",
-    "chex>=0.1.84,<0.2",
-    "hvplot>=0.9.2,<0.10",
-    "panel==1.3.8",
-    "jupyter-bokeh>=4.0.1,<5",
-    "scipy>=1.13.0,<2",
-    "loguru>=0.7.2,<0.8",
-    "optax>=0.2.3,<0.3",
-    "orbax-checkpoint>=0.11.25,<0.12",
-    "xbatcher>=0.3.0,<0.4",
-    "flox>=0.9.9,<0.10",
-    "bottleneck>=1.4.0,<2",
-    "plotly>=5.24.1,<6",
-    "tabulate>=0.9.0,<0.10",
-    "xarray_jax",
-    "cfspopcon>=7.0.2,<8",
-    "certifi>=2024.8.30,<2025",
+    "diffrax>=0.7.2,<0.8",
+    "equinox>=0.13.8,<0.14",
+    "jax>=0.10.0,<0.12",
+    "interpax>=0.3.14,<0.4",
+    "chex>=0.1.92,<0.2",
+    "hvplot>=0.12.2,<0.13",
+    "panel>=1.9.3,<2",
+    "scipy>=1.18.0,<2",
+    "loguru>=0.7.3,<0.8",
+    "optax>=0.2.8,<0.3",
+    "orbax-checkpoint>=0.12.2,<0.13",
+    "xbatcher>=0.4.0,<0.5",
+    "flox>=0.11.2,<0.12",
+    "bottleneck>=1.6.0,<2",
+    "tabulate>=0.10.0,<0.11",
+    "gdm-xarray-jax",
+    "cfspopcon>=8.0.0,<9",
+    "certifi>=2026.7.22",
     "xeofs>=3.0.4,<4",
-    "zarr>=2.18.3,<3",
-    "omas>=0.94.1,<0.95",
-    "ipdb>=0.13.13,<0.14",
-    "pydantic>=2.11.5,<3",
+    "zarr>=3.3.0,<4",
+    "pydantic>=2.13,<3",
     "fire>=0.7.1,<0.8",
-    "xxhash>=3.5.0",
-    "h5netcdf>=1.6.4",
-    "git-filter-repo>=2.47.0",
+    "h5netcdf>=1.8.1",
+    "xarray>=2026.2.0",
+    "numpy>=2.4.4,<3",
+    "jaxtyping>=0.3.11",
+    "pandas>=3.0.2,<4",
+    "matplotlib>=3.10",
+    "holoviews>=1.19",
 ]
+
+[project.optional-dependencies]
+torax = ["torax==1.4.3"]
 
 [project.scripts]
 setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.0,<8.5",
-    "ruff>=0.1.5,<0.2",
-    "pre-commit>=3.5.0,<4",
-    "jupyter>=1.0.0,<2",
-    "pytest-cov>=4.1.0,<5",
-    "nbmake>=1.5.5,<2",
-    "pytest-xdist>=3.6.1,<4",
-    "mkdocs>=1.6.0,<2",
-    "pymdown-extensions~=10.9",
-    "mkdocstrings>=0.26.2,<0.27",
-    "mknotebooks>=0.8.0,<0.9",
-    "mkdocs-material>=9.5.30,<10",
-    "mkdocs-include-exclude-files>=0.0.1,<0.0.2",
-    "black>=24.8.0,<25",
-    "mkdocstrings-python>=1.12.1,<2",
+    "pytest>=8.4.0",
+    "ruff>=0.12",
+    "pre-commit>=4",
+    "jupyter>=1.0.0",
+    "pytest-cov>=7",
+    "nbmake>=1.5.5",
+    "pytest-xdist>=3.6.1",
+    "mkdocs>=1.6.0",
+    "pymdown-extensions>=10.9",
+    "mkdocstrings>=0.26.2",
+    "mknotebooks>=0.8.0",
+    "mkdocs-material>=9.5.30",
+    "mkdocs-include-exclude-files>=0.0.1",
+    "black>=25",
+    "mkdocstrings-python>=1.12.1",
     "pytest-repeat>=0.9.4",
     "pytest-rerunfailures>=16.0.1",
     "wandb>=0.25.1",
+    "jupyter-bokeh>=4.1.0",
+    "plotly>=6",
+    "ipdb>=0.13.13",
+    "git-filter-repo>=2.47.0",
+    "anywidget>=0.11.0",
+    "h5py>=3.14,<4",
 ]
-gpu = ["jax[cuda12]>=0.7.0,<0.8"]
-# For ORCD cluster: uses system CUDA 12.4 libraries instead of pip nvidia packages
-gpu-orcd = [
-    "jax-cuda12-plugin==0.7.2",
-    "jax-cuda12-pjrt==0.7.2",
-]
+gpu = ["jax[cuda13]>=0.10.0,<0.12"]
 
 [tool.uv]
 
@@ -76,7 +80,7 @@ url = "https://pypi.org/simple/"
 default = true
 
 [tool.uv.sources]
-xarray_jax = { git = "https://github.com/allen-adastra/xarray_jax.git", rev = "a857c610134d195d975dbc43be72c8c661714ced" }
+gdm-xarray-jax = { git = "https://github.com/google-deepmind/xarray_jax.git", tag = "v0.1.1" }
 
 [tool.hatch.build.targets.sdist]
 include = ["popsim"]
@@ -115,6 +119,7 @@ lint.select = [
 lint.ignore = [
   "E501", # Never enforce line length violations, we have black for that.
   "PLR0913", #ignore limit on number of args
+  "PLR0917", #ignore limit on number of positional args, consistent with PLR0913
   "PLR2004", #ignore magic values warning, at least for now
   "C408", # use {} instead of dict(), but we use dict heavily, for now leave it
   "F722", # Incompatible with jaxtyping
@@ -125,8 +130,8 @@ lint.ignore = [
 lint.pyupgrade.keep-runtime-typing=true
 lint.pydocstyle.convention = "google"
 
-extend-exclude = ["submodules", "tests"]
-target-version = "py311"
+extend-exclude = ["submodules", "tests", "*.ipynb"]
+target-version = "py312"
 line-length = 140
 
 [tool.ruff.lint.pylint]

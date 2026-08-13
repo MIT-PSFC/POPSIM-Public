@@ -6,6 +6,13 @@ on:
     branches:
       - "main"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   JAX_PLATFORMS: cpu
 
@@ -15,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -24,18 +31,13 @@ jobs:
       - name: Git LFS Pull
         run: git lfs pull
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python with uv
+      - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Cache virtual environment
@@ -47,7 +49,9 @@ jobs:
             venv-${{ matrix.python-version }}-
 
       - name: Setup
-        run: uv sync --group dev; uv run setup-radas
+        run: |
+          uv sync --python ${{ matrix.python-version }} --group dev
+          uv run setup-radas
 
       - name: Blanket Tests (float64)
         run: >-
@@ -91,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -100,18 +104,13 @@ jobs:
       - name: Git LFS Pull
         run: git lfs pull
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python with uv
+      - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Cache virtual environment
@@ -120,14 +119,25 @@ jobs:
           path: .venv
           key: venv-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
-            venv--${{ matrix.python-version }}-
+            venv-${{ matrix.python-version }}-
 
       - name: Setup
-        run: uv sync --group dev; uv run setup-radas
+        run: |
+          uv sync --python ${{ matrix.python-version }} --group dev
+          uv run setup-radas
 
-      - name: Core Utils Tests (float32)
-        # Run precision-sensitive core tests in float32 mode
-        run: uv run pytest popsim/tests/test_*.py --ignore=popsim/tests/test_simulate.py -n=auto
+      # test_physics is intentionally not run in float32 because it is very slow
+      # test_modules is intentionally not run in float32 because some modules require float64
+      # (test_lti scan carry dtype mismatch, test_td_popcon physics results exceed tolerance)
+      - name: Blanket Tests (float32)
+        run: >-
+          uv run pytest popsim/tests
+          --ignore=popsim/tests/test_simulate.py
+          --ignore=popsim/tests/test_ml
+          --ignore=popsim/tests/test_modules
+          --ignore=popsim/tests/test_interfaces
+          --ignore=popsim/tests/test_physics
+          -n=auto
         env:
           JAX_ENABLE_X64: False
 
@@ -141,44 +151,46 @@ jobs:
         env:
           JAX_ENABLE_X64: False
 
+      - name: Interfaces Tests (float32)
+        run: uv run pytest popsim/tests/test_interfaces/ -n=auto
+        env:
+          JAX_ENABLE_X64: False
+
   cfspopcon-tests:
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           submodules: "recursive"
 
       - name: Git LFS Pull
         run: git lfs pull
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python with uv
+      - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Cache virtual environment
         uses: actions/cache@v5
         with:
           path: .venv
-          key: venv--${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          key: venv-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
-            venv--${{ matrix.python-version }}-
+            venv-${{ matrix.python-version }}-
 
       - name: Setup
-        run: uv sync --group dev; uv run setup-radas
+        run: |
+          uv sync --python ${{ matrix.python-version }} --group dev
+          uv run setup-radas
 
       - name: CFSPOPCON jax_compatible Tests
         run: uv run pytest ./popsim/cfspopcon_jax/tests/ -n=auto
@@ -191,27 +203,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           submodules: "recursive"
 
       - name: Git LFS Pull
         run: git lfs pull
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python with uv
+      - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Cache virtual environment
@@ -223,7 +230,9 @@ jobs:
             venv-${{ matrix.python-version }}-
 
       - name: Setup
-        run: uv sync --group dev; uv run setup-radas
+        run: |
+          uv sync --python ${{ matrix.python-version }} --group dev
+          uv run setup-radas
 
       - name: Test Top-Level Notebooks
         run: uv run pytest --nbmake docs/notebooks/*.ipynb -n=auto --nbmake-timeout=300 --reruns 5 --reruns-delay 1

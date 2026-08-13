@@ -1,7 +1,9 @@
 import diffrax
 import jax.numpy as jnp
+
 from popsim.modules.hmode_dynamics import HmodeDynamics
-from popsim.simulate import simulate, StepperType, SimInput
+from popsim.simulate import SimInput, StepperType, simulate
+
 
 def test_sim_and_clip():
     state = HmodeDynamics.State(hmode=0.0)

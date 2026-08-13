@@ -1,7 +1,9 @@
-from popsim.modules.density import Density
-from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
+
+from popsim.enums import FuelSpecies, Impurity, SpeciesContainer
+from popsim.modules.density import Density
+
 
 def test_state():
     """ The main goal here is to test the total ion density function 

@@ -1,31 +1,33 @@
-from popsim.data.dataset_utils import build_tensorized_dataset, add_to_zarr_store
-from popsim.tests.fixtures import tcv_fbt_test_dataset
-from popsim.data.data_generators import dummy
-import xarray as xr
-import numpy as np
-import tempfile
-import pytest
 import os
 import shutil
-import pytest
 import sys
+import tempfile
+import warnings
+
+import numpy as np
+import pytest
+import xarray as xr
+
+from popsim.data.data_generators import dummy
+from popsim.data.dataset_utils import add_to_zarr_store, build_tensorized_dataset
+from popsim.tests.fixtures import tcv_fbt_test_dataset  # noqa: F401  (pytest fixture)
 
 # Generation of test examples uses PRNG. We found failure modes by repeating tests at some point, so
 # lets make repeats of tests a part of testing.
 N_TEST_REPEAT = 3
 
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_add_to_zarr_store(test_number):
     np.random.seed(test_number)
     dummy_generator = dummy.generate_simple_scalar_dataset(3)
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # There should be no zarr store initially
         assert not os.path.exists(zarr_path)
-        
+
         # Add datasets to zarr store
         for ds in dummy_generator:
             success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
@@ -36,7 +38,7 @@ def test_add_to_zarr_store(test_number):
         ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
         expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
         assert ds_store["episode"].equals(expected_episodes)
-        
+
         # Check that the "var" variable has the expected values.
         expected_var = xr.DataArray(np.array([[0.0, np.nan, np.nan],
                                               [0.0, 1.0, np.nan],
@@ -53,17 +55,17 @@ def test_add_to_zarr_store(test_number):
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["time"].equals(expected_time)
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_add_to_zarr_store_changing_spatial(test_number):
     np.random.seed(test_number)
     dummy_generator = dummy.generate_dataset_with_changing_spatial_var(3)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # There should be no zarr store initially
         assert not os.path.exists(zarr_path)
-        
+
         # Add datasets to zarr store
         for ds in dummy_generator:
             success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
@@ -74,7 +76,7 @@ def test_add_to_zarr_store_changing_spatial(test_number):
         ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
         expected_episodes = xr.DataArray([0, 1, 2], dims=["episode"], coords={"episode": [0, 1, 2]})
         assert ds_store["episode"].equals(expected_episodes)
-        
+
         # Check that the "var" variable has the expected values.
         expected_var = xr.DataArray(
             np.array([
@@ -107,7 +109,52 @@ def test_add_to_zarr_store_changing_spatial(test_number):
                                         coords={"episode": ("episode", [0, 1, 2])})
         assert ds_store["space"].equals(expected_space)
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+def test_add_to_zarr_store_int_nan_round_trip():
+    """Integer variables must survive NaN padding
+    Pad regions decode as NaN instead of being cast to garbage integers,
+    and no Serialization/RuntimeWarnings are emitted.
+    Covers both the pad path (new episode shorter than store)
+    and the extend path (new episode longer than store)
+    """
+
+    def make_ds(episode, nt):
+        return xr.Dataset(
+            data_vars={
+                "int_var": ("time_idx", np.arange(nt, dtype=np.int64)),
+                "float_var": ("time_idx", np.arange(nt, dtype=float)),
+            },
+            coords={
+                "time": ("time_idx", np.arange(nt, dtype=float)),
+                "episode": ("episode", [episode]),
+            },
+        )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zarr_path = f"{tmpdir}/test_zarr_store.zarr"
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=xr.SerializationWarning)
+            warnings.filterwarnings("error", message="invalid value encountered")
+            for episode, nt in [(0, 3), (1, 1), (2, 5)]:
+                assert add_to_zarr_store(make_ds(episode, nt), zarr_path, time_dim="time_idx", episode_dim="episode")
+
+        ds_store = xr.open_zarr(zarr_path, consolidated=False).load()
+
+        expected_values = np.array([
+            [0.0, 1.0, 2.0, np.nan, np.nan],
+            [0.0, np.nan, np.nan, np.nan, np.nan],
+            [0.0, 1.0, 2.0, 3.0, 4.0],
+        ])
+        for var in ["int_var", "float_var"]:
+            expected = xr.DataArray(expected_values, dims=["episode", "time_idx"], coords={"episode": ("episode", [0, 1, 2])})
+            assert ds_store[var].equals(expected)
+
+        # On disk the integer variable is still stored as int64, with the fill value marking NaNs.
+        assert np.dtype(ds_store["int_var"].encoding["dtype"]) == np.dtype("int64")
+        assert ds_store["int_var"].encoding["_FillValue"] == np.iinfo(np.int64).min
+
+
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_add_to_zarr_store_mismatch_dims(test_number):
     """Test trying to add a dataset with different dimensions to the zarr store raises an error"""
     np.random.seed(test_number)
@@ -115,10 +162,10 @@ def test_add_to_zarr_store_mismatch_dims(test_number):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # There should be no zarr store initially
         assert not os.path.exists(zarr_path)
-        
+
         # Add datasets to zarr store
         for ds in dummy_generator:
             success = add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
@@ -142,7 +189,7 @@ def test_add_to_zarr_store_mismatch_dims(test_number):
         with pytest.raises(ValueError):
             add_to_zarr_store(ds, zarr_path, time_dim="time_idx", episode_dim="episode")
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_build_tensorized_dataset(test_number):
     np.random.seed(test_number)
     def build_fn(path: str) -> xr.Dataset:
@@ -164,10 +211,10 @@ def test_build_tensorized_dataset(test_number):
             }
         )
         return ds
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # Build the dataset
         ds = build_tensorized_dataset(
             process_fn=build_fn,
@@ -176,7 +223,7 @@ def test_build_tensorized_dataset(test_number):
             time_dim="time_idx",
             episode_dim="shot"
         )
-        
+
         # Check if the dataset is created correctly
         assert isinstance(ds, xr.Dataset)
         assert "data" in ds.data_vars
@@ -199,7 +246,7 @@ def test_build_tensorized_dataset(test_number):
                 episode_dim="shot",
                 extend_existing=False
             )
-        
+
         # Now try to extend the dataset with the extend_existing flag.
         ds = build_tensorized_dataset(
             process_fn=build_fn,
@@ -210,7 +257,7 @@ def test_build_tensorized_dataset(test_number):
             extend_existing=True
         )
         assert ds.sizes["shot"] == 4
-        
+
         # Delete the zarr store and try with episodes_per_chunk instead of mb_per_chunk.
         shutil.rmtree(zarr_path)
         ds = build_tensorized_dataset(
@@ -223,12 +270,12 @@ def test_build_tensorized_dataset(test_number):
             mb_per_chunk=None
         )
         assert ds.chunks["shot"] == (2, 1)
-        
+
         # Make sure that all dimensions except shot are covered by a single chunk.
         for dim in ds.dims:
             if dim != "shot":
                 assert ds.chunksizes[dim] == (ds.sizes[dim],)
-        
+
         # By default, mb_per_chunk is specified and we should get an error if the user tries to set both.
         with pytest.raises(ValueError):
             ds = build_tensorized_dataset(
@@ -241,7 +288,7 @@ def test_build_tensorized_dataset(test_number):
                 mb_per_chunk=10
             )
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_build_tensorized_dataset_time_dim_equals_time_coord(test_number):
     np.random.seed(test_number)
     def build_fn(path: str) -> xr.Dataset:
@@ -263,10 +310,10 @@ def test_build_tensorized_dataset_time_dim_equals_time_coord(test_number):
             }
         )
         return ds
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # Build the dataset
         ds = build_tensorized_dataset(
             process_fn=build_fn,
@@ -280,27 +327,27 @@ def test_build_tensorized_dataset_time_dim_equals_time_coord(test_number):
         assert np.abs(ds["time"].diff("shot")).max().compute() > 0
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="Test fails on mac for unknown reasons. https://github.com/cfs-energy-internal/POPSIM/issues/147")
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
     """Test build_tensorized_dataset with the TCV FBT dataset."""
     ds = tcv_fbt_test_dataset
     np.random.seed(test_number)
-    
+
     def build_fn(identifier: str) -> xr.Dataset:
         # Randomly select time dimension length
         nt = np.random.randint(1, ds.sizes["time_idx"])
-        
+
         # Create subset dataset with modified shot coordinate
         subset_ds = ds.isel(time_idx=slice(0, nt)).copy()
         subset_ds["shot"] = ("shot", [identifier])
         return subset_ds
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/tcv_test_zarr_store.zarr"
-        
+
         # Use mock identifiers for testing
         identifiers = [100000, 100001]
-        
+
         # Build the tensorized dataset
         result_ds = build_tensorized_dataset(
             process_fn=build_fn,
@@ -315,7 +362,7 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
         assert result_ds.sizes["shot"] == len(identifiers)
         assert os.path.exists(zarr_path)
         result_ds = result_ds.load()
-        
+
         # Now try appending more data
         new_identifiers = [100002, 100003, 100004, 100005, 100006]
         result_ds2 = build_tensorized_dataset(
@@ -328,24 +375,24 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
         )
         # Check that the new result has the right size.
         assert result_ds2.sizes["shot"] == len(identifiers) + len(new_identifiers)
-        
+
         # Perform a check that the data in result_ds for the same shot is the same as the data in result_ds2.
         # ds2_shot may be larger because of padding in the time_idx dimension.
         ds_shot = result_ds.sel(shot=100000)
         ds2_shot = result_ds2.load().sel(shot=100000).isel(time_idx=slice(0, ds_shot.sizes["time_idx"]))
         assert ds_shot.equals(ds2_shot)
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
-@pytest.mark.parametrize('extend_existing', [True, False])
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
+@pytest.mark.parametrize("extend_existing", [True, False])
 def test_build_tensorized_dataset_no_successful(test_number, extend_existing):
     np.random.seed(test_number)
 
     def build_fn(path: str) -> xr.Dataset:
         return None # Simulate failure to process
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
-        
+
         # Build the dataset
         ds = build_tensorized_dataset(
             process_fn=build_fn,
@@ -355,10 +402,10 @@ def test_build_tensorized_dataset_no_successful(test_number, extend_existing):
             episode_dim="shot",
             extend_existing=extend_existing
         )
-        
+
         # Check if the dataset is created correctly
         assert isinstance(ds, xr.Dataset)
         assert ds.data_vars == {}
         assert ds.coords == {}
-        assert ds.dims == {}
+        assert ds.sizes == {}
         assert not os.path.exists(zarr_path)

@@ -355,11 +355,11 @@ def make_dataloaders(
     convert_xr_to_jnp: bool = True,
     extra_vars: list[str] | None = None,
     state_init_vars: list[str] | None = None,
-    batch_size: int | None | typing.Sequence[int | None] = None,
-    segment_length: int | None | typing.Sequence[int | None] = None,
-    segment_overlap: int | None | typing.Sequence[int | None] = 0,
-    shuffle: bool | None | typing.Sequence[bool] = None,
-    nan_handling: str | None | typing.Sequence[str] = "drop_slice_all",
+    batch_size: int | typing.Sequence[int | None] | None = None,
+    segment_length: int | typing.Sequence[int | None] | None = None,
+    segment_overlap: int | typing.Sequence[int | None] | None = 0,
+    shuffle: bool | typing.Sequence[bool] | None = None,
+    nan_handling: str | typing.Sequence[str] | None = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
     """Create DataLoaders from a list of datasets. Each dataset is processed independently to create a DataLoader.
 
@@ -533,6 +533,13 @@ def make_time_indep_dataloader(
 
     ds = ds[input_vars + target_vars + extra_vars]
     episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+
+    # Load time coordinate into memory for consistency with time-dependent dataloader.
+    # Must happen before the stack
+    # (replacing a multi-index level coordinate after stacking is deprecated in xarray)
+    if ds[time_coord].chunks is not None:
+        ds[time_coord] = ds[time_coord].load()
+
     sample_ds = ds.stack({DEFAULT_SAMPLE_DIM: (episode_var_dim, time_var_dim)}).dropna(DEFAULT_SAMPLE_DIM)
     sample_ds = sample_ds.transpose(DEFAULT_SAMPLE_DIM, ...)
 
@@ -551,10 +558,6 @@ def make_time_indep_dataloader(
 
     if nans_found:
         logger.warning(f"NaNs found in dataset. NaN report: \n{nan_report}")
-
-    # Load time coordinate into memory for consistency with time-dependent dataloader
-    if sample_ds[time_coord].chunks is not None:
-        sample_ds[time_coord] = sample_ds[time_coord].load()
 
     prepped_ds = XarrayPreppedDataset(
         ds=sample_ds,
@@ -669,7 +672,29 @@ def make_time_dep_dataloader(
         )
     )
 
-    # By convention, the BatchGenerator adds "_input" to the time dimension.
+    def _restore_non_episode_time_dims(sample_ds, non_episode_time_dims):
+        """Restore the original names of the non-episode time dimensions in the sample dataset
+
+        The BatchGenerator adds "_input" to every input dimension to avoid name collisions in the patches
+        (Consider the case where time is [1, 2, 3] and gets segmented into [1, 2] and [2, 3])
+        That is only needed for the windowed time dimension, whose coords differ per patch.
+        Non-windowed dims span the full dimension with identical coords in every patch,
+        so they can be restored to their original names for everything downstream to use.
+        """
+
+        for dim in non_episode_time_dims:
+            suffixed_dim = f"{dim}_input"
+            if suffixed_dim in sample_ds.dims:
+                if dim in sample_ds.coords:
+                    # The BatchGenerator demoted the original dim coordinate onto the suffixed dim.
+                    # Swapping promotes it back to an indexed dimension coordinate.
+                    sample_ds = sample_ds.swap_dims({suffixed_dim: dim})
+                else:
+                    sample_ds = sample_ds.rename({suffixed_dim: dim})
+        return sample_ds
+
+    sample_ds = _restore_non_episode_time_dims(sample_ds, non_episode_time_dims)
+
     time_dim_sample_ds = f"{time_var_dim}_input"
 
     # Drop samples made from the batching process where the data is all NaN.

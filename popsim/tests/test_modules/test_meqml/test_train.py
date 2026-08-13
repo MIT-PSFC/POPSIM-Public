@@ -1,10 +1,11 @@
-from popsim.modules.meqml.fast_obs.config import FAST_OBS_CONFIG
-from popsim.modules.meqml.liuqe.config import LIUQE_CONFIG
-from popsim.modules.meqml.fgs.config import FGS_CONFIG
-from popsim.modules.meqml.fbt.config import FBT_SURROGATE_CONFIG
 import copy
+
+from popsim.data.tcv import SCRAMBLED_FBT_PATH, SCRAMBLED_LIUQE_PATH
 from popsim.ml.launch import launch_train
-from popsim.data.tcv import SCRAMBLED_LIUQE_PATH, SCRAMBLED_FBT_PATH
+from popsim.modules.meqml.fast_obs.config import FAST_OBS_CONFIG
+from popsim.modules.meqml.fbt.config import FBT_SURROGATE_CONFIG
+from popsim.modules.meqml.fgs.config import FGS_CONFIG
+from popsim.modules.meqml.liuqe.config import LIUQE_CONFIG
 
 """
 Test that the training loops can run without error on scrambled data.

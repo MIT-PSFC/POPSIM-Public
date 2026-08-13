@@ -9,7 +9,7 @@ import numpy as np
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
 from loguru import logger
-from xarray_jax import var_change_on_unflatten
+from xarray_jax import dims_change_on_unflatten
 
 import popsim.tree_util as ptu
 from popsim.array_utils import jax_to_numpy_array
@@ -51,7 +51,7 @@ def make_data_array(
         n_missing_dims = array.ndim - len(dims)
 
         logger.debug(
-            f"Variable {name} has more dimensions, {array.ndim}, than the number of specified dimensions, {len(dims)}. {dims} extra dimensions will be generated with names {name}_extra_dim_i."
+            f"Variable {name} has {array.ndim} dimensions but only {len(dims)} specified dimensions {dims}. {n_missing_dims} extra dimension(s) will be generated with names {name}_extra_dim_0 through {name}_extra_dim_{n_missing_dims - 1}."
         )
 
         # Auto-generate names for the extra dimensions.
@@ -136,10 +136,13 @@ def pytree_to_xarray(
     dataarrays = [da for da in das_and_ds if isinstance(da, xr.DataArray)]
     datasets = [da for da in das_and_ds if isinstance(da, xr.Dataset)]
 
-    ds = xr.merge(datasets)
+    # compat="no_conflicts" keeps pre-2026 xarray merge behavior for overlapping variables.
+    # join="exact" requires indexed coords to align across leaves, raising instead of
+    # silently unioning misaligned grids and filling with NaN.
+    ds = xr.merge(datasets, compat="no_conflicts", join="exact")
 
-    ds_from_das = xr.merge(dataarrays)
-    ds = xr.merge([ds, ds_from_das])
+    ds_from_das = xr.merge(dataarrays, compat="no_conflicts", join="exact")
+    ds = xr.merge([ds, ds_from_das], compat="no_conflicts", join="exact")
     return ds
 
 
@@ -168,8 +171,9 @@ def time_and_pytree_to_xarray(
             time = time[0]
 
         # Check that every array has the same number of simulations.
-        nsims_tree = jax.tree.map(lambda x: x.shape[0], tree)
-        tree_leaves = jax.tree.leaves(nsims_tree)
+        # Flatten-only: mapping to ints and unflattening would rebuild xarray types
+        # with non-array data, which xarray_jax rejects.
+        tree_leaves = [x.shape[0] for x in jax.tree.leaves(tree)]
         if len(set(tree_leaves)) > 1:
             raise ValueError("In multi-simulation mode, all arrays must have the same number of simulations.")
         nsims = tree_leaves[0]
@@ -246,26 +250,53 @@ def remove_dim_from_vars(tree: PyTree, dim_name: str) -> PyTree:
     )
 
 
-def run_function_with_dim_removed(fun: typing.Callable[..., typing.Any], fun_inputs: tuple, dim_remove: int) -> typing.Any:
+def run_function_with_dim_removed(
+    fun: typing.Callable[..., typing.Any],
+    fun_inputs: tuple,
+    dim_remove: str,
+    in_axes: typing.Any = 0,
+) -> typing.Any:
     """
-    Runs a function with a specified dimension removed from its variables, then adds the dimension back
-    to the output variables after execution as the leading dimension.
+    vmap `fun` over the leading axis of its inputs, removing `dim_remove` from any xarray
+    dims the function sees, then re-adding it as the leading dimension of the outputs.
 
-    The primary use case in mind is when we want to, for example, vmap a function across the simulation dimension. In this case, we would like to remove the simulation dimension from the variables before executing the function, then add it back to the output variables after execution.
+    The primary use case in mind is mapping a function across the simulation dimension: the
+    simulation dimension is removed from the variables inside the vmap, then re-added to the
+    output variables afterwards.
+
+    Note: `fun` must be the un-vmapped function; the vmap (with `in_axes`) is applied here.
+    xarray_jax validates dims against data shapes on unflatten, so input-side dim removal and
+    output-side dim re-addition need separate dims_change_on_unflatten contexts.
+    Returning flat leaves from the vmapped body keeps vmap's own output unflatten xarray-free.
 
     Args:
-        fun (Callable[..., Any]): The function to execute.
+        fun (Callable[..., Any]): The un-vmapped function to execute.
         fun_inputs (tuple): The inputs to pass to `fun`.
-        dim_remove (int): The index of the dimension to remove from the variables before executing `fun`.
+        dim_remove (str): The name of the dimension to remove from the variables inside the vmap.
+        in_axes (Any, optional): vmap in_axes spec for `fun_inputs`. Defaults to 0.
 
     Returns:
         Any: The output of `fun` with the removed dimension re-added to the variables.
     """
-    with var_change_on_unflatten(lambda var: remove_dim_from_vars(var, dim_remove)):
-        out = fun(*fun_inputs)
+    out_treedef = None
 
-    out = add_dim_to_vars(out, dim_remove)
-    return out
+    def _flat_output_fun(*args):
+        nonlocal out_treedef
+        out = fun(*args)
+        out_leaves, out_treedef = jax.tree.flatten(out)
+        return out_leaves
+
+    vec_fun = jax.vmap(_flat_output_fun, in_axes=in_axes)
+
+    # Inside the vmap, xarray variables are rebuilt without their leading axis: drop dim_remove so dims match.
+    # No-op for nested unflattens (e.g. an inner jax.jit) whose variables do not carry dim_remove.
+    with dims_change_on_unflatten(lambda dims: tuple(d for d in dims if d != dim_remove)):
+        out_leaves = vec_fun(*fun_inputs)
+
+    # vmap added a leading axis to every output leaf; re-add dim_remove when
+    # unflattening back into xarray types.
+    with dims_change_on_unflatten(lambda dims: (dim_remove, *dims)):
+        return jax.tree.unflatten(out_treedef, out_leaves)
 
 
 def scramble_xr(obj: xr.DataArray | xr.Dataset | xr.DataTree, zero: bool = False) -> xr.DataArray | xr.Dataset | xr.DataTree:

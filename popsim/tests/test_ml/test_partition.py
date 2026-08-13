@@ -1,9 +1,11 @@
-import jax
-import jax.numpy as jnp
-from popsim.ml.partition import make_partition_by_members, partition_by_arraylike
-from jaxtyping import Array
 import chex
 import equinox as eqx
+import jax
+import jax.numpy as jnp
+from jaxtyping import Array
+
+from popsim.ml.partition import make_partition_by_members, partition_by_arraylike
+
 
 @chex.dataclass
 class DummyClass:

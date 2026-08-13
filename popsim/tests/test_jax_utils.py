@@ -1,6 +1,8 @@
-import pytest
 import jax
+import pytest
+
 from popsim.jax_utils import jax_cpu, jax_gpu
+
 
 def test_jax_cpu():
     def my_function(x):

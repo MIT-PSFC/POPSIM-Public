@@ -1,11 +1,22 @@
-import os
-import numpy as np
-import jax
-import equinox as eqx
 import dataclasses
+import os
+
 import chex
-from popsim.ml.checkpointing import TrainState, save_train_state, create_default_checkpoint_manager, restore_model, restore_train_state, restore_model_from_path, restore_train_state_from_path
+import equinox as eqx
+import jax
+import numpy as np
 import optax
+
+from popsim.ml.checkpointing import (
+    TrainState,
+    create_default_checkpoint_manager,
+    restore_model,
+    restore_model_from_path,
+    restore_train_state,
+    restore_train_state_from_path,
+    save_train_state,
+)
+
 
 class SubModule(eqx.Module):
     hi: np.ndarray

@@ -10,7 +10,7 @@ import numpy as np
 import orbax.checkpoint as ocp
 import xarray as xr
 from jaxtyping import Array, ArrayLike, PyTree
-from xarray_jax import var_change_on_unflatten
+from xarray_jax import dims_change_on_unflatten
 
 import popsim.types as ptypes
 
@@ -82,24 +82,24 @@ def tree_transpose(
     if len(xr_vars) > 0 and extra_dim_name is None:
         raise ValueError("The extra dimension name must be specified when there are xarray types in the tree.")
 
-    def var_change_fn(var: xr.Variable):
-        """The purpose of this function is to add or remove the extra dimension from the variable as need be."""
-        ndims = len(var._dims)
-        datadims = var._data.ndim
-        if ndims == datadims:
-            return var
-        elif ndims == datadims - 1:
-            newdims = (extra_dim_name, *var._dims)
-            var._dims = newdims
-            return var
-        elif ndims == datadims + 1:
-            newdims = tuple(d for d in var._dims if d != extra_dim_name)
-            var._dims = newdims
-            return var
+    # The direction determines whether the extra dimension is added (list of trees -> tree)
+    # or removed (tree -> list of trees). dims_change_on_unflatten only sees the dims tuple,
+    # not the data, so the decision must be made up front.
+    if isinstance(tree, list):
+        if len(tree) > 1:
+            # jnp.stack adds a leading axis of size len(tree).
+            def dims_change_fn(dims):
+                return (extra_dim_name, *dims)
         else:
-            raise ValueError(f"Variable {var.name} has {ndims} dims but data has {datadims} dims.")
+            # Single-tree forward case: leaves are not stacked, so dims are unchanged.
+            def dims_change_fn(dims):
+                return dims
+    else:
+        # Inverse case: x[i] removes the leading axis.
+        def dims_change_fn(dims):
+            return tuple(d for d in dims if d != extra_dim_name)
 
-    with var_change_on_unflatten(var_change_fn):
+    with dims_change_on_unflatten(dims_change_fn):
         return _tree_transpose(tree)
 
 
@@ -111,10 +111,19 @@ def _tree_transpose(
         if len(tree) == 0:
             return {}
 
-        def fun(*xs):
-            return jnp.array(xs).squeeze()
+        if len(tree) == 1:
+            # Single tree: no stacking needed. Leaves keep their original shapes,
+            # including legitimate size-1 dimensions.
+            result = jax.tree.map(jnp.asarray, tree[0])
+        else:
 
-        return jax.tree.map(fun, *tree)
+            def fun(*xs):
+                # jnp.stack adds exactly one leading axis of size len(tree).
+                # Legitimate size-1 dimensions in the leaves are preserved.
+                return jnp.stack(xs)
+
+            result = jax.tree.map(fun, *tree)
+        return result
 
     # If not a sequence, assume it's a PyTree of arrays
     elif isinstance(tree, PyTree):
@@ -206,13 +215,13 @@ def no_nans(tree: PyTree[ArrayLike]) -> bool:
     Returns:
         bool: whether any NaNs are present.
     """
-    # A tree with leaves that are True if the leaf is not NaN.
-    tree = eqx.filter(tree, eqx.is_array_like)
-    not_nan_leaf_tree = jax.tree.map(lambda x: jnp.all(jnp.logical_not(jnp.isnan(x))), tree)
+    # Work on flat leaves only: both mapping to scalars and eqx.filter would rebuild
+    # xarray types with changed leaves (scalars or None placeholders), which fails
+    # xarray_jax's dims-vs-shape and coordinate-size validation on unflatten.
+    leaves = [x for x in jax.tree.leaves(tree) if eqx.is_array_like(x)]
+    not_nan = [jnp.all(jnp.logical_not(jnp.isnan(x))) for x in leaves]
 
-    leaves = jax.tree.leaves(not_nan_leaf_tree)
-
-    return jnp.all(jnp.array(leaves))
+    return jnp.all(jnp.array(not_nan))
 
 
 def any_nans(tree: PyTree[typing.Any]) -> bool:

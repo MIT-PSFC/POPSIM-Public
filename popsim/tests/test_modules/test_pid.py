@@ -1,7 +1,9 @@
-from popsim.modules.pid import PIDController
 import jax.numpy as jnp
-from popsim.simulate import simulate, SimInput
+
 from popsim.interp import interp
+from popsim.modules.pid import PIDController
+from popsim.simulate import SimInput, simulate
+
 
 def test_pid_controller():
     # Initialize the PID controller

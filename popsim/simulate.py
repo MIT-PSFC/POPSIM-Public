@@ -8,8 +8,10 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import xarray as xr
+import xarray_jax
 from jaxtyping import PyTree
 from loguru import logger
+from xarray_jax import dims_change_on_unflatten
 
 from popsim import TimeDepModule, config
 from popsim.array_utils import min_greater_than_thresh
@@ -20,7 +22,7 @@ from popsim.modules.prng import PRNGModule
 from popsim.sim_utils import (
     CombinatorialCases,  # . Import is used to allow the user to import this function from this module.
     MultiCases,  # . Import is used to allow the user to import this function from this module.
-    SimInput,  # noqa: F401. Import is used to allow the user to import this function from this module.
+    SimInput,
     make_time_base,  # noqa: F401
 )
 from popsim.tree_util import get_instances_from_tree_leaves, tree_transpose
@@ -28,7 +30,6 @@ from popsim.utils import time_epsilon
 from popsim.xarray_utils import (
     DEFAULT_SIM_DIM_NAME,
     DEFAULT_TIME_DIM_NAME,
-    add_dim_to_vars,
     run_function_with_dim_removed,
     solution_to_xarray,
     time_and_pytree_to_xarray,
@@ -47,7 +48,7 @@ def _check_sim_inputs(module: TimeDepModule, sim_inputs: typing.Sequence[SimInpu
     """Perform checks of the simulation inputs."""
 
     # Check if the state has any discrete components when using Diffrax. If so, raise an error.
-    if stepper_type in [StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5]:
+    if stepper_type in _DIFFRAX_SOLVERS:
 
         def _has_discrete_state(sim_input):
             discrete_state, _ = partition_discrete_cont(sim_input.initial_state)
@@ -92,7 +93,7 @@ def generate_save_output(state: PyTree, inputs: PyTree, output: PyTree, record_s
     return out
 
 
-def simulate(  # noqa: PLR0912
+def simulate(
     module: TimeDepModule,
     sim_inputs: SimInput | typing.Sequence[SimInput],
     interp_type: InterpType = InterpType.LINEAR,
@@ -122,24 +123,17 @@ def simulate(  # noqa: PLR0912
     sim_inputs = input_specs_to_paths(sim_inputs=sim_inputs, interp_type=interp_type)
 
     # Choose the simulation function based on the stepper type.
-    if stepper_type in (StepperType.SIMPLE_EULER, StepperType.SIMPLE_EULER_UNIFORM):
-        if stepper_type == StepperType.SIMPLE_EULER:
-            step_fun = _simple_euler_simulate
-        elif stepper_type == StepperType.SIMPLE_EULER_UNIFORM:
-            step_fun = _simple_euler_simulate_uniform_timestep
-
-        def simulate_fun(mod, inp):
-            return step_fun(mod, inp, record_state=record_state)
-    elif stepper_type in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
-        if stepper_type == StepperType.DIFFRAX_EULER:
-            solver = diffrax.Euler()
-        elif stepper_type == StepperType.DIFFRAX_TSIT5:
-            solver = diffrax.Tsit5()
-        elif stepper_type == StepperType.DIFFRAX_DOPRI5:
-            solver = diffrax.Dopri5()
+    is_diffrax = stepper_type in _DIFFRAX_SOLVERS
+    if is_diffrax:
+        solver = _DIFFRAX_SOLVERS[stepper_type]()
 
         def simulate_fun(mod, inp):
             return _diffrax_simulate(mod, inp, record_state=record_state, solver=solver)
+    elif stepper_type in _EULER_SIM_FUNCTIONS:
+        step_fun = _EULER_SIM_FUNCTIONS[stepper_type]
+
+        def simulate_fun(mod, inp):
+            return step_fun(mod, inp, record_state=record_state)
     else:
         raise ValueError("Stepper type not recognized.")
 
@@ -155,12 +149,11 @@ def simulate(  # noqa: PLR0912
     else:
         sol = simulate_fun(module, sim_inputs_vectorized)
 
-    if stepper_type in (StepperType.SIMPLE_EULER, StepperType.SIMPLE_EULER_UNIFORM):
-        return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim) if return_xarray else sol
-    elif stepper_type in (StepperType.DIFFRAX_EULER, StepperType.DIFFRAX_TSIT5, StepperType.DIFFRAX_DOPRI5):
-        return solution_to_xarray(sol, multi_simulation=multi_sim) if return_xarray else sol
-    else:
-        raise ValueError("Stepper type not recognized.")
+    if not return_xarray:
+        return sol
+    if is_diffrax:
+        return solution_to_xarray(sol, multi_simulation=multi_sim)
+    return time_and_pytree_to_xarray(sim_inputs_vectorized.time, sol, multi_simulation=multi_sim)
 
 
 @partial(jax.jit, static_argnames=("record_state"))
@@ -208,16 +201,12 @@ def _single_step(module: TimeDepModule, state: PyTree, inputs: PyTree, dt: float
 
 @eqx.filter_jit
 def _vec_simulate(module: TimeDepModule, sim_input: SimInput, simulate_fun):
-    """Perform a vectorized simulation."""
-    sim_input_axes = jax.tree.map(lambda x: 0, sim_input)
+    """Perform a vectorized simulation.
 
-    vec_sim_fun = jax.vmap(simulate_fun, in_axes=(None, sim_input_axes))
-
-    sol = run_function_with_dim_removed(vec_sim_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME)
-
-    # Remove extraneous dimensions.
-    sol = jax.tree.map(jnp.squeeze, sol)
-    return sol
+    Assumes stray size-1 axes are prevented beforehand (e.g. tree_transpose stacks without squeezing),
+    so leaf shapes here match the single-simulation path plus the leading simulation axis.
+    """
+    return run_function_with_dim_removed(simulate_fun, (module, sim_input), DEFAULT_SIM_DIM_NAME, in_axes=(None, 0))
 
 
 @eqx.filter_jit
@@ -233,19 +222,31 @@ def _diffrax_simulate(
     if solver is None:
         solver = diffrax.Tsit5()
 
-    def module_f(t, y, inputs, return_aux=False):
+    # Diffrax internally tree-maps shape-changed leaves (e.g. stacked Runge-Kutta stages,
+    # time-stacked save buffers) over the state treedef, which xarray_jax's validating
+    # unflatten rejects. Run diffrax purely on flat leaves and rebuild the xarray types
+    # only at the module boundary and after the solve.
+    y0_leaves, state_treedef = jax.tree.flatten(sim_input.initial_state)
+
+    def _eval_module(t, y_leaves, inputs):
+        y = jax.tree.unflatten(state_treedef, y_leaves)
         inputs_resolved = resolve_paths(inputs, t)
         state_dot, out = module(y, inputs_resolved)
-        if return_aux:
-            return out, inputs_resolved
-        else:
-            return state_dot
+        return state_dot, out, inputs_resolved, y
 
-    # Function to save auxiliary information.
-    def saveat_fn(t, y, args):
-        output, inputs_resolved = module_f(t, y, args, return_aux=True)
+    def module_f(t, y_leaves, inputs):
+        state_dot, _, _, _ = _eval_module(t, y_leaves, inputs)
+        return jax.tree.leaves(state_dot)
+
+    # Function to save auxiliary information, returned as flat leaves (see above).
+    save_treedef = None
+
+    def saveat_fn(t, y_leaves, args):
+        nonlocal save_treedef
+        _, output, inputs_resolved, y = _eval_module(t, y_leaves, args)
         out = generate_save_output(y, inputs_resolved, output, record_state=record_state)
-        return out
+        out_leaves, save_treedef = jax.tree.flatten(out)
+        return out_leaves
 
     # Get the minimum time step that is greater than the maximum time padding amount.
     dt0 = min_greater_than_thresh(jnp.diff(sim_input.time), jnp.max(time_epsilon(sim_input.time)))
@@ -256,13 +257,15 @@ def _diffrax_simulate(
         t0=sim_input.time[0],
         t1=sim_input.time[-1],
         dt0=dt0,
-        y0=sim_input.initial_state,
+        y0=y0_leaves,
         args=sim_input.inputs,
         saveat=diffrax.SaveAt(ts=sim_input.time, fn=saveat_fn),
         max_steps=max_steps,
     )
-    # Add simulation dimension to any xr.Variable instances.
-    sol = add_dim_to_vars(sol, DEFAULT_TIME_DIM_NAME)
+    # Rebuild the saved outputs with the time dimension as the leading dimension.
+    with dims_change_on_unflatten(lambda dims: (DEFAULT_TIME_DIM_NAME, *dims)):
+        ys = jax.tree.unflatten(save_treedef, sol.ys)
+    sol = eqx.tree_at(lambda s: s.ys, sol, ys)
     return sol
 
 
@@ -287,13 +290,9 @@ def _simple_euler_simulate_uniform_timestep(module: TimeDepModule, sim_input: Si
         state_next, outputs = _single_step(module, state, inputs_resolved, dt, record_state=record_state)
         return state_next, outputs
 
-    if dts.size == 1:
-        # We only have one time step, which makes things simpler.
-        outputs = _step(sim_input.initial_state, sim_input.time)
-    else:
-        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=sim_input.time)
-    # Add simulation dimension to any xr.Variable instances.
-    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+    # xarray_jax.scan flattens the per-step outputs and unflattens the stacked
+    # result with the time dimension prepended, keeping dims consistent with data.
+    _, outputs = xarray_jax.scan(_step, sim_input.initial_state, dim=DEFAULT_TIME_DIM_NAME, xs=sim_input.time)
     return outputs
 
 
@@ -312,13 +311,21 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
         state_next, outputs = _single_step(module, state, inputs_resolved, timing_info["dts"], record_state=record_state)
         return state_next, outputs
 
-    if dts.size == 1:
-        # We only have one time step, which makes things simpler.
-        outputs = _step(sim_input.initial_state, sim_input.time, dts[0])
-    else:
-        dts_padded = jnp.concatenate([dts, jnp.array([time_epsilon(sim_input.time[0])])], axis=0)  # Pad dts to match time size.
-        timing_info = {"ts": sim_input.time, "dts": dts_padded}
-        _, outputs = jax.lax.scan(_step, sim_input.initial_state, xs=timing_info)
-    # Add simulation dimension to any xr.Variable instances.
-    outputs = add_dim_to_vars(outputs, DEFAULT_TIME_DIM_NAME)
+    dts_padded = jnp.concatenate([dts, jnp.array([time_epsilon(sim_input.time[0])])], axis=0)  # Pad dts to match time size.
+    timing_info = {"ts": sim_input.time, "dts": dts_padded}
+    # xarray_jax.scan flattens the per-step outputs and unflattens the stacked
+    # result with the time dimension prepended, keeping dims consistent with data.
+    _, outputs = xarray_jax.scan(_step, sim_input.initial_state, dim=DEFAULT_TIME_DIM_NAME, xs=timing_info)
     return outputs
+
+
+# Defined after the simulation functions so the references resolve at import time.
+_EULER_SIM_FUNCTIONS = {
+    StepperType.SIMPLE_EULER: _simple_euler_simulate,
+    StepperType.SIMPLE_EULER_UNIFORM: _simple_euler_simulate_uniform_timestep,
+}
+_DIFFRAX_SOLVERS = {
+    StepperType.DIFFRAX_EULER: diffrax.Euler,
+    StepperType.DIFFRAX_TSIT5: diffrax.Tsit5,
+    StepperType.DIFFRAX_DOPRI5: diffrax.Dopri5,
+}

@@ -1,14 +1,14 @@
 """Open the atomic data files and return corresponding xr.Datasets and interpolators."""
-from pathlib import Path
-from typing import Optional, Union, Callable, Any
-
 import os
+from pathlib import Path
+from typing import Any, Callable, Optional, Union
+
 import numpy as np
 import xarray as xr
+from cfspopcon.unit_handling import convert_units, magnitude, ureg
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator  # type: ignore[import-untyped]
 
 from popsim.enums import Impurity
-from cfspopcon.unit_handling import convert_units, magnitude, ureg
 
 
 def _build_interpolator(curve: xr.Dataset) -> Union[RectBivariateSpline, RegularGridInterpolator]:

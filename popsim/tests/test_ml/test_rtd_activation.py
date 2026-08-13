@@ -1,7 +1,9 @@
-from popsim.ml.rtd_activation import Activation
 import jax
 import jax.numpy as jnp
 import pytest
+
+from popsim.ml.rtd_activation import Activation
+
 
 @pytest.mark.parametrize("activation", list(Activation))
 def test_activation_gradients(activation):

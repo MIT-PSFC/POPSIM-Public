@@ -1,31 +1,33 @@
-from jaxtyping import PyTree
-from popsim.simulate import StepperType
-from popsim.tests.fixtures import oscillator_dataset
-from popsim.ml.trainer import Trainer
-from popsim.ml.dataloading import make_time_dep_dataloader
-from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.loss import IntegralLoss
-from popsim.ml.partition import make_partition_by_members
-from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim import TimeDepModule
+import contextlib
+import os
+
 import chex
 import equinox as eqx
-import jax.nn as jnn
 import jax
+import jax.nn as jnn
 import jax.numpy as jnp
 import optax
 import pytest
-import os
+
+from popsim import TimeDepModule
+from popsim.ml.dataloading import make_time_dep_dataloader
+from popsim.ml.envs import ModuleTrainingEnv
+from popsim.ml.loss import IntegralLoss
+from popsim.ml.split_utils import split_dataset_by_fracs
+from popsim.ml.trainer import Trainer
+from popsim.simulate import StepperType
+from popsim.tests.fixtures import oscillator_dataset  # noqa: F401  (pytest fixture)
+
 
 class NeuralODE(TimeDepModule):
     @chex.dataclass
     class Config:
         nn: eqx.Module
-    
+
     @chex.dataclass
     class State:
         state: dict[str, float]
-    
+
     @chex.dataclass
     class Inputs:
         pass
@@ -38,7 +40,7 @@ class NeuralODE(TimeDepModule):
 
     def __init__(self, config):
         self.config = config
-    
+
     def __call__(self, state: State, inputs: Inputs) -> tuple[State, Output]:
         state_flat = jnp.asarray(jax.tree.leaves(state.state))
         state_dot_flat = self.config.nn(state_flat)
@@ -51,11 +53,11 @@ class NeuralODEEnv(ModuleTrainingEnv):
     @staticmethod
     def create_state(observations, inputs):
         return NeuralODE.State(state={"y0": observations["y0"], "y1": observations["y1"]})
-    
+
     @staticmethod
     def create_inputs(inputs):
         return NeuralODE.Inputs()
-    
+
     def get_trainable(self):
         return self.module.config.nn
 
@@ -110,14 +112,17 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
     )
 
     loss_start = trainer.compute_loss(dl if not use_val else val_dl)
+    # Without a validation dataloader the trainer warns that checkpoints won't be saved.
+    warn_ctx = pytest.warns(UserWarning, match="No validation DataLoader") if not use_val else contextlib.nullcontext()
     try:
-        trainer.train(
-            train_dl=dl,
-            val_dl=val_dl,
-            # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
-            max_epochs=20,
-            epochs_per_val=20,
-        )
+        with warn_ctx:
+            trainer.train(
+                train_dl=dl,
+                val_dl=val_dl,
+                # Only val once to help ensure that the last epoch is the best, and hence the checkpoint is saved.
+                max_epochs=20,
+                epochs_per_val=20,
+            )
     except RuntimeError as e:
         # Encountered a NaN during training
         # This is to be expected for some configurations, especially with batch_size=1 and float32 precision.

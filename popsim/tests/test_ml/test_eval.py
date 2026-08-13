@@ -1,13 +1,21 @@
-import jax.flatten_util
-from popsim.ml.eval import model_eval_and_loss, batched_model_eval_and_loss, batch_loss, make_val_loss_eval_fn, run_evals, eval_model_on_data
-
-import pytest
+import chex
 import equinox as eqx
 import jax
+import jax.flatten_util
 import jax.numpy as jnp
-import chex
+import pytest
 import xarray as xr
-from popsim.ml.dataloading import XarrayPreppedDataset, DataLoader
+
+from popsim.ml.dataloading import DataLoader, XarrayPreppedDataset
+from popsim.ml.eval import (
+    batch_loss,
+    batched_model_eval_and_loss,
+    eval_model_on_data,
+    make_val_loss_eval_fn,
+    model_eval_and_loss,
+    run_evals,
+)
+
 
 @pytest.fixture
 def simple_model():
@@ -52,8 +60,8 @@ def test_eval_and_loss(simple_model):
     assert batch_loss(trainable, static, loss_fn, simple_input, simple_target) == expected_loss
 
 def test_eval():
-    from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
     from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG
+    from popsim.modules.profile_predictor.training_run_builder import ProfilePredictorTrainRunBuilder
 
 
     _, train_dl, val_dl, _ = ProfilePredictorTrainRunBuilder.get_dataloaders(DUMMY_CONFIG['dataloader_config'])

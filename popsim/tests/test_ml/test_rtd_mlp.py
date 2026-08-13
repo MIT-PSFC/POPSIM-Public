@@ -1,10 +1,12 @@
-from popsim.ml.rtd_activation import Activation
-from popsim.ml.rtd_mlp import RtdMLP
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-import equinox as eqx
-    
+
+from popsim.ml.rtd_activation import Activation
+from popsim.ml.rtd_mlp import RtdMLP
+
+
 @pytest.mark.parametrize("activation", list(Activation))
 @pytest.mark.parametrize("in_size", [1, 10])
 @pytest.mark.parametrize("out_size", [1, 10])

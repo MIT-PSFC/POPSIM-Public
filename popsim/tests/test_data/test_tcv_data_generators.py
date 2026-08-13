@@ -1,17 +1,17 @@
-import pytest
-from collections.abc import Generator
 import os
+from collections.abc import Generator
+
+import pytest
 import xarray as xr
 
 from popsim.data._paths import get_path_to_ml_data_dump
 from popsim.data.tcv.data_generators import (
     generate_defuse_h5_paths,
-    generate_fbte_nc_paths,
-    generate_fbte_mat_paths,
     generate_defuse_h5s,
     generate_fbte_datasets,
+    generate_fbte_mat_paths,
+    generate_fbte_nc_paths,
 )
-
 
 # Skip all tests in this module if ML data dump path is not available
 pytestmark = pytest.mark.skipif(

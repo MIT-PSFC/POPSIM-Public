@@ -1,6 +1,8 @@
-from popsim.types import StaticSamplerFn
-from jaxtyping import PRNGKeyArray, Array
 from jax import random
+from jaxtyping import Array, PRNGKeyArray
+
+from popsim.types import StaticSamplerFn
+
 
 def test_static_sampler_fn():
     def sample_fn(key: PRNGKeyArray) -> Array:

@@ -1,10 +1,10 @@
-import pytest
+import chex
 import jax
 import jax.numpy as jnp
-import chex
+import pytest
+
 from popsim import TimeIndepModule
 from popsim.modules.bounded_output import BoundedOutput, BoundType
-
 
 
 @pytest.mark.parametrize("bound_type", [BoundType.SOFT, BoundType.CLIP])

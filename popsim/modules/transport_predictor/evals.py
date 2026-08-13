@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
 from popsim.ml import EvalData
 
@@ -35,21 +34,11 @@ def plot_profiles(eval_data: EvalData, title_suffix=""):
     }
 
     # Get the combined dataset
+    # Output variables are already prefixed with "output." or "state."
+    # Input and output profile variables share the indexed "rho" dimension.
     ds = eval_data.input_ds.copy()
     for var in eval_data.output_ds.data_vars:
-        ds[f"output.{var}"] = eval_data.output_ds[var]
-
-    # Reassign extra dimensions to rho_input
-    rename_dict = {}
-    if "output.rho_extra_dim_0" in ds:
-        rename_dict["output.rho_extra_dim_0"] = "rho_input"
-    if "output.profile_predictor_output.ne_extra_dim_0" in ds:
-        rename_dict["output.profile_predictor_output.ne_extra_dim_0"] = "rho_input"
-    if "output.profile_predictor_output.te_extra_dim_0" in ds:
-        rename_dict["output.profile_predictor_output.te_extra_dim_0"] = "rho_input"
-
-    if rename_dict:
-        ds = ds.rename(rename_dict)
+        ds[var] = eval_data.output_ds[var]
 
     fig_size = (12, 12)
     figures = {}
@@ -62,12 +51,8 @@ def plot_profiles(eval_data: EvalData, title_suffix=""):
 
         # Plot the electron density profile
         for rho, (target_color, pred_color) in rho_colors.items():
-            # Find the index of the rho value in the dataset closest to the specified rho
-            rho_index = (np.abs(shot_data["rho"].values - rho)).argmin()
-            ne_target = shot_data["ne20_rho"].where(shot_data["rho_input"] == rho_index, drop=True).squeeze(drop=True)
-            ne_predicted = (
-                shot_data["output.profile_predictor_output.ne"].where(shot_data["rho_input"] == rho_index, drop=True).squeeze(drop=True)
-            )
+            ne_target = shot_data["ne20_rho"].sel(rho=rho, method="nearest")
+            ne_predicted = shot_data["output.profile_predictor_output.ne"].sel(rho=rho, method="nearest")
             axes[0].plot(shot_data.time, ne_target, label=f"ne {rho} Target", color=target_color, linestyle="--")
             axes[0].plot(shot_data.time, ne_predicted, label=f"ne {rho} Predicted", color=pred_color)
 
@@ -77,11 +62,8 @@ def plot_profiles(eval_data: EvalData, title_suffix=""):
 
         # Plot the electron temperature profile
         for rho, (target_color, pred_color) in rho_colors.items():
-            rho_index = (np.abs(shot_data["rho"].values - rho)).argmin()
-            te_target = shot_data["Te_keV_rho"].where(shot_data["rho_input"] == rho_index, drop=True).squeeze(drop=True)
-            te_predicted = (
-                shot_data["output.profile_predictor_output.te"].where(shot_data["rho_input"] == rho_index, drop=True).squeeze(drop=True)
-            )
+            te_target = shot_data["Te_keV_rho"].sel(rho=rho, method="nearest")
+            te_predicted = shot_data["output.profile_predictor_output.te"].sel(rho=rho, method="nearest")
             axes[1].plot(shot_data.time, te_predicted, label=f"Te {rho} Predicted", color=pred_color)
             axes[1].plot(shot_data.time, te_target, label=f"Te {rho} Target", color=target_color, linestyle="--")
 

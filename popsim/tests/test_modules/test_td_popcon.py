@@ -1,9 +1,10 @@
 import jax
 import jax.numpy as jnp
+from xarray_jax import dims_change_on_unflatten
 
 import popsim.modules.td_popcon.scenarios.sparc_prd as sparc_prd_td_popcon
 from popsim.modules.td_popcon.scenarios.sparc_prd import Sparc2020TestData
-from popsim.simulate import simulate, SimInput
+from popsim.simulate import SimInput, simulate
 
 
 def generate_sim_and_checks(only_return_final: bool = True):
@@ -13,7 +14,10 @@ def generate_sim_and_checks(only_return_final: bool = True):
     sol = simulate(model, SimInput(time=ts, initial_state=state, inputs=inputs), return_xarray=False)
 
     if only_return_final:
-        out = jax.tree.map(lambda x: x[-1], sol)
+        # Slicing off the leading time axis changes leaf shapes, so any xarray
+        # variables must be rebuilt with the time dimension dropped.
+        with dims_change_on_unflatten(lambda dims: dims[1:]):
+            out = jax.tree.map(lambda x: x[-1], sol)
     else:
         out = sol
     out_state, out_aux = out["state"], out["output"]["aux_data"]

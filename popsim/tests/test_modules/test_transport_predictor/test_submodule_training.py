@@ -1,9 +1,9 @@
 import os
+
 import pytest
 
-from popsim.ml.launch import launch_train
-
 from popsim import DATA_DIR
+from popsim.ml.launch import launch_train
 from popsim.modules.transport_predictor.train_configs import BASE_CONFIG, update_submodule_configs
 
 # Ensure each submodule from the transport predictor can be trained independently using all the default configs

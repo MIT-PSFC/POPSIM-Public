@@ -1,15 +1,16 @@
 import os
 import tempfile
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 import xarray as xr
 
 from popsim import DATA_DIR
 from popsim.ml.dataloading import make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.launch import launch_train
 from popsim.ml.train_config import TrainConfig
-from popsim.modules.transport_predictor.train_configs import BASE_CONFIG as TRANSPORT_PREDICTOR_BASE_CONFIG, update_submodule_configs
+from popsim.modules.transport_predictor.train_configs import BASE_CONFIG as TRANSPORT_PREDICTOR_BASE_CONFIG
+from popsim.modules.transport_predictor.train_configs import update_submodule_configs
 
 
 def test_dask_time_dep_dataloader():
