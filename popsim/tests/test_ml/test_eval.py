@@ -8,10 +8,10 @@ import xarray as xr
 
 from popsim.ml.dataloading import DataLoader, XarrayPreppedDataset
 from popsim.ml.eval import (
-    batch_loss,
     batched_model_eval_and_loss,
     eval_model_on_data,
     make_val_loss_eval_fn,
+    masked_batch_loss,
     model_eval_and_loss,
     run_evals,
 )
@@ -55,9 +55,12 @@ def test_eval_and_loss(simple_model):
     expected_losses = jnp.array([expected_loss, expected_loss])
     assert jnp.allclose(losses, expected_losses)
 
-    # Now test batch_loss, which requires a partition first.
+    # Now test masked_batch_loss with every sample kept, which requires a partition first.
     trainable, static = eqx.partition(simple_model, eqx.is_inexact_array_like)
-    assert batch_loss(trainable, static, loss_fn, simple_input, simple_target) == expected_loss
+    sample_mask = jnp.ones(losses.shape, dtype=bool)
+    masked_mean_loss, sample_losses = masked_batch_loss(trainable, static, loss_fn, simple_input, simple_target, sample_mask)
+    assert masked_mean_loss == expected_loss
+    assert jnp.allclose(sample_losses, expected_losses)
 
 def test_eval():
     from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG

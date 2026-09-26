@@ -2,7 +2,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import xarray as xr
 from jaxtyping import Array, PyTree
@@ -220,48 +219,6 @@ def batched_model_eval_and_loss(
     return losses
 
 
-@eqx.filter_jit
-def jit_batched_model_eval_and_loss(
-    model: TrainableModel,
-    loss_fn: LossFunction,
-    inputs: PyTree[Array],
-    targets: PyTree[Array],
-) -> Array:
-    """batched_model_eval_and_loss under a persistent module level jit.
-
-    Eager one-off callers should use this so the whole batched forward is
-    compiled instead of traced op by op. Callers that evaluate repeatedly
-    with one fixed model and loss, such as validation loss suites, should
-    instead create their own eqx.filter_jit(batched_model_eval_and_loss)
-    scoped to that model, see make_val_loss_eval_fn.
-    """
-    return batched_model_eval_and_loss(model, loss_fn, inputs, targets)
-
-
-def batch_loss(
-    trainable: TrainableModel,
-    static: TrainableModel,
-    loss_fn: LossFunction,
-    inputs: PyTree[Array],
-    targets: PyTree[Array],
-) -> float:
-    """Computes the mean batch loss with support for partitioning the model into trainable and static parts.
-
-    Args:
-        trainable (TrainableModel): the trainable part of the model.
-        static (TrainableModel): the static part of the model.
-        loss_fn (LossFunction): the loss function to use.
-        inputs (PyTree[Array]): the inputs to the model.
-        targets (PyTree[Array]): the targets to compare the model output to in the loss function.
-
-    Returns:
-        float: the mean batch loss.
-    """
-    model = eqx.combine(trainable, static)
-    losses = batched_model_eval_and_loss(model, loss_fn, inputs, targets)
-    return losses.mean()
-
-
 def masked_batch_loss(
     trainable: TrainableModel,
     static: TrainableModel,
@@ -269,39 +226,30 @@ def masked_batch_loss(
     inputs: PyTree[Array],
     targets: PyTree[Array],
     sample_mask: Array,
-) -> float:
-    """Mean batch loss over only the samples where sample_mask is True.
+) -> tuple[Array, Array]:
+    """Mean batch loss over the samples where sample_mask is True, plus every per-sample loss.
 
-    Masking the loss alone is not enough to mask a sample's gradient: if the forward pass
-    at a bad sample is non-finite, its cotangent is NaN and 0 * NaN = NaN poisons the whole
-    batch gradient. So the masked-out samples' inputs and targets are first replaced with
-    those of the first masked-in sample, keeping the differentiated computation finite
-    everywhere, and then given zero weight in the mean. Masked-out samples therefore
-    contribute exactly zero loss and zero gradient.
+    Masked-out samples add no loss and no gradient only while their own loss is finite,
+    because 0 * NaN = NaN in both the forward and backward pass.
+    Callers must overwrite non-finite samples with finite ones before masking them out.
 
     Args:
         trainable (TrainableModel): the trainable part of the model.
         static (TrainableModel): the static part of the model.
         loss_fn (LossFunction): the loss function to use.
-        inputs (PyTree[Array]): the inputs to the model, leading dim is the sample dim.
-        targets (PyTree[Array]): the targets, leading dim is the sample dim.
+        inputs (PyTree[Array]): the inputs to the model.
+        targets (PyTree[Array]): the targets to compare the model output to in the loss function.
         sample_mask (Array): boolean vector over the sample dim, True = include the sample.
-            Must have at least one True entry (the caller is expected to check host-side).
+            Must have at least one True entry.
 
     Returns:
-        float: the mean batch loss over the masked-in samples.
+        tuple[Array, Array]: the masked mean loss and the vector of per-sample losses.
     """
     model = eqx.combine(trainable, static)
-    good_idx = jnp.argmax(sample_mask)
-
-    def _replace_masked_out(leaf):
-        mask = sample_mask.reshape((leaf.shape[0],) + (1,) * (leaf.ndim - 1))
-        return jnp.where(mask, leaf, jax.lax.dynamic_index_in_dim(leaf, good_idx, keepdims=True))
-
-    safe_inputs, safe_targets = jax.tree.map(_replace_masked_out, (inputs, targets))
-    losses = batched_model_eval_and_loss(model, loss_fn, safe_inputs, safe_targets)
-    weights = sample_mask.astype(losses.dtype)
-    return jnp.sum(losses * weights) / jnp.sum(weights)
+    sample_losses = batched_model_eval_and_loss(model, loss_fn, inputs, targets)
+    sample_weights = sample_mask.astype(sample_losses.dtype)
+    masked_mean_loss = jnp.sum(sample_losses * sample_weights) / jnp.sum(sample_weights)
+    return masked_mean_loss, sample_losses
 
 
 def make_val_loss_eval_fn(

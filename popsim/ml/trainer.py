@@ -22,20 +22,18 @@ from popsim.ml.checkpointing import (
     restore_train_state,
     save_train_state,
 )
-from popsim.ml.dataloading import DataLoader
+from popsim.ml.dataloading import DataLoader, XarrayPreppedDataset
 from popsim.ml.debug_utils import diagnose_nans
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import (
     EvalData,
     EvaluationSuite,
-    batch_loss,
-    jit_batched_model_eval_and_loss,
     make_val_loss_eval_fn,
     masked_batch_loss,
     run_evals,
 )
 from popsim.ml.loggers import ConsoleLogger, LoggerBase, WandbLogger
-from popsim.ml.loss import InstantaneousLoss, IntegralLoss, LossFunction
+from popsim.ml.loss import IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
 from popsim.tree_util import any_nans
 
@@ -84,12 +82,12 @@ def _as_hashable_sample_id(value):
     return value
 
 
-def _record_bad_samples(batch, finite_mask: np.ndarray, bad_sample_ids: set) -> list:
+def _record_bad_samples(batch, mask_bad: np.ndarray, bad_sample_ids: set) -> list:
     """Resolve the sample coordinate values of the non-finite samples in a batch and
     accumulate them into bad_sample_ids. Diagnostics only, so never raises."""
     try:
         coord_vals = batch.sample_coord.values
-        new_bad = [_as_hashable_sample_id(coord_vals[i]) for i in np.nonzero(~finite_mask)[0]]
+        new_bad = [_as_hashable_sample_id(coord_vals[i]) for i in np.nonzero(mask_bad)[0]]
     except Exception as exc:
         loguru.logger.warning("Could not resolve the sample ids of the non-finite samples: {!r}", exc)
         return []
@@ -121,106 +119,86 @@ def _high_skip_epoch_count(train_metrics: dict | None, consecutive_high_skip_epo
 def train_step(
     model: TrainableModel,
     partition_fn: PartitionFn,
-    loss_fn: IntegralLoss,
+    loss_fn: LossFunction,
     optimizer: optax.GradientTransformation,
     opt_state: optax.OptState,
     inputs: PyTree[Array],
     targets: PyTree[Array],
-) -> tuple[TrainableModel, optax.OptState, float]:
-    """Train the model for one step of SGD."""
+    sample_mask: Array,
+) -> tuple[TrainableModel, optax.OptState, Array, Array]:
+    """Train the model for one step of SGD on the mean loss over the samples where sample_mask is True.
+
+    sample_mask is always a boolean array over the batch, so padded and NaN-retry steps reuse one compilation.
+    Returns the new model, the new optimizer state, the masked mean loss, and the per-sample losses.
+    """
     # Partition the model into trainable and static parts.
     trainable, static = partition_fn(model)
 
-    def _batch_loss(_trainable: TrainableModel):
-        return batch_loss(_trainable, static, loss_fn, inputs, targets)
+    def _masked_loss_and_sample_losses(_trainable: TrainableModel):
+        return masked_batch_loss(_trainable, static, loss_fn, inputs, targets, sample_mask)
+
+    def _masked_loss(_trainable: TrainableModel):
+        masked_mean_loss, _ = _masked_loss_and_sample_losses(_trainable)
+        return masked_mean_loss
 
     # Compute the loss value and the gradient of loss w.r.t. the trainable parts of the model.
-    loss_value, grads = eqx.filter_value_and_grad(_batch_loss)(trainable)
+    loss_and_sample_losses, grads = eqx.filter_value_and_grad(_masked_loss_and_sample_losses, has_aux=True)(trainable)
+    loss_value, sample_losses = loss_and_sample_losses
 
-    # Update the optimizer and the model.
-    model_updates, opt_state = optimizer.update(grads, opt_state, trainable, value=loss_value, grad=grads, value_fn=_batch_loss)
+    # Line-search optimizers such as lbfgs need a scalar value_fn.
+    model_updates, opt_state = optimizer.update(grads, opt_state, trainable, value=loss_value, grad=grads, value_fn=_masked_loss)
 
     # Apply the updates to the trainable part of the model.
     trainable = eqx.apply_updates(trainable, model_updates)
 
     # Combine the trainable and static parts of the model to get back the whole model.
     new_model = eqx.combine(trainable, static)
-    return new_model, opt_state, loss_value
+    return new_model, opt_state, loss_value, sample_losses
 
 
-@eqx.filter_jit
-def masked_train_step(
-    model: TrainableModel,
-    partition_fn: PartitionFn,
-    loss_fn: IntegralLoss,
-    optimizer: optax.GradientTransformation,
-    opt_state: optax.OptState,
-    inputs: PyTree[Array],
-    targets: PyTree[Array],
-    sample_mask: Array,
-) -> tuple[TrainableModel, optax.OptState, float]:
-    """Train the model for one step of SGD over only the samples where sample_mask is True.
-
-    Fallback for when the plain train_step produces NaN/Inf: a batch containing a few
-    pathological samples still makes progress on the rest, since the masked-out samples
-    contribute exactly zero loss and zero gradient (see masked_batch_loss). sample_mask
-    must have at least one True entry.
-    """
-    trainable, static = partition_fn(model)
-
-    def _masked_batch_loss(_trainable: TrainableModel):
-        return masked_batch_loss(_trainable, static, loss_fn, inputs, targets, sample_mask)
-
-    loss_value, grads = eqx.filter_value_and_grad(_masked_batch_loss)(trainable)
-    model_updates, opt_state = optimizer.update(grads, opt_state, trainable, value=loss_value, grad=grads, value_fn=_masked_batch_loss)
-    trainable = eqx.apply_updates(trainable, model_updates)
-    new_model = eqx.combine(trainable, static)
-    return new_model, opt_state, loss_value
-
-
-def _retry_step_with_nan_samples_masked(
+def _retry_step_without_nonfinite_samples(
     train_state: TrainState,
     partition_fn: PartitionFn,
-    loss_fn: InstantaneousLoss,
+    loss_fn: LossFunction,
     optimizer: optax.GradientTransformation,
-    inputs: PyTree[Array],
-    targets: PyTree[Array],
-    batch,
+    batch: XarrayPreppedDataset,
+    sample_losses: Array,
+    mask_valid: np.ndarray,
     bad_sample_ids: set,
     verbose: bool,
-) -> tuple[TrainableModel, optax.OptState, float] | None:
-    """Fallback for a train step that produced NaN/Inf: identify the samples whose forward
-    loss is non-finite, log their sample ids, and retake the step with them masked out.
+) -> tuple[TrainableModel, optax.OptState, Array] | None:
+    """Retake a NaN/Inf train step with the samples whose loss is non-finite masked out.
 
-    Returns the (model, opt_state, loss_value) of the masked step, or None when the batch
-    cannot be recovered and the step should be skipped. Unrecoverable cases: no sample has
-    a finite forward loss, all forward losses are finite (the non-finite values arose in
-    the backward pass or optimizer update, so the culprits cannot be attributed by forward
-    loss), or the masked step itself still produced NaN/Inf.
+    Non-finite samples are overwritten with a finite sample so the backward pass stays finite,
+    then masked out so they add no loss or gradient.
+    The retry has the same shapes and dtypes, so it reuses the compiled train_step.
+    Returns the (model, opt_state, loss_value) of the retried step, or None when the step must be skipped.
+    The step is skipped when every per-sample loss is finite, since the NaN/Inf then came from the backward pass or optimizer update.
+    It is also skipped when no valid sample is finite, or when the retry still produces NaN/Inf.
     """
     step, epoch = train_state.step, train_state.epoch
-    sample_losses = jax.block_until_ready(jit_batched_model_eval_and_loss(train_state.model, loss_fn, inputs, targets))
-    finite_mask = np.isfinite(np.asarray(sample_losses))
-    new_bad = _record_bad_samples(batch, finite_mask, bad_sample_ids)
+    mask_nonfinite = ~np.isfinite(np.asarray(sample_losses))
+    mask_bad = mask_valid & mask_nonfinite
+    mask_good = mask_valid & ~mask_nonfinite
+    new_bad = _record_bad_samples(batch, mask_bad, bad_sample_ids)
 
-    if finite_mask.all():
+    if not mask_nonfinite.any():
         if verbose:
             loguru.logger.warning(
-                "NaN/Inf after train_step at step {} (epoch {}) but all per-sample forward losses are finite, "
+                "NaN/Inf after train_step at step {} (epoch {}) but all per-sample losses are finite, "
                 "so the non-finite values arose in the backward pass or optimizer update and the culprit samples "
                 "cannot be isolated. Skipping optimizer update.",
                 step,
                 epoch,
             )
         return None
-    if not finite_mask.any():
+    if not mask_good.any():
         if verbose:
             loguru.logger.warning(
-                "NaN/Inf after train_step at step {} (epoch {}) and all {} samples have a non-finite forward loss. "
-                "Skipping optimizer update.",
+                "NaN/Inf after train_step at step {} (epoch {}) and all {} samples have a non-finite loss. Skipping optimizer update.",
                 step,
                 epoch,
-                finite_mask.size,
+                int(mask_valid.sum()),
             )
         return None
 
@@ -229,22 +207,29 @@ def _retry_step_with_nan_samples_masked(
             "NaN/Inf after train_step at step {} (epoch {}). Retrying with {}/{} non-finite samples masked out: [{}]",
             step,
             epoch,
-            int((~finite_mask).sum()),
-            finite_mask.size,
+            int(mask_bad.sum()),
+            int(mask_valid.sum()),
             _format_sample_ids(new_bad),
         )
-    model, opt_state, loss_value = jax.block_until_ready(
-        masked_train_step(
-            train_state.model,
-            partition_fn,
-            loss_fn,
-            optimizer,
-            train_state.opt_state,
-            inputs,
-            targets,
-            jnp.asarray(finite_mask),
-        )
+    # Padded duplicates of a bad sample are non-finite too, so replace every non-finite row.
+    # Re-indexing re-reads lazy zarr or dask data from disk, should be fine since this only runs on NaN steps.
+    first_good_idx = np.argmax(mask_good)
+    all_row_idx = np.arange(mask_nonfinite.size)
+    row_idx_finite = np.where(mask_nonfinite, first_good_idx, all_row_idx)
+    batch_finite = batch[row_idx_finite]
+    inputs_finite, targets_finite = batch_finite.get_inputs_and_targets()
+    sample_mask_good = jnp.asarray(mask_good)
+    step_outputs = train_step(
+        train_state.model,
+        partition_fn,
+        loss_fn,
+        optimizer,
+        train_state.opt_state,
+        inputs_finite,
+        targets_finite,
+        sample_mask_good,
     )
+    model, opt_state, loss_value, _ = jax.block_until_ready(step_outputs)
     if step_nan_check(model, opt_state, loss_value):
         if verbose:
             loguru.logger.warning(
@@ -259,7 +244,7 @@ def _retry_step_with_nan_samples_masked(
 def train_epoch(
     train_state: TrainState,
     partition_fn: PartitionFn,
-    loss_fn: InstantaneousLoss,
+    loss_fn: LossFunction,
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
     logger: LoggerBase,
@@ -278,37 +263,41 @@ def train_epoch(
             raise RuntimeError("NaN values found in inputs. Training cannot continue.")
         if any_nans(targets):
             raise RuntimeError("NaN values found in targets, this will cause further NaNs on backpropagation. Training cannot continue.")
+        # Padded rows repeat the last real sample, mask them so they add no extra weight.
+        n_batch = len(batch)
+        mask_valid = np.arange(n_batch) < n_batch - batch.n_padded
+        sample_mask_valid = jnp.asarray(mask_valid)
         tend_prep = time.time()
 
         tstart_step = time.time()
 
         # block_until_ready on JIT compiled functions is important for correctly benchmarking the elapsed time.
-        model, opt_state, loss_value = jax.block_until_ready(
-            train_step(
-                train_state.model,
-                partition_fn,
-                loss_fn,
-                optimizer,
-                train_state.opt_state,
-                inputs,
-                targets,
-            )
+        step_outputs = train_step(
+            train_state.model,
+            partition_fn,
+            loss_fn,
+            optimizer,
+            train_state.opt_state,
+            inputs,
+            targets,
+            sample_mask_valid,
         )
+        model, opt_state, loss_value, sample_losses = jax.block_until_ready(step_outputs)
 
         if step_nan_check(model, opt_state, loss_value):
-            # occasionally, samples can drive the solve to a non-finite loss/grad/update
-            # retry the step with those samples masked out so the rest of the batch still trains
-            # if that is not possible, skip just that step and keep the last good params and optimizer state
-            # per-step warnings are capped, the epoch summary below always reports totals and culprits
+            # Some samples can drive the solve to a non-finite loss, gradient or update.
+            # Retry without them so the rest of the batch still trains.
+            # Otherwise skip the step and keep the last good params and optimizer state.
+            # Per-step warnings are capped, the epoch summary below reports totals and culprits.
             n_nan_events += 1
-            recovered = _retry_step_with_nan_samples_masked(
+            recovered = _retry_step_without_nonfinite_samples(
                 train_state,
                 partition_fn,
                 loss_fn,
                 optimizer,
-                inputs,
-                targets,
                 batch,
+                sample_losses,
+                mask_valid,
                 bad_sample_ids,
                 verbose=n_nan_events <= MAX_NAN_STEP_WARNINGS_PER_EPOCH,
             )

@@ -45,8 +45,9 @@ class XarrayPreppedDataset:
 
     ds: xr.Dataset
     training_metadata: TrainingMetadata
+    n_padded: int  # Trailing samples that repeat the last real sample, set by DataLoader when pad_last=True
 
-    def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata):
+    def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata, n_padded: int = 0):
         if ds[training_metadata.sample_coord].ndim != 1:
             raise ValueError(f"The sample coordinate '{training_metadata.sample_coord}' must be 1D.")
 
@@ -54,14 +55,20 @@ class XarrayPreppedDataset:
             ds = ds.transpose(training_metadata.sample_dim, ...)
         self.ds = ds
         self.training_metadata = training_metadata
+        self.n_padded = n_padded
 
     def __len__(self):
         return self.sample_coord.size
 
     def __getitem__(self, idx) -> "XarrayPreppedDataset":
+        return self.select_samples(idx)
+
+    def select_samples(self, idx, n_padded: int = 0) -> "XarrayPreppedDataset":
+        """Select samples by position along the sample dim.
+        n_padded marks how many trailing samples are padding duplicates."""
         sample_dim = self.training_metadata.sample_dim
         ds_slice = self.ds.isel({sample_dim: idx})
-        return XarrayPreppedDataset(ds_slice, self.training_metadata)
+        return XarrayPreppedDataset(ds_slice, self.training_metadata, n_padded=n_padded)
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires special handling for equality comparison.
@@ -194,18 +201,17 @@ class DataLoader:
             self.dataset.update_prng_seed(seed)
 
         def EpochIterator(data, batch_size: int, indices: typing.Sequence[int], pad_last: bool):
-            # Padding only helps when full batches exist, otherwise the single
-            # partial batch already has a stable shape and padding it to
-            # batch_size would just waste compute
+            # Padding only helps when full batches exist.
+            # A single partial batch already has a stable shape.
             pad_last = pad_last and len(indices) > batch_size
             for i in range(0, len(indices), batch_size):
                 idx = indices[i : i + batch_size]
-                if pad_last and len(idx) < batch_size:
-                    # Repeat the last real sample so every batch has the same shape,
-                    # avoiding an extra XLA compilation for the final partial batch.
-                    # Downstream consumers trim the padded duplicates before aggregating
-                    idx = np.concatenate([idx, np.repeat(idx[-1], batch_size - len(idx))])
-                yield data[idx]
+                n_padded = batch_size - len(idx) if pad_last else 0
+                if n_padded > 0:
+                    # Repeat the last real sample so the final batch needs no extra XLA compilation.
+                    # Training masks the duplicates via n_padded, evaluation trims them.
+                    idx = np.concatenate([idx, np.repeat(idx[-1], n_padded)])
+                yield data.select_samples(idx, n_padded=n_padded)
 
         # shuffle (permutation) indices every epoch
         indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
