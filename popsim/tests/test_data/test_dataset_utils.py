@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from popsim.data import dataset_utils
 from popsim.data.data_generators import dummy
 from popsim.data.dataset_utils import add_to_zarr_store, build_tensorized_dataset
 from popsim.tests.fixtures import tcv_fbt_test_dataset  # noqa: F401  (pytest fixture)
@@ -428,49 +429,79 @@ def test_add_to_zarr_store_dim_sizes_exceeded(test_number):
 
 
 @pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
-def test_build_tensorized_dataset_with_dim_sizes(test_number):
-    """dim_sizes overshoot is trimmed away during the rechunking pass."""
+def test_build_tensorized_dataset_with_dim_sizes(test_number, monkeypatch):
+    """The rechunking pass trims dim_sizes padding back to the largest episode, including one whose own data ends in NaN.
+
+    Extending a trimmed store leaves it alone while new episodes fit,
+    and extends it once, straight to the bound, when one outgrows it.
+    """
     np.random.seed(test_number)
-    episode_lengths = {"test1": 10, "test2": 30, "test3": 20}
+    episode_lengths = {"test1": 10, "test2": 30, "test3": 20, "test4": 12, "test5": 40, "test6": 45}
+    # test2 is the longest episode, and its own last 5 time slices are NaN in every variable.
+    # Trimming must stop at its length, not at its last finite value.
+    n_nan_tail = 5
+
+    def _episode(path: str) -> xr.Dataset:
+        nt = episode_lengths[path]
+        data = np.random.rand(nt, 5)
+        time = np.arange(nt, dtype=float)
+        if path == "test2":
+            data[-n_nan_tail:] = np.nan
+            time[-n_nan_tail:] = np.nan
+        return xr.Dataset(
+            {"data": (("time_idx", "space"), data)},
+            coords={"time": ("time_idx", time), "space": ("space", np.arange(5)), "shot": path},
+        )
+
+    episodes = {path: _episode(path) for path in episode_lengths}
 
     def build_fn(path: str) -> xr.Dataset:
-        nt = episode_lengths[path]
-        ds = xr.Dataset(
-            {
-                "data": (("time_idx", "space"), np.random.rand(nt, 5)),
-            },
-            coords={
-                "time": ("time_idx", np.arange(nt, dtype=float)),
-                "space": ("space", np.arange(5)),
-                "shot": path
-            }
-        )
-        return ds
+        return episodes[path]
+
+    build_kwargs = dict(process_fn=build_fn, time_dim="time_idx", episode_dim="shot", dim_sizes={"time_idx": 50, "space": 5})
+
+    # Every store extend rewrites all episodes already written, so record them.
+    extend_calls = []
+    original_extend = dataset_utils.extend_zarr_along_dim
+
+    def _recording_extend(zarr_path, dim, n_extend):
+        extend_calls.append((dim, n_extend))
+        original_extend(zarr_path, dim, n_extend)
+
+    monkeypatch.setattr(dataset_utils, "extend_zarr_along_dim", _recording_extend)
+
+    def _assert_episodes_round_trip(ds: xr.Dataset, paths: list[str]):
+        ds = ds.load()
+        for path in paths:
+            nt = episode_lengths[path]
+            episode = ds.sel(shot=path)
+            np.testing.assert_array_equal(episode["data"].isel(time_idx=slice(0, nt)).values, episodes[path]["data"].values)
+            assert episode["data"].isel(time_idx=slice(nt, None)).isnull().all()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         zarr_path = f"{tmpdir}/test_zarr_store.zarr"
 
         # Upper bound of 50 deliberately overshoots the largest episode (30)
-        ds = build_tensorized_dataset(
-            process_fn=build_fn,
-            zarr_path=zarr_path,
-            identifiers=["test1", "test2", "test3"],
-            time_dim="time_idx",
-            episode_dim="shot",
-            dim_sizes={"time_idx": 50, "space": 5},
-        )
-
+        ds = build_tensorized_dataset(zarr_path=zarr_path, identifiers=["test1", "test2", "test3"], **build_kwargs)
         assert ds.sizes["shot"] == 3
-        # The overshoot beyond the largest episode should have been trimmed away
         assert ds.sizes["time_idx"] == 30
         assert ds.sizes["space"] == 5
+        assert extend_calls == []
+        _assert_episodes_round_trip(ds, ["test1", "test2", "test3"])
 
-        # Data must round-trip unchanged for each episode
-        ds = ds.load()
-        for path, nt in episode_lengths.items():
-            episode = ds.sel(shot=path)
-            assert episode["data"].isel(time_idx=slice(0, nt)).notnull().all()
-            assert episode["data"].isel(time_idx=slice(nt, None)).isnull().all()
+        # Fits in the trimmed store, so no extend.
+        ds = build_tensorized_dataset(zarr_path=zarr_path, identifiers=["test4"], extend_existing=True, **build_kwargs)
+        assert ds.sizes["shot"] == 4
+        assert ds.sizes["time_idx"] == 30
+        assert extend_calls == []
+        _assert_episodes_round_trip(ds, ["test1", "test2", "test3", "test4"])
+
+        # test5 outgrows the store, which is extended once to the bound, and test6 then fits.
+        ds = build_tensorized_dataset(zarr_path=zarr_path, identifiers=["test5", "test6"], extend_existing=True, **build_kwargs)
+        assert ds.sizes["shot"] == 6
+        assert ds.sizes["time_idx"] == 45
+        assert extend_calls == [("time_idx", 20)]
+        _assert_episodes_round_trip(ds, list(episode_lengths))
 
 
 @pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
