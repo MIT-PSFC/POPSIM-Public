@@ -468,8 +468,8 @@ class Trainer:
             train_dl (DataLoader): DataLoader for training the model.
             val_dl (typing.Optional[DataLoader]): DataLoader for validating the model. Defaults to None.
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
-            max_epochs (int, optional): Total epoch budget. When resuming from a checkpoint at epoch N, training continues from N up to max_epochs (absolute target, not additive). Defaults to 1000.
-            epochs_per_val (int, optional): How often to run evaluations. Defaults to 1.
+            max_epochs (int, optional): Total number of epochs to train. A run resumed after N completed epochs trains the remaining max_epochs - N (absolute target, not additive). Defaults to 1000.
+            epochs_per_val (int, optional): Validate after every epochs_per_val completed epochs, and always after the final epoch. Defaults to 1.
             patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). Note the patience counter is not persisted across resumed runs.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
             max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish. Defaults to None (no budget).
@@ -490,13 +490,12 @@ class Trainer:
         consecutive_high_skip_epochs = 0
         tstart_train = time.time()
 
-        # max_epochs is an absolute target: a run resumed at epoch N trains N..max_epochs.
-        # An empty range (resumed run that already finished training but died before
-        # the test eval) skips straight to restoring the best checkpoint and evaluating.
+        # max_epochs is an absolute target, a run resumed after N completed epochs trains the remaining max_epochs - N.
+        # An empty range (a resumed run that finished training but died before the test eval) goes straight to the test eval.
         start_epoch = self.train_state.epoch
         if start_epoch > 0:
-            loguru.logger.info(f"Resuming training at epoch {start_epoch} of {max_epochs}")
-        epoch_range = range(start_epoch, max_epochs + 1)
+            loguru.logger.info(f"Resuming training after {start_epoch} of {max_epochs} epochs")
+        epoch_range = range(start_epoch, max_epochs)
 
         for epoch in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
             tstart_epoch = time.time()
@@ -515,9 +514,12 @@ class Trainer:
 
             tend_epoch = time.time()
 
-            self._log_epoch_metrics(logger, epoch, epochs_per_val, train_metrics, tend_epoch - tstart_epoch)
+            # Epoch metrics and checkpoints count completed epochs, so the final epoch is max_epochs.
+            n_epochs_completed = self.train_state.epoch
+            is_val_epoch = n_epochs_completed % epochs_per_val == 0 or n_epochs_completed == max_epochs
+            self._log_epoch_metrics(logger, n_epochs_completed, is_val_epoch, train_metrics, tend_epoch - tstart_epoch)
 
-            if val_dl and epoch % epochs_per_val == 0:
+            if val_dl and is_val_epoch:
                 tstart_val = time.time()
                 eval_results = self.run_evals(val_dl, eval_suite)
                 tend_val = time.time()
@@ -530,7 +532,7 @@ class Trainer:
 
                 logger.log(
                     {
-                        "val/epoch": epoch,
+                        "val/epoch": n_epochs_completed,
                         "val/evaluation_time": tend_val - tstart_val,
                     }
                     | eval_results
@@ -574,13 +576,13 @@ class Trainer:
         return test_results
 
     @staticmethod
-    def _log_epoch_metrics(logger: LoggerBase, epoch: int, epochs_per_val: int, train_metrics: dict | None, epoch_time: float):
-        """Log per-epoch training metrics. For fast-training models, W&B can't handle
-        logging on every epoch, so log at the validation cadence."""
-        if isinstance(logger, WandbLogger) and epoch % epochs_per_val != 0:
+    def _log_epoch_metrics(logger: LoggerBase, n_epochs_completed: int, is_val_epoch: bool, train_metrics: dict | None, epoch_time: float):
+        """Log per-epoch training metrics.
+        For fast-training models, W&B can't handle logging on every epoch, so log at the validation cadence."""
+        if isinstance(logger, WandbLogger) and not is_val_epoch:
             return
         epoch_train_metrics = {
-            "train/epoch": epoch,
+            "train/epoch": n_epochs_completed,
             "train/epoch_time": epoch_time,
         }
         # For W&B, include the latest train-step metrics at the same cadence as validation logs.
