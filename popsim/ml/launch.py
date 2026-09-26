@@ -3,6 +3,7 @@ import importlib.util
 import inspect
 import os
 import warnings
+from collections.abc import Callable
 
 import loguru
 from absl import logging as absl_logging
@@ -38,7 +39,12 @@ def launch_train(
     return _run_train(training_config, use_wandb=use_wandb)
 
 
-def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_config_path: str | os.PathLike[str] | dict, kwargs_sweep: dict | None = None, kwargs_agent: dict | None = None):
+def launch_sweep(
+    config: str | os.PathLike[str] | dict | TrainConfig,
+    sweep_config_path: str | os.PathLike[str] | dict,
+    kwargs_sweep: dict | None = None,
+    kwargs_agent: dict | None = None,
+):
     """Launch a hyperparameter sweep using Weights & Biases.
 
     Args:
@@ -75,6 +81,8 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
     """
     import wandb
 
+    from popsim.ml.sweep_agent import CooperativeStopAgent
+
     if isinstance(config, TrainConfig):
         training_config = config
     else:
@@ -84,9 +92,12 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
         kwargs_agent = {}
 
     def _train_fn():
-        return _run_train(training_config, use_wandb=True)
+        return _run_train(training_config, use_wandb=True, run_should_stop=agent.run_should_stop)
 
-    wandb.agent(sweep_id, function=_train_fn, project=training_config.project, **kwargs_agent)
+    # wandb.agent hardwires pyagent.Agent, whose stop kills the run thread with an injected exception.
+    wandb.login()
+    agent = CooperativeStopAgent(sweep_id, function=_train_fn, project=training_config.project, **kwargs_agent)
+    agent.run()
 
 
 def resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
@@ -132,6 +143,7 @@ def get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type
 def _run_train(
     training_config: TrainConfig,
     use_wandb: bool = False,
+    run_should_stop: Callable[[str], bool] | None = None,
 ) -> tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]:
     if use_wandb:
         import wandb
@@ -140,7 +152,7 @@ def _run_train(
         # Sweep trials checkpoint into their own fresh run dir, so resuming from a
         # previous trial's state is never meaningful. Force resume off.
         run.config.update({"checkpoint_dir": run.dir, "resume": False}, allow_val_change=True)
-        logger = WandbLogger(run)
+        logger = WandbLogger(run, run_should_stop)
         training_config = dict(run.config)
         training_config = TrainConfig(**training_config)
     else:

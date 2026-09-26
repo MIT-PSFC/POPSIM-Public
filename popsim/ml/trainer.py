@@ -465,7 +465,7 @@ class Trainer:
             max_epochs (int, optional): Total epoch budget. When resuming from a checkpoint at epoch N, training continues from N up to max_epochs (absolute target, not additive). Defaults to 1000.
             epochs_per_val (int, optional): How often to run evaluations. Defaults to 1.
             patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). Note the patience counter is not persisted across resumed runs.
-            logger (typing.Optional[LoggerBase], optional): Logger to record results. Defaults to None.
+            logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
             max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish. Defaults to None (no budget).
         """
         logger = logger or ConsoleLogger()
@@ -480,7 +480,7 @@ class Trainer:
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
         early_stopping = EarlyStopping(patience) if patience is not None else None
-        timed_out = False
+        interrupted = False
         consecutive_high_skip_epochs = 0
         tstart_train = time.time()
 
@@ -533,10 +533,15 @@ class Trainer:
                     break
 
             if self._wall_budget_exceeded(tstart_train, max_wall_seconds, early_stopping):
-                timed_out = True
+                interrupted = True
                 break
 
-        if timed_out:
+            if logger.stop_requested():
+                loguru.logger.info(f"Stop requested at epoch {self.train_state.epoch}, stopping without the test eval.")
+                interrupted = True
+                break
+
+        if interrupted:
             return None
 
         if self.checkpoint_manager is None or test_dl is None or test_eval_suite is None:

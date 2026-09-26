@@ -1,6 +1,6 @@
 import json
-import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import loguru
 import numpy as np
@@ -42,6 +42,10 @@ class LoggerBase(ABC):
     def log(self, dictionary):
         raise NotImplementedError
 
+    def stop_requested(self) -> bool:
+        """Whether an external controller asked training to stop at the next epoch boundary."""
+        return False
+
 
 class NullLogger(LoggerBase):
     def log(self, dictionary):
@@ -58,46 +62,25 @@ class ConsoleLogger(LoggerBase):
 
 
 class WandbLogger(LoggerBase):
-    # How often to poll W&B for an early-termination request, in seconds.
-    stop_poll_interval_s: float = 30.0
-
-    def __init__(self, run):
+    def __init__(self, run, run_should_stop: Callable[[str], bool] | None = None):
+        """
+        Args:
+            run: The W&B run to log to.
+            run_should_stop (Callable[[str], bool] | None, optional): Called with the run id at each epoch boundary,
+                True when the sweep agent was told to stop this run. Defaults to None (never stop).
+        """
         self.run = run
+        self.run_should_stop = run_should_stop
         self.run.define_metric("train/*", step_metric="train/step")
         self.run.define_metric("val/*", step_metric="val/epoch")
-        self._last_stop_poll = time.monotonic()
 
     def log(self, dictionary):
         self.run.log(flatten_dict(dictionary))
-        self._raise_if_stop_requested()
 
-    def _raise_if_stop_requested(self):
-        """Exit cooperatively when the W&B sweep controller requests early termination.
-
-        When a sweep controller (e.g. hyperband) terminates a run early, the W&B agent's only
-        enforcement mechanism is injecting a bare Exception into the training thread at an
-        arbitrary bytecode boundary (wandb.agents.pyagent._terminate_thread). That injection can
-        land inside JAX/XLA or HDF5/netCDF calls, leaving locks or caches in a corrupted state
-        that destabilizes subsequent runs sharing the agent process. Polling the stop flag here
-        lets the run exit at a safe point instead.
-        """
-        now = time.monotonic()
-        if now - self._last_stop_poll < self.stop_poll_interval_s:
-            return
-        self._last_stop_poll = now
-        if self._stop_requested():
-            raise KeyboardInterrupt("W&B requested early termination of this run.")
-
-    def _stop_requested(self) -> bool:
-        # This uses internal W&B APIs (the public Run object does not expose the stop flag),
-        # so fail closed to "keep running" and let the agent's own termination handle it
-        # if these APIs change.
-        try:
-            handle = self.run._interface.deliver_stop_status()
-            result = handle.wait_or(timeout=5)
-            return bool(result.response.stop_status_response.run_should_stop)
-        except Exception:
+    def stop_requested(self) -> bool:
+        if self.run_should_stop is None:
             return False
+        return self.run_should_stop(self.run.id)
 
 
 def get_logger(logger_type: str, **kwargs) -> LoggerBase:
