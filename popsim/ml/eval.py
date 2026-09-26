@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -21,33 +22,21 @@ This module contains utilities for evaluating models on data.
 
 
 class EvalData:
-    """Holds a model, the dataloader it was evaluated on, and the model outputs.
+    """A model, the dataloader it is evaluated on, and the model outputs.
 
-    output_ds is built lazily on first access so evaluation functions that only
-    need the model and dataloader (for example the validation loss) do not pay
-    for the full forward pass and xarray assembly.
+    output_ds is built on first access,
+    so evaluation functions that only need the model and dataloader skip the full forward pass.
     """
 
-    def __init__(
-        self,
-        model: TrainableModel,
-        dataloader: DataLoader,
-        output_ds: xr.Dataset | None = None,
-        output_ds_builder: Callable[[], xr.Dataset] | None = None,
-    ):
+    def __init__(self, model: TrainableModel, dataloader: DataLoader, output_ds_builder: Callable[[], xr.Dataset]):
         self.model = model
         self.dataloader = dataloader
-        self._output_ds = output_ds
         self._output_ds_builder = output_ds_builder
 
-    @property
+    @functools.cached_property
     def output_ds(self) -> xr.Dataset:
-        """The output of the model converted to an xarray dataset, built on first access."""
-        if self._output_ds is None:
-            if self._output_ds_builder is None:
-                raise ValueError("EvalData was created without an output_ds or an output_ds_builder")
-            self._output_ds = self._output_ds_builder()
-        return self._output_ds
+        """The output of the model converted to an xarray dataset."""
+        return self._output_ds_builder()
 
     @property
     def input_ds(self):
@@ -69,11 +58,10 @@ EvaluationSuite = dict[str, EvaluationFn]
 def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalData:
     """Evaluate a module on data from a dataloader.
 
-    The returned EvalData builds output_ds lazily, so evaluation functions that
-    only use the model and dataloader do not pay for the full forward pass.
+    The forward pass runs when output_ds is first accessed on the returned EvalData.
 
     Args:
-        env (TrainableModel): the module wrapped in an evaluation environment.
+        model (TrainableModel): the model, or a module wrapped in an evaluation environment.
         dataloader (DataLoader): the dataloader to use for evaluation.
 
     Returns:
