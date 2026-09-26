@@ -382,7 +382,7 @@ def test_build_tensorized_dataset_tcv_fbt(tcv_fbt_test_dataset, test_number):
         ds2_shot = result_ds2.load().sel(shot=100000).isel(time_idx=slice(0, ds_shot.sizes["time_idx"]))
         assert ds_shot.equals(ds2_shot)
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_add_to_zarr_store_with_dim_sizes(test_number):
     """With dim_sizes provided, every episode is padded to the bound and the store is never extended."""
     np.random.seed(test_number)
@@ -408,7 +408,7 @@ def test_add_to_zarr_store_with_dim_sizes(test_number):
         assert ds_store["var"].equals(expected_var)
 
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_add_to_zarr_store_dim_sizes_exceeded(test_number):
     """An episode larger than the dim_sizes upper bound raises an error."""
     np.random.seed(test_number)
@@ -427,7 +427,7 @@ def test_add_to_zarr_store_dim_sizes_exceeded(test_number):
             add_to_zarr_store(datasets[2], zarr_path, time_dim="time_idx", episode_dim="episode", dim_sizes=dim_sizes)
 
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
 def test_build_tensorized_dataset_with_dim_sizes(test_number):
     """dim_sizes overshoot is trimmed away during the rechunking pass."""
     np.random.seed(test_number)
@@ -473,8 +473,8 @@ def test_build_tensorized_dataset_with_dim_sizes(test_number):
             assert episode["data"].isel(time_idx=slice(nt, None)).isnull().all()
 
 
-@pytest.mark.parametrize('test_number', range(N_TEST_REPEAT))
-@pytest.mark.parametrize('extend_existing', [True, False])
+@pytest.mark.parametrize("test_number", range(N_TEST_REPEAT))
+@pytest.mark.parametrize("extend_existing", [True, False])
 def test_build_tensorized_dataset_no_successful(test_number, extend_existing):
     np.random.seed(test_number)
 

@@ -204,7 +204,6 @@ class DataLoader:
                     # Repeat the last real sample so every batch has the same shape,
                     # avoiding an extra XLA compilation for the final partial batch.
                     # Downstream consumers trim the padded duplicates before aggregating
-                    # e.g. 
                     idx = np.concatenate([idx, np.repeat(idx[-1], batch_size - len(idx))])
                 yield data[idx]
 
