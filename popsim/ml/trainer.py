@@ -1,4 +1,4 @@
-import time
+    import time
 import typing
 import warnings
 from os import PathLike
@@ -95,6 +95,26 @@ def _record_bad_samples(batch, finite_mask: np.ndarray, bad_sample_ids: set) -> 
         return []
     bad_sample_ids.update(new_bad)
     return new_bad
+
+
+def _high_skip_epoch_count(train_metrics: dict | None, consecutive_high_skip_epochs: int, epoch: int) -> int:
+    """Return the updated count of consecutive epochs that skipped most steps due to NaN/Inf.
+
+    A single bad epoch can recover because batches are reshuffled,
+    only stop training if there is a prolonged streak of NaN steps.
+    Raises TrainingDivergedError once the streak reaches MAX_HIGH_SKIP_EPOCHS.
+    """
+    skip_fraction = (train_metrics or {}).get("train/nan_skip_fraction", 0.0)
+    if skip_fraction <= SKIP_FRACTION_ABORT_THRESHOLD:
+        return 0
+    consecutive_high_skip_epochs += 1
+    if consecutive_high_skip_epochs >= MAX_HIGH_SKIP_EPOCHS:
+        raise TrainingDivergedError(
+            f"More than {SKIP_FRACTION_ABORT_THRESHOLD:.0%} of train steps skipped due to NaN/Inf "
+            f"for {consecutive_high_skip_epochs} consecutive epochs "
+            f"(epoch {epoch}: {skip_fraction:.0%} skipped). Training cannot make reliable progress."
+        )
+    return consecutive_high_skip_epochs
 
 
 @eqx.filter_jit
@@ -488,6 +508,7 @@ class Trainer:
                 self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger
             )
             self.train_state = new_train_state
+            consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, epoch)
 
             tend_epoch = time.time()
 
@@ -560,31 +581,13 @@ class Trainer:
         if self.latest_checkpoint_manager:
             save_train_state(train_state=self.train_state, checkpoint_manager=self.latest_checkpoint_manager, loss=val_loss_mean)
 
-    @staticmethod
-    def _check_persistent_nan_skips(train_metrics: dict | None, consecutive_high_skip_epochs: int, epoch: int) -> int:
-        """Abort runs that persistently skip most of their steps due to NaN/Inf: the model
-        is then training on a small biased subset of the data. A single bad epoch can
-        recover (batches are reshuffled), so require several in a row. Returns the updated
-        consecutive high-skip epoch count."""
-        skip_fraction = (train_metrics or {}).get("train/nan_skip_fraction", 0.0)
-        if skip_fraction <= SKIP_FRACTION_ABORT_THRESHOLD:
-            return 0
-        consecutive_high_skip_epochs += 1
-        if consecutive_high_skip_epochs >= MAX_HIGH_SKIP_EPOCHS:
-            raise TrainingDivergedError(
-                f"More than {SKIP_FRACTION_ABORT_THRESHOLD:.0%} of train steps skipped due to NaN/Inf "
-                f"for {consecutive_high_skip_epochs} consecutive epochs "
-                f"(epoch {epoch}: {skip_fraction:.0%} skipped). Training cannot make reliable progress."
-            )
-        return consecutive_high_skip_epochs
-
     def _wall_budget_exceeded(self, tstart_train: float, max_wall_seconds: float | None, early_stopping: "EarlyStopping | None") -> bool:
         """Check the wall-clock budget, saving the latest checkpoint before reporting it exceeded."""
         if max_wall_seconds is None or (time.time() - tstart_train) <= max_wall_seconds:
             return False
         if self.latest_checkpoint_manager and self.latest_checkpoint_manager.latest_step() != self.train_state.epoch:
-            # Save progress made since the last validation checkpoint. The loss
-            # metric is informational only, this manager keeps the latest step.
+            # Save progress made since the last validation checkpoint.
+            # The loss metric is informational only, this manager keeps the latest step.
             save_train_state(
                 train_state=self.train_state,
                 checkpoint_manager=self.latest_checkpoint_manager,
