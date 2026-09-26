@@ -1,4 +1,4 @@
-    import time
+import time
 import typing
 import warnings
 from os import PathLike
@@ -433,7 +433,9 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.checkpoint_manager = create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep) if checkpoint_dir else None
+        self.checkpoint_manager = (
+            create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep) if checkpoint_dir else None
+        )
         # Created lazily so restore-only Trainers (e.g. results collection) do not
         # leave empty <checkpoint_dir>_latest directories behind
         self._latest_checkpoint_dir = latest_checkpoint_dir(checkpoint_dir) if checkpoint_dir else None
