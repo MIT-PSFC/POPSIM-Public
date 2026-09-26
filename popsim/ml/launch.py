@@ -149,9 +149,7 @@ def _run_train(
         import wandb
 
         run = wandb.init(project=training_config.project, config=training_config.model_dump())
-        # Sweep trials checkpoint into their own fresh run dir, so resuming from a
-        # previous trial's state is never meaningful. Force resume off.
-        run.config.update({"checkpoint_dir": run.dir, "resume": False}, allow_val_change=True)
+        run.config.update({"checkpoint_dir": run.dir}, allow_val_change=True)
         logger = WandbLogger(run, run_should_stop)
         training_config = dict(run.config)
         training_config = TrainConfig(**training_config)

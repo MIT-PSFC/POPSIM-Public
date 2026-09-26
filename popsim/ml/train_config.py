@@ -3,7 +3,7 @@ import importlib.util
 import os
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PositiveInt
 
 from popsim.ml.train_run_builder import TrainRunBuilder
 
@@ -22,9 +22,9 @@ class TrainConfig(BaseModel):
     trainable_getter_config: dict | None = None  # Configuration dictionary used in the function that gets trainable parameters.
     val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
-    resume: bool = False  # Resume from the latest checkpoint in <checkpoint_dir>_latest if one exists.
-    checkpoint_max_to_keep: int = 1  # How many best-by-validation-loss checkpoints to keep in checkpoint_dir.
-    max_wall_seconds: float | None = None  # Wall-clock training budget. When exceeded, save the latest checkpoint and stop without running the test eval, so a later job can resume. If None, no budget.
+    resume: bool = False  # Resume from the latest checkpoint in checkpoint_dir if one exists.
+    checkpoint_max_to_keep: PositiveInt = 1  # Best-by-validation-loss checkpoints to keep, the latest is always kept too.
+    max_wall_seconds: float | None = None  # Wall-clock budget in s, when exceeded save a checkpoint and stop without the test eval.
 
     model_config = ConfigDict(frozen=True)  # Make the model immutable after creation.
 

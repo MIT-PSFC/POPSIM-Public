@@ -6,13 +6,16 @@ import equinox as eqx
 import jax
 import jax.nn as jnn
 import jax.numpy as jnp
+import numpy as np
 import optax
 import pytest
+import xarray as xr
 
 from popsim import TimeDepModule
-from popsim.ml.dataloading import make_time_dep_dataloader
+from popsim.ml.dataloading import make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.loggers import LoggerBase
+from popsim.ml.eval import make_val_loss_eval_fn
+from popsim.ml.loggers import LoggerBase, NullLogger
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.split_utils import split_dataset_by_fracs
 from popsim.ml.trainer import Trainer
@@ -142,7 +145,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
     if use_val:
         # Checkpoints are only saved when using a validation set.
-        # Check that the checkpoint directory only has one file.
+        # Validation runs once, on the final epoch, so the best and latest checkpoints are the same single step.
         assert len(os.listdir(tmpdir)) == 1
 
 
@@ -231,3 +234,63 @@ def test_early_stopping_patience(oscillator_dataset):
     # One validation to set the best loss, then `patience` validations with no improvement.
     assert len(counting_logger.val_epochs) == 1 + patience
     assert trainer.train_state.epoch < 20
+
+
+class _LinearModel(eqx.Module):
+    w: jax.Array
+
+    def __call__(self, inputs):
+        return {"y": self.w * inputs["x"]}
+
+
+def _squared_error(prediction, target):
+    return jnp.square(prediction["y"] - target["y"])
+
+
+def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
+    """Stopping on the wall budget and resuming twice gives exactly the uninterrupted result.
+
+    Session 1 stops after epoch 1, which has no validation, so it saves a checkpoint without a loss.
+    Session 2 resumes there, validates epoch 2 and stops again.
+    Session 3 finishes and runs the test eval on the best checkpoint.
+    """
+    x = np.linspace(0.1, 1.0, 8).reshape(1, -1)
+    ds = xr.Dataset(
+        {"x": (("episode", "time"), x), "y": (("episode", "time"), 2.0 * x)},
+        coords={"episode": [0], "time": np.arange(x.shape[1], dtype=float)},
+    )
+    # No shuffle, so a resumed run sees the same batches as an uninterrupted one.
+    dl = make_time_indep_dataloader(
+        ds, time_coord="time", episode_coord="episode", input_vars=["x"], target_vars=["y"], batch_size=4, shuffle=False
+    )
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    train_kwargs = dict(
+        train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, epochs_per_val=2, logger=NullLogger()
+    )
+
+    def _make_trainer(checkpoint_dir, resume=False):
+        model = _LinearModel(w=jnp.array(0.0))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.adam(0.05), checkpoint_dir=checkpoint_dir, resume=resume)
+
+    reference = _make_trainer(tmpdir / "reference")
+    reference_test_results = reference.train(**train_kwargs)
+
+    checkpoint_dir = tmpdir / "resumed"
+    session_1 = _make_trainer(checkpoint_dir)
+    assert session_1.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_1.checkpoint_manager.all_steps() == [1]
+    assert session_1.checkpoint_manager.best_step() is None
+
+    session_2 = _make_trainer(checkpoint_dir, resume=True)
+    assert session_2.train_state.epoch == 1
+    assert session_2.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_2.checkpoint_manager.all_steps() == [2]
+    assert session_2.checkpoint_manager.best_step() == 2
+
+    session_3 = _make_trainer(checkpoint_dir, resume=True)
+    assert session_3.train_state.epoch == 2
+    resumed_test_results = session_3.train(**train_kwargs)
+    assert session_3.checkpoint_manager.all_steps() == [5]
+
+    chex.assert_trees_all_equal(session_3.train_state, reference.train_state)
+    chex.assert_trees_all_equal(resumed_test_results, reference_test_results)
