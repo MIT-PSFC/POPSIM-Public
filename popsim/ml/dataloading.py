@@ -355,7 +355,7 @@ def make_standard_dataloaders(
     batch_size: int | None = None,
     segment_length: int | None = None,
     segment_overlap: int | None = 0,
-    nan_handling: str | None = "drop_slice_all",
+    nan_handling: str = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
     """Create standard training, validation, and test DataLoaders from a single dataset by splitting along the episode dimension.
 
@@ -398,6 +398,26 @@ def make_standard_dataloaders(
     )
 
 
+def _broadcast_per_dataset(name: str, value, n_datasets: int, scalar_types: tuple[type, ...], none_default: list | None = None) -> list:
+    """One value per dataset for a make_dataloaders argument.
+
+    A scalar is repeated for every dataset, a sequence must have one entry per dataset,
+    and None becomes none_default when one is given.
+    """
+    if value is None and none_default is not None:
+        return none_default
+    if isinstance(value, scalar_types):
+        return [value] * n_datasets
+    if isinstance(value, typing.Sequence) and not isinstance(value, str):
+        if len(value) != n_datasets:
+            raise ValueError(
+                f"If {name} is provided as a sequence, it must have one value per dataset. Got {len(value)} values for {n_datasets} datasets."
+            )
+        return list(value)
+    type_names = " or ".join(scalar_type.__name__ for scalar_type in scalar_types)
+    raise ValueError(f"{name} must be of type {type_names}, or a sequence of them. Got {type(value)}")
+
+
 def make_dataloaders(
     datasets: list[xr.Dataset],
     time_coord: str,
@@ -411,7 +431,7 @@ def make_dataloaders(
     segment_length: int | typing.Sequence[int | None] | None = None,
     segment_overlap: int | typing.Sequence[int | None] | None = 0,
     shuffle: bool | typing.Sequence[bool] | None = None,
-    nan_handling: str | typing.Sequence[str] | None = "drop_slice_all",
+    nan_handling: str | typing.Sequence[str] = "drop_slice_all",
     drop_last: bool | typing.Sequence[bool] = False,
     pad_last: bool | typing.Sequence[bool] = False,
 ) -> typing.Sequence[DataLoader]:
@@ -447,90 +467,16 @@ def make_dataloaders(
             "segment_length and segment_overlap are only valid for making time-dependent dataloaders, when state_init_vars are provided"
         )
 
-    def _check_and_format_args(batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last):  # noqa: PLR0912
-        # Ensure all variables which may be passed in as a sequence are formatted as tuples of the same length as the number of datasets.
-        if batch_size is None:
-            batch_size = [None for _ in datasets]
-        elif isinstance(batch_size, int):
-            batch_size = [batch_size for _ in datasets]
-        elif isinstance(batch_size, typing.Sequence):
-            if len(batch_size) != len(datasets):
-                raise ValueError(
-                    f"If batch_size is provided as a list, it must be the same length as the number of datasets. Got {len(batch_size)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"batch_size must be an int, a sequence of ints, or None. Got {type(batch_size)}")
-
-        if segment_length is None:
-            segment_length = [None for _ in datasets]
-        elif isinstance(segment_length, int):
-            segment_length = [segment_length for _ in datasets]
-        elif isinstance(segment_length, typing.Sequence):
-            if len(segment_length) != len(datasets):
-                raise ValueError(
-                    f"If segment_length is provided as a list, it must be the same length as the number of datasets. Got {len(segment_length)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"segment_length must be an int, a sequence of ints, or None. Got {type(segment_length)}")
-
-        if segment_overlap is None:
-            segment_overlap = [0 for _ in datasets]
-        elif isinstance(segment_overlap, int):
-            segment_overlap = [segment_overlap for _ in datasets]
-        elif isinstance(segment_overlap, typing.Sequence):
-            if len(segment_overlap) != len(datasets):
-                raise ValueError(
-                    f"If segment_overlap is provided as a list, it must be the same length as the number of datasets. Got {len(segment_overlap)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"segment_overlap must be an int, a sequence of ints, or None. Got {type(segment_overlap)}")
-
-        # By default, only shuffle the first dataset.
-        if shuffle is None:
-            shuffle = [True if i == 0 else False for i in range(len(datasets))]
-        elif isinstance(shuffle, bool):
-            shuffle = [shuffle for _ in range(len(datasets))]
-        elif isinstance(shuffle, typing.Sequence):
-            if len(shuffle) != len(datasets):
-                raise ValueError(
-                    f"If shuffle is provided as a list, it must be the same length as the number of datasets. Got {len(shuffle)} values for {len(datasets)} datasets."
-                )
-
-        if isinstance(nan_handling, str):
-            nan_handling = [nan_handling for _ in datasets]
-        elif isinstance(nan_handling, typing.Sequence):
-            if len(nan_handling) != len(datasets):
-                raise ValueError(
-                    f"If nan_handling is provided as a list, it must be the same length as the number of datasets. Got {len(nan_handling)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"nan_handling must be a str, a sequence of str, or None. Got {type(nan_handling)}")
-
-        if isinstance(drop_last, bool):
-            drop_last = [drop_last for _ in datasets]
-        elif isinstance(drop_last, typing.Sequence):
-            if len(drop_last) != len(datasets):
-                raise ValueError(
-                    f"If drop_last is provided as a list, it must be the same length as the number of datasets. Got {len(drop_last)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"drop_last must be a bool or a sequence of bools. Got {type(drop_last)}")
-
-        if isinstance(pad_last, bool):
-            pad_last = [pad_last for _ in datasets]
-        elif isinstance(pad_last, typing.Sequence):
-            if len(pad_last) != len(datasets):
-                raise ValueError(
-                    f"If pad_last is provided as a list, it must be the same length as the number of datasets. Got {len(pad_last)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"pad_last must be a bool or a sequence of bools. Got {type(pad_last)}")
-
-        return batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last
-
-    batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last = _check_and_format_args(
-        batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last
-    )
+    n_datasets = len(datasets)
+    batch_size = _broadcast_per_dataset("batch_size", batch_size, n_datasets, (int,), none_default=[None] * n_datasets)
+    segment_length = _broadcast_per_dataset("segment_length", segment_length, n_datasets, (int,), none_default=[None] * n_datasets)
+    segment_overlap = _broadcast_per_dataset("segment_overlap", segment_overlap, n_datasets, (int,), none_default=[0] * n_datasets)
+    # By default, only shuffle the first dataset.
+    shuffle_first_only = [i == 0 for i in range(n_datasets)]
+    shuffle = _broadcast_per_dataset("shuffle", shuffle, n_datasets, (bool,), none_default=shuffle_first_only)
+    nan_handling = _broadcast_per_dataset("nan_handling", nan_handling, n_datasets, (str,))
+    drop_last = _broadcast_per_dataset("drop_last", drop_last, n_datasets, (bool,))
+    pad_last = _broadcast_per_dataset("pad_last", pad_last, n_datasets, (bool,))
 
     if state_init_vars is None:
 
@@ -551,7 +497,7 @@ def make_dataloaders(
 
         return [
             dl_fun(ds_, batch_size, sh, dl_, pl)
-            for ds_, batch_size, sh, dl_, pl in zip(datasets, batch_size, shuffle, drop_last, pad_last, strict=False)
+            for ds_, batch_size, sh, dl_, pl in zip(datasets, batch_size, shuffle, drop_last, pad_last, strict=True)
         ]
     else:
 
@@ -577,7 +523,7 @@ def make_dataloaders(
         return [
             dl_fun(ds_, batch_size, seg_len, seg_overlap, sh, nan_handling, dl_, pl)
             for ds_, batch_size, seg_len, seg_overlap, sh, nan_handling, dl_, pl in zip(
-                datasets, batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last, strict=False
+                datasets, batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last, strict=True
             )
         ]
 
@@ -671,7 +617,7 @@ def make_time_dep_dataloader(
     batch_size: int | None = None,
     shuffle: bool = True,
     generate_prng: bool = False,
-    nan_handling: str | None = "drop_slice_all",
+    nan_handling: str = "drop_slice_all",
     drop_last: bool = False,
     pad_last: bool = False,
 ) -> DataLoader:
@@ -696,7 +642,7 @@ def make_time_dep_dataloader(
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
         generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
-        nan_handling (str | None, optional): Method for handling NaN values in the dataset. If "drop_slice_all", time slices where all of the vars are NaN are dropped, and if NaNs remain raises ValueError. If "drop_slice_any", time slices where any of the vars are NaN are dropped. If "drop_segment", samples containing NaNs are dropped. Defaults to "drop_slice_all".
+        nan_handling (str, optional): Method for handling NaN values in the dataset. If "drop_slice_all", time slices where all of the vars are NaN are dropped, and if NaNs remain raises ValueError. If "drop_slice_any", time slices where any of the vars are NaN are dropped. If "drop_segment", samples containing NaNs are dropped. Defaults to "drop_slice_all".
         drop_last (bool, optional): Whether to drop the final partial batch so all batches have the same shape. Defaults to False.
         pad_last (bool, optional): Whether to pad the final partial batch by repeating the last sample. Defaults to False.
 
