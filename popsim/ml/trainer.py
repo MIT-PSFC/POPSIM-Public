@@ -73,25 +73,10 @@ def _format_sample_ids(sample_ids) -> str:
     return formatted
 
 
-def _as_hashable_sample_id(value):
-    """Convert one sample coordinate value (scalar, tuple from a stacked MultiIndex, or
-    array row) to a hashable Python value for logging."""
-    if isinstance(value, np.ndarray):
-        return tuple(value.tolist())
-    if isinstance(value, np.generic):
-        return value.item()
-    return value
-
-
-def _record_bad_samples(batch, mask_bad: np.ndarray, bad_sample_ids: set) -> list:
-    """Resolve the sample coordinate values of the non-finite samples in a batch and
-    accumulate them into bad_sample_ids. Diagnostics only, so never raises."""
-    try:
-        coord_vals = batch.sample_coord.values
-        new_bad = [_as_hashable_sample_id(coord_vals[i]) for i in np.nonzero(mask_bad)[0]]
-    except Exception as exc:
-        loguru.logger.warning("Could not resolve the sample ids of the non-finite samples: {!r}", exc)
-        return []
+def _record_bad_samples(batch: XarrayPreppedDataset, mask_bad: np.ndarray, bad_sample_ids: set) -> list:
+    """Add the sample coordinate values where mask_bad is True to bad_sample_ids and return them."""
+    sample_ids = batch.sample_coord.values
+    new_bad = list(sample_ids[mask_bad])
     bad_sample_ids.update(new_bad)
     return new_bad
 
@@ -503,8 +488,7 @@ class Trainer:
                 eval_results = self.run_evals(val_dl, eval_suite)
                 tend_val = time.time()
 
-                val_loss = np.asarray(eval_results["loss"]).item()
-                val_loss_mean = float(val_loss["mean"])
+                val_loss_mean = float(eval_results["loss"]["mean"])
 
                 # Pre-pend "val/" to the keys in the eval_results dictionary.
                 eval_results = {f"val/{k}": v for k, v in eval_results.items()}
