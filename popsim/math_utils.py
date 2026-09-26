@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
@@ -66,11 +67,14 @@ def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpnes
     # Apply the soft clipping using a scaled hyperbolic tangent.
     return center + half_range * jnp.tanh(sharpness * (x - center) / effective_half_range)
 
+
 def smooth_clamp(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, min_width: float, max_width: float) -> ArrayLike:
-    """Another smooth alternative to clipping using softplus
-    Close to x in (min_value + min_width, max_value - max_width),
-    smooths to min_value and max_value as x approaches the bounds.
-    Larger width has more gradual smoothing, but encroaches on the range of x that is unchanged.
+    """A smooth alternative to clipping built from two softplus ramps, bounded to [min_value, max_value].
+
+    Away from the bounds the output follows x,
+    deviating by roughly width * exp(-distance / width) near each bound.
+    A larger width smooths more gradually but bends more of the range of x.
+    Requires max_value > min_value.
 
     Args:
         x (ArrayLike): the value(s) to be clamped.
@@ -78,10 +82,24 @@ def smooth_clamp(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, min_w
         max_value (ArrayLike): the maximum value(s) to clamp to.
         min_width (float): the width of the smoothing region near min_value.
         max_width (float): the width of the smoothing region near max_value.
+
+    Returns:
+        ArrayLike: the clamped value(s).
     """
-    x = max_value - max_width * jnp.logaddexp(0, (max_value - x) / max_width)
-    x = min_value + min_width * jnp.logaddexp(0, (x - min_value) / min_width)
-    return x
+    # The lower ramp always lifts its input, so the upper ramp hinges just below max_value,
+    # at the inverse softplus point that the lower ramp maps exactly onto max_value.
+    scaled_range = (max_value - min_value) / min_width
+    hinge_fraction = -jnp.expm1(-scaled_range)
+    log_hinge_fraction = jnp.log(hinge_fraction)
+    upper_hinge = max_value + min_width * log_hinge_fraction
+    scaled_distance_below_hinge = (upper_hinge - x) / max_width
+    ramp_below_hinge = jax.nn.softplus(scaled_distance_below_hinge)
+    x_upper_clamped = upper_hinge - max_width * ramp_below_hinge
+    scaled_distance_above_min = (x_upper_clamped - min_value) / min_width
+    ramp_above_min = jax.nn.softplus(scaled_distance_above_min)
+    x_clamped = min_value + min_width * ramp_above_min
+    return x_clamped
+
 
 def padded_relative_error(predicted: ArrayLike, target: ArrayLike, pad: float = 1.0) -> ArrayLike:
     """Relative error with a denominator padding term to avoid division by zero.
