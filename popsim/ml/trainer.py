@@ -58,9 +58,12 @@ MAX_HIGH_SKIP_EPOCHS = 3
 
 
 class TrainingDivergedError(RuntimeError):
-    """Optimization walked the model into a region where train steps produce NaN/Inf
-    and cannot recover. Distinct from data errors (NaN inputs/targets) so callers can
-    fall back to the best checkpoint instead of failing the run."""
+    """Train steps keep producing NaN/Inf and masking the bad samples cannot recover them.
+
+    Distinct from data errors (NaN inputs or targets).
+    Trainer.train catches it and falls back to the best checkpoint for the test eval,
+    or re-raises when no best checkpoint exists yet.
+    """
 
 
 def _format_sample_ids(sample_ids) -> str:
@@ -458,6 +461,9 @@ class Trainer:
     ):
         """Train the model with periodic validation.
 
+        If training diverges (TrainingDivergedError), the test eval runs on the best checkpoint instead.
+        The error is re-raised when no best checkpoint exists yet.
+
         Args:
             train_dl (DataLoader): DataLoader for training the model.
             val_dl (typing.Optional[DataLoader]): DataLoader for validating the model. Defaults to None.
@@ -495,11 +501,17 @@ class Trainer:
         for epoch in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
             tstart_epoch = time.time()
 
-            new_train_state, train_metrics = train_epoch(
-                self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger
-            )
-            self.train_state = new_train_state
-            consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, epoch)
+            try:
+                new_train_state, train_metrics = train_epoch(
+                    self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger
+                )
+                self.train_state = new_train_state
+                consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, epoch)
+            except TrainingDivergedError as exc:
+                if self.checkpoint_manager is None or self.checkpoint_manager.best_step() is None:
+                    raise
+                loguru.logger.warning(f"Training diverged at epoch {epoch}, falling back to the best checkpoint. {exc}")
+                break
 
             tend_epoch = time.time()
 
@@ -543,17 +555,23 @@ class Trainer:
 
         if interrupted:
             return None
+        return self._best_checkpoint_test_results(test_dl, test_eval_suite, logger)
 
+    def _best_checkpoint_test_results(
+        self, test_dl: DataLoader | None, test_eval_suite: EvaluationSuite | None, logger: LoggerBase
+    ) -> dict[str, typing.Any] | None:
+        """Restore the best checkpoint and return its test results.
+        Returns None if a checkpoint manager or a test set was not specified.
+        """
         if self.checkpoint_manager is None or test_dl is None or test_eval_suite is None:
             loguru.logger.info("No checkpoint manager or test DataLoader provided. Skipping test evaluation.")
             return None
-        else:
-            loguru.logger.info("Training completed. Restoring the best checkpoint and evaluating on the test set.")
-            self.restore_best_checkpoint()
-            test_results = self.run_evals(test_dl, eval_suite=test_eval_suite)
-            test_results = {f"test/{k}": v for k, v in test_results.items()}
-            logger.log(test_results)
-            return test_results
+        loguru.logger.info("Restoring the best checkpoint and evaluating on the test set.")
+        self.restore_best_checkpoint()
+        test_results = self.run_evals(test_dl, eval_suite=test_eval_suite)
+        test_results = {f"test/{k}": v for k, v in test_results.items()}
+        logger.log(test_results)
+        return test_results
 
     @staticmethod
     def _log_epoch_metrics(logger: LoggerBase, epoch: int, epochs_per_val: int, train_metrics: dict | None, epoch_time: float):
