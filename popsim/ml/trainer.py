@@ -30,7 +30,7 @@ from popsim.ml.eval import (
     masked_batch_loss,
     run_evals,
 )
-from popsim.ml.loggers import ConsoleLogger, LoggerBase, WandbLogger
+from popsim.ml.loggers import ConsoleLogger, LoggerBase
 from popsim.ml.loss import IntegralLoss, LossFunction
 from popsim.ml.partition import PartitionFn, make_partition_by_members
 from popsim.tree_util import any_nans
@@ -248,7 +248,6 @@ def train_epoch(
     loss_fn: LossFunction,
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
-    logger: LoggerBase,
 ) -> tuple[TrainState, dict[str, typing.Any] | None]:
     """Train the model for one epoch. Returns the new train state and the metrics of the last step."""
     train_metrics = None
@@ -350,11 +349,6 @@ def train_epoch(
         train_metrics["train/nan_steps_skipped"] = n_skipped
         train_metrics["train/nan_skip_fraction"] = n_skipped / max(n_total, 1)
 
-    # Only log the last step's values
-    # Logging every batch overloads the W&B backend for fast-training models.
-    # For wandb, train_metrics are instead logged by Trainer.train at the validation cadence.
-    if (not isinstance(logger, WandbLogger)) and train_metrics is not None:
-        logger.log(train_metrics)
     train_state.epoch += 1
     return train_state, train_metrics
 
@@ -381,7 +375,6 @@ class Trainer:
     optimizer: optax.GradientTransformation
     partition_fn: PartitionFn
     loss_fn: LossFunction
-    logger: LoggerBase
     checkpoint_manager: ocp.CheckpointManager
 
     def __init__(
@@ -489,9 +482,7 @@ class Trainer:
             tstart_epoch = time.time()
 
             try:
-                new_train_state, train_metrics = train_epoch(
-                    self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl, logger
-                )
+                new_train_state, train_metrics = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl)
                 self.train_state = new_train_state
                 consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, epoch)
             except TrainingDivergedError as exc:
@@ -565,16 +556,14 @@ class Trainer:
 
     @staticmethod
     def _log_epoch_metrics(logger: LoggerBase, n_epochs_completed: int, is_val_epoch: bool, train_metrics: dict | None, epoch_time: float):
-        """Log per-epoch training metrics.
-        For fast-training models, W&B can't handle logging on every epoch, so log at the validation cadence."""
-        if isinstance(logger, WandbLogger) and not is_val_epoch:
+        """Log the epoch count and time together with the metrics of the epoch's last step."""
+        if logger.log_at_val_cadence and not is_val_epoch:
             return
         epoch_train_metrics = {
             "train/epoch": n_epochs_completed,
             "train/epoch_time": epoch_time,
         }
-        # For W&B, include the latest train-step metrics at the same cadence as validation logs.
-        if isinstance(logger, WandbLogger) and train_metrics is not None:
+        if train_metrics is not None:
             epoch_train_metrics = epoch_train_metrics | train_metrics
         logger.log(epoch_train_metrics)
 

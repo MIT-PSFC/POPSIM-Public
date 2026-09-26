@@ -38,6 +38,9 @@ def _simplified_repr(dictionary, max_string_size):
 
 
 class LoggerBase(ABC):
+    # Log train metrics only on validation epochs instead of every epoch.
+    log_at_val_cadence: bool = False
+
     @abstractmethod
     def log(self, dictionary):
         raise NotImplementedError
@@ -62,6 +65,9 @@ class ConsoleLogger(LoggerBase):
 
 
 class WandbLogger(LoggerBase):
+    # Per-epoch logs from fast-training models overload the W&B backend.
+    log_at_val_cadence = True
+
     def __init__(self, run, run_should_stop: Callable[[str], bool] | None = None):
         """
         Args:
