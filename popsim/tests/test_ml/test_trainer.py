@@ -12,13 +12,15 @@ import pytest
 import xarray as xr
 
 from popsim import TimeDepModule
-from popsim.ml.dataloading import make_time_dep_dataloader, make_time_indep_dataloader
+from popsim.ml.checkpointing import TrainState
+from popsim.ml.dataloading import DataLoader, make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import make_val_loss_eval_fn
 from popsim.ml.loggers import LoggerBase, NullLogger
 from popsim.ml.loss import IntegralLoss
+from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim.ml.trainer import Trainer
+from popsim.ml.trainer import MAX_HIGH_SKIP_EPOCHS, Trainer, TrainingDivergedError, train_epoch
 from popsim.simulate import StepperType
 from popsim.tests.fixtures import oscillator_dataset  # noqa: F401  (pytest fixture)
 
@@ -243,8 +245,127 @@ class _LinearModel(eqx.Module):
         return {"y": self.w * inputs["x"]}
 
 
+class _SqrtInputModel(eqx.Module):
+    w: jax.Array
+
+    def __call__(self, inputs):
+        # A negative input makes the forward pass of that sample alone NaN.
+        return {"y": self.w * jnp.sqrt(inputs["x"])}
+
+
+class _StopRequestingLogger(NullLogger):
+    def stop_requested(self) -> bool:
+        return True
+
+
 def _squared_error(prediction, target):
     return jnp.square(prediction["y"] - target["y"])
+
+
+def _xy_dataloader(x: np.ndarray, y: np.ndarray, batch_size: int | None, pad_last: bool = False) -> DataLoader:
+    """An unshuffled time-independent dataloader over one episode with input x and target y."""
+    ds = xr.Dataset(
+        {"x": (("episode", "time"), x.reshape(1, -1)), "y": (("episode", "time"), y.reshape(1, -1))},
+        coords={"episode": [0], "time": np.arange(x.size, dtype=float)},
+    )
+    return make_time_indep_dataloader(
+        ds,
+        time_coord="time",
+        episode_coord="episode",
+        input_vars=["x"],
+        target_vars=["y"],
+        batch_size=batch_size,
+        shuffle=False,
+        pad_last=pad_last,
+    )
+
+
+@pytest.mark.parametrize("optimizer", [optax.sgd(0.05), optax.lbfgs()], ids=["sgd", "lbfgs"])
+@pytest.mark.parametrize(
+    "x_values, batch_size, pad_last, x_values_clean, n_steps_masked",
+    [
+        # The final batch [5, 6] is padded to [5, 6, 6, 6], which would overweight 6 without the mask.
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 4, True, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 0),
+        # The retry masks out the NaN sample -2.
+        ([1.0, -2.0, 3.0, 4.0], None, False, [1.0, 3.0, 4.0], 1),
+        # The final batch [5, 6, -7] is padded with a copy of the NaN sample, so the retry must replace it too.
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, -7.0], 4, True, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 1),
+    ],
+    ids=["padded", "nan_retry", "padded_nan_retry"],
+)
+def test_masked_train_epoch_matches_clean_batches(optimizer, x_values, batch_size, pad_last, x_values_clean, n_steps_masked):
+    """Padded rows and NaN samples add no loss or gradient.
+
+    An epoch with them masked gives the same train state as an epoch on the same batches without them.
+    lbfgs also checks that its line search evaluates the masked loss.
+    """
+    partition_fn = make_partition_by_members(lambda m: m)
+
+    def _trained_epoch(x_list: list[float], pad_final_batch: bool) -> tuple[TrainState, dict]:
+        x = np.asarray(x_list)
+        y = np.ones_like(x)
+        dl = _xy_dataloader(x, y, batch_size, pad_last=pad_final_batch)
+        model = _SqrtInputModel(w=jnp.array(0.5))
+        train_state = TrainState.create_new(model, partition_fn, optimizer)
+        return train_epoch(train_state, partition_fn, _squared_error, optimizer, dl)
+
+    train_state, train_metrics = _trained_epoch(x_values, pad_last)
+    train_state_clean, _ = _trained_epoch(x_values_clean, pad_final_batch=False)
+
+    assert train_metrics["train/nan_steps_masked"] == n_steps_masked
+    assert train_metrics["train/nan_steps_skipped"] == 0
+    # Not bit-identical, because the masked sum can reduce in a different order than the clean one.
+    chex.assert_trees_all_close(train_state, train_state_clean, rtol=1e-12)
+
+
+def test_diverged_training_falls_back_to_best_checkpoint(tmpdir):
+    """Skipping most steps for MAX_HIGH_SKIP_EPOCHS consecutive epochs aborts training.
+
+    With batch_size=1 a NaN sample cannot be masked out, so 3 of the 4 steps are skipped every epoch.
+    Without a checkpoint the TrainingDivergedError propagates.
+    With one, the test eval runs on the best validated checkpoint from before the divergence.
+    """
+    x_train = np.array([1.0, -2.0, -3.0, -4.0])
+    y_train = np.ones_like(x_train)
+    train_dl = _xy_dataloader(x_train, y_train, batch_size=1)
+    x_val = np.array([1.0, 2.0])
+    y_val = np.ones_like(x_val)
+    val_dl = _xy_dataloader(x_val, y_val, batch_size=None)
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    train_kwargs = dict(
+        train_dl=train_dl, val_dl=val_dl, test_dl=val_dl, test_eval_suite=test_eval_suite, max_epochs=10, logger=NullLogger()
+    )
+
+    def _make_trainer(checkpoint_dir):
+        model = _SqrtInputModel(w=jnp.array(0.5))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.sgd(0.05), checkpoint_dir=checkpoint_dir)
+
+    trainer_without_checkpoint = _make_trainer(checkpoint_dir=None)
+    with pytest.raises(TrainingDivergedError):
+        trainer_without_checkpoint.train(**train_kwargs)
+    assert trainer_without_checkpoint.train_state.epoch == MAX_HIGH_SKIP_EPOCHS
+
+    trainer = _make_trainer(checkpoint_dir=tmpdir)
+    test_results = trainer.train(**train_kwargs)
+    assert "test/loss" in test_results
+    # The val loss improves every epoch, so the best checkpoint is the last one validated before the abort.
+    assert trainer.checkpoint_manager.all_steps() == [MAX_HIGH_SKIP_EPOCHS - 1]
+    assert trainer.train_state.epoch == MAX_HIGH_SKIP_EPOCHS - 1
+
+
+def test_stop_request_ends_training_without_test_eval(tmpdir):
+    """A logger stop request ends training at the first epoch boundary and skips the test eval."""
+    x = np.linspace(0.1, 1.0, 8)
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    model = _LinearModel(w=jnp.array(0.0))
+    trainer = Trainer(model=model, loss_fn=_squared_error, optimizer=optax.adam(0.05), checkpoint_dir=tmpdir)
+
+    test_results = trainer.train(
+        train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, logger=_StopRequestingLogger()
+    )
+    assert test_results is None
+    assert trainer.train_state.epoch == 1
 
 
 def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
@@ -254,15 +375,9 @@ def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
     Session 2 resumes there, validates epoch 2 and stops again.
     Session 3 finishes and runs the test eval on the best checkpoint.
     """
-    x = np.linspace(0.1, 1.0, 8).reshape(1, -1)
-    ds = xr.Dataset(
-        {"x": (("episode", "time"), x), "y": (("episode", "time"), 2.0 * x)},
-        coords={"episode": [0], "time": np.arange(x.shape[1], dtype=float)},
-    )
+    x = np.linspace(0.1, 1.0, 8)
     # No shuffle, so a resumed run sees the same batches as an uninterrupted one.
-    dl = make_time_indep_dataloader(
-        ds, time_coord="time", episode_coord="episode", input_vars=["x"], target_vars=["y"], batch_size=4, shuffle=False
-    )
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
     test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
     train_kwargs = dict(
         train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, epochs_per_val=2, logger=NullLogger()
