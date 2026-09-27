@@ -161,7 +161,8 @@ def _retry_step_without_nonfinite_samples(
     The step is skipped when every per-sample loss is finite, since the NaN/Inf then came from the backward pass or optimizer update.
     It is also skipped when no valid sample is finite, or when the retry still produces NaN/Inf.
     """
-    step, epoch = train_state.step, train_state.epoch
+    # train_state.epoch counts completed epochs, logs and checkpoints number the epoch in progress from 1.
+    step, epoch = train_state.step, train_state.epoch + 1
     mask_nonfinite = ~np.isfinite(np.asarray(sample_losses))
     mask_bad = mask_valid & mask_nonfinite
     mask_good = mask_valid & ~mask_nonfinite
@@ -309,7 +310,7 @@ def train_epoch(
     if n_nan_events:
         loguru.logger.warning(
             "Epoch {}: {}/{} steps hit NaN/Inf ({} recovered by masking, {} skipped). Non-finite samples seen: [{}]",
-            train_state.epoch,
+            train_state.epoch + 1,
             n_nan_events,
             n_total,
             n_masked,
@@ -459,17 +460,19 @@ class Trainer:
             loguru.logger.info(f"Resuming training after {start_epoch} of {max_epochs} epochs")
         epoch_range = range(start_epoch, max_epochs)
 
-        for epoch in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
+        for epoch_idx in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
             tstart_epoch = time.time()
+            # Logs and checkpoints number epochs from 1, matching train/epoch once the epoch completes.
+            n_epoch = epoch_idx + 1
 
             try:
                 new_train_state, train_metrics = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl)
                 self.train_state = new_train_state
-                consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, epoch)
+                consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, n_epoch)
             except TrainingDivergedError as exc:
                 if self.checkpoint_manager is None or self.checkpoint_manager.best_step() is None:
                     raise
-                loguru.logger.warning(f"Training diverged at epoch {epoch}, falling back to the best checkpoint. {exc}")
+                loguru.logger.warning(f"Training diverged at epoch {n_epoch}, falling back to the best checkpoint. {exc}")
                 break
 
             tend_epoch = time.time()

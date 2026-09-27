@@ -9,7 +9,8 @@ from xarray_jax import dims_change_on_unflatten
 
 from popsim.interp import interp_over_nans
 
-# An instantaneous loss function is a function takes in a prediction and a target for a single time slice and returns a scalar loss.
+# An instantaneous loss function takes in a prediction and a target for a single time slice and returns a scalar loss.
+# The scalar is required, training masks samples by weighting a vector of one loss per sample.
 InstantaneousLoss = typing.Callable[[PyTree[ArrayLike], PyTree[ArrayLike]], float]
 
 

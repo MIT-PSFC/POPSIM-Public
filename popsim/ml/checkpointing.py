@@ -129,7 +129,11 @@ def _step_to_restore(checkpoint_manager: ocp.CheckpointManager, step: int | None
     """
     step_to_restore = step if step is not None else checkpoint_manager.best_step()
     if step_to_restore is None:
-        raise FileNotFoundError(f"No checkpoint with a validation loss in {checkpoint_manager.directory}")
+        raise FileNotFoundError(
+            f"No validated checkpoint in {checkpoint_manager.directory}. "
+            "Checkpoints saved without a validation DataLoader or by the wall-clock budget carry no loss, "
+            "so none of them can be the best checkpoint."
+        )
     return step_to_restore
 
 

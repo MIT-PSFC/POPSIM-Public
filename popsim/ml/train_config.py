@@ -22,7 +22,7 @@ class TrainConfig(BaseModel):
     trainable_getter_config: dict | None = None  # Configuration dictionary used in the function that gets trainable parameters.
     val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
-    resume: bool = False  # Resume from the latest checkpoint in checkpoint_dir if one exists.
+    resume: bool = False  # Resume from the latest checkpoint in checkpoint_dir if one exists. No effect under W&B, where checkpoint_dir is replaced by the fresh run directory.
     checkpoint_max_to_keep: PositiveInt = 1  # Best-by-validation-loss checkpoints to keep, the latest is always kept too.
     max_wall_seconds: float | None = None  # Wall-clock budget in s, when exceeded save a checkpoint and stop without the test eval.
 
