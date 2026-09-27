@@ -26,7 +26,7 @@ def launch_train(
 
     Args:
         config (str | os.PathLike[str] | dict): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
-        use_wandb (bool, optional): Whether to use Weights & Biases for logging. Defaults to False.. Defaults to False.
+        use_wandb (bool, optional): Whether to use Weights & Biases for logging. Defaults to False.
 
     Returns:
         tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]: Objects relevant to the training run.
@@ -61,12 +61,7 @@ def launch_sweep(
         training_config = TrainConfig.load(config)
     sweep_config = load_dict(sweep_config_path)
 
-    if kwargs_sweep is None:
-        kwargs_sweep = {}
-    if kwargs_agent is None:
-        kwargs_agent = {}
-
-    sweep_id = wandb.sweep(sweep_config, project=training_config.project, **kwargs_sweep)
+    sweep_id = wandb.sweep(sweep_config, project=training_config.project, **(kwargs_sweep or {}))
     launch_agent(training_config, sweep_id, kwargs_agent)
 
 
@@ -88,28 +83,21 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
     else:
         training_config = TrainConfig.load(config)
 
-    if kwargs_agent is None:
-        kwargs_agent = {}
-
     def _train_fn():
         return _run_train(training_config, use_wandb=True, run_should_stop=agent.run_should_stop)
 
     # wandb.agent hardwires pyagent.Agent, whose stop kills the run thread with an injected exception.
     wandb.login()
-    agent = CooperativeStopAgent(sweep_id, function=_train_fn, project=training_config.project, **kwargs_agent)
+    agent = CooperativeStopAgent(sweep_id, function=_train_fn, project=training_config.project, **(kwargs_agent or {}))
     agent.run()
 
 
-def resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
+def _resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
     """Convert a horizon-invariant transition_frac into absolute transition_steps.
 
-    transition_frac expresses the learning-rate decay time constant as a fraction
-    of the total planned optimizer steps (steps_per_epoch * max_epochs). Sweeping
-    the fraction instead of absolute steps makes tuned schedules transfer between
-    runs with different epoch budgets, dataset sizes, or batch sizes.
-
-    Returns a new optimizer_config with transition_frac replaced by
-    transition_steps. Configs without transition_frac are returned unchanged.
+    transition_frac is the learning-rate decay time constant as a fraction of steps_per_epoch * max_epochs.
+    Sweeping the fraction lets tuned schedules transfer between epoch budgets, dataset sizes and batch sizes.
+    Returns a copy with transition_frac replaced by transition_steps, or optimizer_config unchanged without it.
     """
     if "transition_frac" not in optimizer_config:
         return optimizer_config
@@ -171,7 +159,7 @@ def _run_train(
     loguru.logger.info("Initializing the loss function...")
     loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
     loguru.logger.info("Initializing the optimizer...")
-    optimizer_config = resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
+    optimizer_config = _resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
     opt = train_run_builder.get_optimizer(optimizer_config)
     loguru.logger.info("Building the trainer...")
     trainer = Trainer(
@@ -193,12 +181,11 @@ def _run_train(
         epochs_per_val=training_config.epochs_per_val,
         patience=training_config.patience,
         max_wall_seconds=training_config.max_wall_seconds,
-        logger=logger or NullLogger(),
+        logger=logger,
         eval_suite=train_run_builder.get_val_eval_suite(training_config.val_eval_suite_config),
         test_dl=test_dl,
         test_eval_suite=train_run_builder.get_test_eval_suite(training_config.test_eval_suite_config),
     )
-    loguru.logger.info("Training completed.")
     return trainer, train_dl, val_dl, test_dl, test_results
 
 

@@ -252,13 +252,9 @@ def make_val_loss_eval_fn(
         EvaluationFn: the evaluation function.
     """
 
-    # A fresh closure per suite, jitted once here, so the compiled forward
-    # persists across every validation of this training run while its cache
-    # stays isolated from other runs in the same process. Sharing a single
-    # module level filter_jit cache across unrelated models can raise instead
-    # of just retracing: filter_jit compares static fields for cache hits, and
-    # some statics (for example an xarray attrs dict holding a multi-element
-    # numpy array) raise on __eq__ when two incompatible calls collide.
+    # A fresh closure per suite gets its own filter_jit cache, reused by every validation of this run.
+    # A cache shared across unrelated models can raise instead of retracing,
+    # since some statics (e.g. xarray attrs holding numpy arrays) raise on __eq__
     def _eval_and_loss(model, loss_fn, inputs, targets):
         return batched_model_eval_and_loss(model, loss_fn, inputs, targets)
 

@@ -42,15 +42,14 @@ def step_nan_check(model, opt_state, loss_value):
     return any_nans((model, opt_state, loss_value))
 
 
-# NaN-recovery policy for train steps that produce non-finite values.
-#   MAX_NAN_STEP_WARNINGS_PER_EPOCH: per-step NaN warnings logged before suppressing the
-#     rest of the epoch (the epoch summary still reports totals and culprit sample ids).
-#   MAX_LOGGED_BAD_SAMPLES: maximum number of culprit sample ids listed in one log line.
-#   SKIP_FRACTION_ABORT_THRESHOLD / MAX_HIGH_SKIP_EPOCHS: abort training when more than
-#     this fraction of steps is skipped for this many consecutive epochs, since the model
-#     is then training on a small biased subset of the data and cannot make reliable progress.
+# NaN recovery policy for train steps that produce non-finite values.
+# Per-step NaN warnings logged each epoch before the rest are suppressed.
+# The epoch summary still reports totals and problematic samples
 MAX_NAN_STEP_WARNINGS_PER_EPOCH = 3
+# Bad sample ids listed in one log line
 MAX_LOGGED_BAD_SAMPLES = 50
+# Abort once more than this fraction of steps is skipped for MAX_HIGH_SKIP_EPOCHS consecutive epochs,
+# since the model is then training on a small biased subset of the data.
 SKIP_FRACTION_ABORT_THRESHOLD = 0.5
 MAX_HIGH_SKIP_EPOCHS = 3
 
@@ -270,10 +269,8 @@ def train_epoch(
         model, opt_state, loss_value, sample_losses = jax.block_until_ready(step_outputs)
 
         if step_nan_check(model, opt_state, loss_value):
-            # Some samples can drive the solve to a non-finite loss, gradient or update.
-            # Retry without them so the rest of the batch still trains.
-            # Otherwise skip the step and keep the last good params and optimizer state.
-            # Per-step warnings are capped, the epoch summary below reports totals and culprits.
+            # Retry without the non-finite samples so the rest of the batch still trains,
+            # or skip the step and keep the last good params and optimizer state.
             n_nan_events += 1
             recovered = _retry_step_without_nonfinite_samples(
                 train_state,
@@ -320,9 +317,7 @@ def train_epoch(
             _format_sample_ids(bad_sample_ids),
         )
     if n_applied == 0 and n_skipped > 0:
-        # Every step this epoch diverged and none could be recovered by masking: the model
-        # cannot make progress, so surface the failure with diagnostics rather than looping
-        # forever on skipped steps.
+        # No step this epoch could be recovered, so the model cannot make progress.
         diagnose_nans(train_state.model, batch)
         raise TrainingDivergedError(
             f"All {n_skipped} steps this epoch produced NaN/Inf after train_step and could not be recovered "
@@ -438,7 +433,8 @@ class Trainer:
             epochs_per_val (int, optional): Validate after every epochs_per_val completed epochs, and always after the final epoch. Defaults to 1.
             patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). Note the patience counter is not persisted across resumed runs.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
-            max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish. Defaults to None (no budget).
+            max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish.
+                It is checked once per epoch after validation, so leave a margin of one epoch plus one validation. Defaults to None (no budget).
         """
         logger = logger or ConsoleLogger()
         eval_suite = eval_suite or {}

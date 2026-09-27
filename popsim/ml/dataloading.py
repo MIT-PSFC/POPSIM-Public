@@ -22,9 +22,8 @@ PRNG_KEY_VAR = "prng_key"
 def _load_with_retry(ds: xr.Dataset, max_attempts: int = 3) -> xr.Dataset:
     """Load a dataset into memory, retrying transient I/O failures.
 
-    Reads from network filesystems or zarr stores can fail intermittently, so retry a few times
-    before giving up. Only I/O-type errors (OSError, RuntimeError) are retried so that genuine
-    bugs propagate immediately.
+    Reads from network filesystems or zarr stores can fail intermittently.
+    Only OSError and RuntimeError are retried, since netCDF and HDF5 raise RuntimeError on failed reads.
     """
     last_exc = None
     for attempt in range(1, max_attempts + 1):
@@ -99,7 +98,7 @@ class XarrayPreppedDataset:
         if self.training_metadata.is_time_dependent:
             # Get the time and sample coordinate variable, then drop them from the dataset.
             # We want to drop them because having different coordinates will re-trigger JIT compilation.
-            time = ds[training_metadata.time_dep_metadata.time_coord]
+            da_time = ds[training_metadata.time_dep_metadata.time_coord]
             samples = ds[training_metadata.sample_coord]
             ds = ds.drop_vars(_sample_coords_to_drop(ds))
 
@@ -107,8 +106,8 @@ class XarrayPreppedDataset:
             targets = _load_with_retry(ds[training_metadata.target_vars])
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
-            if training_metadata.sample_dim not in time.dims:
-                time = time.expand_dims({training_metadata.sample_dim: samples})
+            if training_metadata.sample_dim not in da_time.dims:
+                da_time = da_time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
             state_init = _load_with_retry(
@@ -123,7 +122,7 @@ class XarrayPreppedDataset:
             env_input = ModuleEvalEnvInput(
                 initial_state=state_init,
                 inputs=inputs,
-                time=time.data,
+                time=da_time.data,
             )
 
             return env_input, targets
@@ -185,6 +184,12 @@ class DataLoader:
         if self.drop_last and self.pad_last:
             raise ValueError("drop_last and pad_last are mutually exclusive")
 
+        if self.drop_last and len(self.indices) < self.batch_size:
+            logger.warning(
+                f"drop_last requested but the dataset has only {len(self.indices)} samples, "
+                f"fewer than batch_size={self.batch_size}. Keeping the single partial batch."
+            )
+
     def __len__(self):
         complete_batches, remainder = divmod(len(self.indices), self.batch_size)
         # Keep a single partial batch even with drop_last so tiny datasets are not dropped entirely
@@ -215,15 +220,10 @@ class DataLoader:
 
         # shuffle (permutation) indices every epoch
         indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
-        if self.drop_last:
-            n_full = len(self.indices) - len(self.indices) % self.batch_size
-            if n_full == 0:
-                logger.warning(
-                    f"drop_last requested but the dataset has only {len(self.indices)} samples, "
-                    f"fewer than batch_size={self.batch_size}. Keeping the single partial batch."
-                )
-            else:
-                indices = indices[:n_full]
+        n_full = len(indices) - len(indices) % self.batch_size
+        # Keep a single partial batch even with drop_last so tiny datasets are not dropped entirely
+        if self.drop_last and n_full > 0:
+            indices = indices[:n_full]
         return EpochIterator(self.dataset, self.batch_size, indices, self.pad_last)
 
     def next_key(self):
