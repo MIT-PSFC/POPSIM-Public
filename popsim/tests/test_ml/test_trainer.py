@@ -6,15 +6,21 @@ import equinox as eqx
 import jax
 import jax.nn as jnn
 import jax.numpy as jnp
+import numpy as np
 import optax
 import pytest
+import xarray as xr
 
 from popsim import TimeDepModule
-from popsim.ml.dataloading import make_time_dep_dataloader
+from popsim.ml.checkpointing import TrainState
+from popsim.ml.dataloading import DataLoader, make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
+from popsim.ml.eval import make_val_loss_eval_fn
+from popsim.ml.loggers import LoggerBase, NullLogger
 from popsim.ml.loss import IntegralLoss
+from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim.ml.trainer import Trainer
+from popsim.ml.trainer import MAX_HIGH_SKIP_EPOCHS, Trainer, TrainingDivergedError, train_epoch
 from popsim.simulate import StepperType
 from popsim.tests.fixtures import oscillator_dataset  # noqa: F401  (pytest fixture)
 
@@ -141,7 +147,7 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
     if use_val:
         # Checkpoints are only saved when using a validation set.
-        # Check that the checkpoint directory only has one file.
+        # Validation runs once, on the final epoch, so the best and latest checkpoints are the same single step.
         assert len(os.listdir(tmpdir)) == 1
 
 
@@ -170,3 +176,236 @@ def test_train_neural_ode(oscillator_dataset, use_val, train_seg_length, optimiz
 
         # Check that the restored new_trainer is the same as the old trainer at the end of training.
         chex.assert_trees_all_equal(trainer.train_state, new_trainer.train_state)
+
+
+class CountingLogger(LoggerBase):
+    def __init__(self):
+        self.val_epochs = []
+
+    def log(self, dictionary):
+        if "val/epoch" in dictionary:
+            self.val_epochs.append(dictionary["val/epoch"])
+
+
+def test_early_stopping_patience(oscillator_dataset):
+    """With a zero learning rate the validation loss never improves, so training should stop
+    after the first validation establishes the best loss and `patience` further validations pass."""
+    ds = oscillator_dataset
+
+    nn = eqx.nn.MLP(in_size=2, out_size=2, width_size=16, depth=2, activation=jnn.softplus, key=jax.random.PRNGKey(0))
+    module = NeuralODE(config=NeuralODE.Config(nn=nn))
+    env = NeuralODEEnv(module=module, stepper=StepperType.SIMPLE_EULER)
+
+    def loss(predictions, targets):
+        y0_loss = optax.losses.l2_loss(predictions.state["y0"], targets["y0"])
+        y1_loss = optax.losses.l2_loss(predictions.state["y1"], targets["y1"])
+        return y0_loss + y1_loss
+
+    ds, val_ds = split_dataset_by_fracs(ds, (0.8, 0.2), "simulation", 42)
+    dl_kwargs = dict(
+        time_coord="time",
+        episode_coord="simulation",
+        state_init_vars=["y0", "y1"],
+        input_vars=[],
+        target_vars=["y0", "y1"],
+        segment_length=None,
+        batch_size=None,
+        # Keep sample order deterministic so the validation loss is bit-identical between epochs.
+        shuffle=False,
+    )
+    dl = make_time_dep_dataloader(ds, **dl_kwargs)
+    val_dl = make_time_dep_dataloader(val_ds, **dl_kwargs)
+
+    trainer = Trainer(
+        model=env,
+        loss_fn=IntegralLoss(loss),
+        optimizer=optax.sgd(learning_rate=0.0),
+    )
+
+    patience = 1
+    counting_logger = CountingLogger()
+    trainer.train(
+        train_dl=dl,
+        val_dl=val_dl,
+        max_epochs=20,
+        epochs_per_val=1,
+        patience=patience,
+        logger=counting_logger,
+    )
+
+    # One validation to set the best loss, then `patience` validations with no improvement.
+    assert len(counting_logger.val_epochs) == 1 + patience
+    assert trainer.train_state.epoch < 20
+
+
+class _LinearModel(eqx.Module):
+    w: jax.Array
+
+    def __call__(self, inputs):
+        return {"y": self.w * inputs["x"]}
+
+
+class _SqrtInputModel(eqx.Module):
+    w: jax.Array
+
+    def __call__(self, inputs):
+        # A negative input makes the forward pass of that sample alone NaN.
+        return {"y": self.w * jnp.sqrt(inputs["x"])}
+
+
+class _StopRequestingLogger(NullLogger):
+    def stop_requested(self) -> bool:
+        return True
+
+
+def _squared_error(prediction, target):
+    return jnp.square(prediction["y"] - target["y"])
+
+
+def _xy_dataloader(x: np.ndarray, y: np.ndarray, batch_size: int | None, pad_last: bool = False) -> DataLoader:
+    """An unshuffled time-independent dataloader over one episode with input x and target y."""
+    ds = xr.Dataset(
+        {"x": (("episode", "time"), x.reshape(1, -1)), "y": (("episode", "time"), y.reshape(1, -1))},
+        coords={"episode": [0], "time": np.arange(x.size, dtype=float)},
+    )
+    return make_time_indep_dataloader(
+        ds,
+        time_coord="time",
+        episode_coord="episode",
+        input_vars=["x"],
+        target_vars=["y"],
+        batch_size=batch_size,
+        shuffle=False,
+        pad_last=pad_last,
+    )
+
+
+@pytest.mark.parametrize("optimizer", [optax.sgd(0.05), optax.lbfgs()], ids=["sgd", "lbfgs"])
+@pytest.mark.parametrize(
+    "x_values, batch_size, pad_last, x_values_clean, n_steps_masked",
+    [
+        # The final batch [5, 6] is padded to [5, 6, 6, 6], which would overweight 6 without the mask.
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 4, True, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 0),
+        # The retry masks out the NaN sample -2.
+        ([1.0, -2.0, 3.0, 4.0], None, False, [1.0, 3.0, 4.0], 1),
+        # The final batch [5, 6, -7] is padded with a copy of the NaN sample, so the retry must replace it too.
+        ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, -7.0], 4, True, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 1),
+    ],
+    ids=["padded", "nan_retry", "padded_nan_retry"],
+)
+def test_masked_train_epoch_matches_clean_batches(optimizer, x_values, batch_size, pad_last, x_values_clean, n_steps_masked):
+    """Padded rows and NaN samples add no loss or gradient.
+
+    An epoch with them masked gives the same train state as an epoch on the same batches without them.
+    lbfgs also checks that its line search evaluates the masked loss.
+    """
+    partition_fn = make_partition_by_members(lambda m: m)
+
+    def _trained_epoch(x_list: list[float], pad_final_batch: bool) -> tuple[TrainState, dict]:
+        x = np.asarray(x_list)
+        y = np.ones_like(x)
+        dl = _xy_dataloader(x, y, batch_size, pad_last=pad_final_batch)
+        model = _SqrtInputModel(w=jnp.array(0.5))
+        train_state = TrainState.create_new(model, partition_fn, optimizer)
+        return train_epoch(train_state, partition_fn, _squared_error, optimizer, dl)
+
+    train_state, train_metrics = _trained_epoch(x_values, pad_last)
+    train_state_clean, _ = _trained_epoch(x_values_clean, pad_final_batch=False)
+
+    assert train_metrics["train/nan_steps_masked"] == n_steps_masked
+    assert train_metrics["train/nan_steps_skipped"] == 0
+    # Not bit-identical, because the masked sum can reduce in a different order than the clean one.
+    chex.assert_trees_all_close(train_state, train_state_clean, rtol=1e-12)
+
+
+def test_diverged_training_falls_back_to_best_checkpoint(tmpdir):
+    """Skipping most steps for MAX_HIGH_SKIP_EPOCHS consecutive epochs aborts training.
+
+    With batch_size=1 a NaN sample cannot be masked out, so 3 of the 4 steps are skipped every epoch.
+    Without a checkpoint the TrainingDivergedError propagates.
+    With one, the test eval runs on the best validated checkpoint from before the divergence.
+    """
+    x_train = np.array([1.0, -2.0, -3.0, -4.0])
+    y_train = np.ones_like(x_train)
+    train_dl = _xy_dataloader(x_train, y_train, batch_size=1)
+    x_val = np.array([1.0, 2.0])
+    y_val = np.ones_like(x_val)
+    val_dl = _xy_dataloader(x_val, y_val, batch_size=None)
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    train_kwargs = dict(
+        train_dl=train_dl, val_dl=val_dl, test_dl=val_dl, test_eval_suite=test_eval_suite, max_epochs=10, logger=NullLogger()
+    )
+
+    def _make_trainer(checkpoint_dir):
+        model = _SqrtInputModel(w=jnp.array(0.5))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.sgd(0.05), checkpoint_dir=checkpoint_dir)
+
+    trainer_without_checkpoint = _make_trainer(checkpoint_dir=None)
+    with pytest.raises(TrainingDivergedError):
+        trainer_without_checkpoint.train(**train_kwargs)
+    assert trainer_without_checkpoint.train_state.epoch == MAX_HIGH_SKIP_EPOCHS
+
+    trainer = _make_trainer(checkpoint_dir=tmpdir)
+    test_results = trainer.train(**train_kwargs)
+    assert "test/loss" in test_results
+    # The val loss improves every epoch, so the best checkpoint is the last one validated before the abort.
+    assert trainer.checkpoint_manager.all_steps() == [MAX_HIGH_SKIP_EPOCHS - 1]
+    assert trainer.train_state.epoch == MAX_HIGH_SKIP_EPOCHS - 1
+
+
+def test_stop_request_ends_training_without_test_eval(tmpdir):
+    """A logger stop request ends training at the first epoch boundary and skips the test eval."""
+    x = np.linspace(0.1, 1.0, 8)
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    model = _LinearModel(w=jnp.array(0.0))
+    trainer = Trainer(model=model, loss_fn=_squared_error, optimizer=optax.adam(0.05), checkpoint_dir=tmpdir)
+
+    test_results = trainer.train(
+        train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, logger=_StopRequestingLogger()
+    )
+    assert test_results is None
+    assert trainer.train_state.epoch == 1
+
+
+def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
+    """Stopping on the wall budget and resuming twice gives exactly the uninterrupted result.
+
+    Session 1 stops after epoch 1, which has no validation, so it saves a checkpoint without a loss.
+    Session 2 resumes there, validates epoch 2 and stops again.
+    Session 3 finishes and runs the test eval on the best checkpoint.
+    """
+    x = np.linspace(0.1, 1.0, 8)
+    # No shuffle, so a resumed run sees the same batches as an uninterrupted one.
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    train_kwargs = dict(
+        train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, epochs_per_val=2, logger=NullLogger()
+    )
+
+    def _make_trainer(checkpoint_dir, resume=False):
+        model = _LinearModel(w=jnp.array(0.0))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.adam(0.05), checkpoint_dir=checkpoint_dir, resume=resume)
+
+    reference = _make_trainer(tmpdir / "reference")
+    reference_test_results = reference.train(**train_kwargs)
+
+    checkpoint_dir = tmpdir / "resumed"
+    session_1 = _make_trainer(checkpoint_dir)
+    assert session_1.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_1.checkpoint_manager.all_steps() == [1]
+    assert session_1.checkpoint_manager.best_step() is None
+
+    session_2 = _make_trainer(checkpoint_dir, resume=True)
+    assert session_2.train_state.epoch == 1
+    assert session_2.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_2.checkpoint_manager.all_steps() == [2]
+    assert session_2.checkpoint_manager.best_step() == 2
+
+    session_3 = _make_trainer(checkpoint_dir, resume=True)
+    assert session_3.train_state.epoch == 2
+    resumed_test_results = session_3.train(**train_kwargs)
+    assert session_3.checkpoint_manager.all_steps() == [5]
+
+    chex.assert_trees_all_equal(session_3.train_state, reference.train_state)
+    chex.assert_trees_all_equal(resumed_test_results, reference_test_results)

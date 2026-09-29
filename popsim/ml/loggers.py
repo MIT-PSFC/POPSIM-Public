@@ -1,5 +1,6 @@
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import loguru
 import numpy as np
@@ -37,9 +38,16 @@ def _simplified_repr(dictionary, max_string_size):
 
 
 class LoggerBase(ABC):
+    # Log train metrics only on validation epochs instead of every epoch.
+    log_at_val_cadence: bool = False
+
     @abstractmethod
     def log(self, dictionary):
         raise NotImplementedError
+
+    def stop_requested(self) -> bool:
+        """Whether an external controller asked training to stop at the next epoch boundary."""
+        return False
 
 
 class NullLogger(LoggerBase):
@@ -57,13 +65,28 @@ class ConsoleLogger(LoggerBase):
 
 
 class WandbLogger(LoggerBase):
-    def __init__(self, run):
+    # Per-epoch logs from fast-training models overload the W&B backend.
+    log_at_val_cadence = True
+
+    def __init__(self, run, run_should_stop: Callable[[str], bool] | None = None):
+        """
+        Args:
+            run: The W&B run to log to.
+            run_should_stop (Callable[[str], bool] | None, optional): Called with the run id at each epoch boundary,
+                True when the sweep agent was told to stop this run. Defaults to None (never stop).
+        """
         self.run = run
+        self.run_should_stop = run_should_stop
         self.run.define_metric("train/*", step_metric="train/step")
         self.run.define_metric("val/*", step_metric="val/epoch")
 
     def log(self, dictionary):
         self.run.log(flatten_dict(dictionary))
+
+    def stop_requested(self) -> bool:
+        if self.run_should_stop is None:
+            return False
+        return self.run_should_stop(self.run.id)
 
 
 def get_logger(logger_type: str, **kwargs) -> LoggerBase:

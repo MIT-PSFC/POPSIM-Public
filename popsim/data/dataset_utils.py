@@ -23,6 +23,7 @@ def build_tensorized_dataset(  # noqa: PLR0912
     extend_existing: bool = False,
     episodes_per_chunk: int | None = None,
     mb_per_chunk: int | None = 10,
+    dim_sizes: dict[str, int] | None = None,
 ) -> xr.Dataset:
     """Build a tensorized multi-episode dataset that can then be used for training or evaluation.
     The user provides a function that processes data for a single episode, which returns an xarray Dataset for a single episode. This function will then build up the multi-episode dataset. This function was built with the intention of only needing to load a single episode at a time, allowing us to build up a dataset that is too large to fit in memory.
@@ -36,6 +37,12 @@ def build_tensorized_dataset(  # noqa: PLR0912
         extend_existing (bool, optional): If zarr_path already exists and this is true, we will try to extend the existing zarr_path. Defaults to False.
         episodes_per_chunk (Optional[int], optional): The number of episodes per chunk in storage. If this is not None, then this function will rechunk the built Zarr store once all the files are added. Defaults to None.
         mb_per_chunk (Optional[int], optional): If specified, the resulting Zarr stored will be chunked along the episodes dimension with size max(1, int(mb_per_chunk / mean_mb_per_episode)). Defaults to 10.
+        dim_sizes (Optional[dict[str, int]], optional): Upper bound on the size of each non-episode dimension across all episodes.
+            Episodes are padded with NaNs up to these sizes, so the store is extended at most once per dimension.
+            The rechunking pass (mb_per_chunk or episodes_per_chunk set) trims each dimension back to the largest size seen,
+            including sizes already in an extended store.
+            Without a rechunking pass the store keeps these upper-bound sizes.
+            An error is raised if an episode exceeds one of these sizes. Defaults to None.
 
     Raises:
         ValueError: If zarr_path already exists and extend_existing is False, this function will raise an error.
@@ -65,15 +72,26 @@ def build_tensorized_dataset(  # noqa: PLR0912
     atleast_one_success = False  # Keep track of whether at least one dataset was successfully processed.
     store_time_dim_size = None  # Keep track of the size of the time dimension in the zarr store.
 
+    # Largest size seen for each dim_sizes dimension, used to trim the padding once the store is built.
+    dims_to_trim = [dim for dim in (dim_sizes or {}) if dim != episode_dim]
+    max_dim_sizes = {}
+    if dims_to_trim and os.path.exists(zarr_path):
+        store_sizes = xr.open_zarr(zarr_path, consolidated=True).sizes
+        max_dim_sizes = {dim: store_sizes[dim] for dim in dims_to_trim if dim in store_sizes}
+
     # Iterate over the identifiers and process them one by one to build the dataset.
     for i, it in enumerate(tqdm(identifiers, desc="Building the dataset...")):
         ds = get_and_preprocess(it)
         if ds is not None:
-            success = add_to_zarr_store(ds, zarr_path, time_dim, episode_dim, store_time_dim_size=store_time_dim_size)
+            success = add_to_zarr_store(ds, zarr_path, time_dim, episode_dim, store_time_dim_size=store_time_dim_size, dim_sizes=dim_sizes)
             if success and not store_time_dim_size:
                 store_time_dim_size = xr.open_zarr(zarr_path, consolidated=True).sizes[time_dim]
             else:
                 store_time_dim_size = max(store_time_dim_size, ds.sizes[time_dim])
+
+            for dim in dims_to_trim:
+                if dim in ds.dims:
+                    max_dim_sizes[dim] = max(max_dim_sizes.get(dim, 0), ds.sizes[dim])
 
             atleast_one_success = True if success else atleast_one_success
 
@@ -94,6 +112,13 @@ def build_tensorized_dataset(  # noqa: PLR0912
     # Now that the store has been built, we can consolidate the metadata and rechunk if necessary.
     loguru.logger.info(f"Successfully processed at least some of the files. Chunking and consolidating metadata for {zarr_path}.")
     ds = xr.open_zarr(zarr_path, consolidated=True)
+
+    # Drop the padding beyond the largest episode, while the rechunking pass rewrites the store anyway.
+    if mb_per_chunk is not None or episodes_per_chunk is not None:
+        trim_slices = {dim: slice(0, size) for dim, size in max_dim_sizes.items() if size < ds.sizes[dim]}
+        if trim_slices:
+            loguru.logger.info(f"Trimming dim_sizes padding down to the largest episode sizes {max_dim_sizes}.")
+            ds = ds.isel(trim_slices)
 
     if mb_per_chunk is not None:
         # Compute the number of episodes per chunk based on the average size of per-episode datasets.
@@ -149,10 +174,32 @@ def _set_integer_fill_values(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
+def _padded_to_sizes(ds: xr.Dataset, target_sizes: dict[str, int]) -> xr.Dataset:
+    """ds padded with NaNs at the end of each dim in target_sizes, dims already at or above their target are left alone."""
+    pad_widths = {dim: (0, size - ds.sizes[dim]) for dim, size in target_sizes.items() if ds.sizes[dim] < size}
+    if not pad_widths:
+        return ds
+    return ds.pad(pad_widths)
+
+
 def add_to_zarr_store(  # noqa: PLR0912
-    ds: xr.Dataset, zarr_path: os.PathLike, time_dim: str, episode_dim: str, store_time_dim_size: int | None = None
+    ds: xr.Dataset,
+    zarr_path: os.PathLike,
+    time_dim: str,
+    episode_dim: str,
+    store_time_dim_size: int | None = None,
+    dim_sizes: dict[str, int] | None = None,
 ) -> bool:
-    """Helper function to add a single xarray Dataset to a zarr store. Requires that the zarr store either doesn't exist or already contains all the dimensions in the provided Dataset."""
+    """Helper function to add a single xarray Dataset to a zarr store. Requires that the zarr store either doesn't exist or already contains all the dimensions in the provided Dataset.
+
+    dim_sizes gives upper bounds for non-episode dims, an episode larger than a bound raises.
+    The episode that creates the store is padded with NaNs up to the bounds, so later episodes never extend it.
+    With an existing store, an episode that fits is padded to the store size,
+    and one that outgrows it is padded to the bound.
+    A store trimmed by an earlier build is then left alone until an episode outgrows it,
+    and is extended once, straight to the bound.
+    Extending rewrites the chunks of every episode already written.
+    """
 
     # We need to reset all the non-index coordinates to make sure they get vary across episodes.
     ds = ds.reset_coords()
@@ -178,35 +225,58 @@ def add_to_zarr_store(  # noqa: PLR0912
             # If the variable does not have the episode dimension, we need to add it.
             ds[var] = ds[var].expand_dims(episode_dim)
 
+    dim_bounds = {dim: bound for dim, bound in (dim_sizes or {}).items() if dim in ds.dims and dim != episode_dim}
+    for dim, bound in dim_bounds.items():
+        if ds.sizes[dim] > bound:
+            raise ValueError(
+                f"Dimension {dim} has size {ds.sizes[dim]}, which exceeds the dim_sizes upper bound of {bound}. "
+                f"Please ensure dim_sizes covers the largest episode."
+            )
+
     if not os.path.exists(zarr_path):
         loguru.logger.info(f"Zarr store at {zarr_path} does not exist. Creating a new one.")
+        ds = _padded_to_sizes(ds, dim_bounds)
         ds = _set_integer_fill_values(ds)
         ds.to_zarr(zarr_path, mode="w", consolidated=True)
         return True
     else:
         ds_store = xr.open_zarr(zarr_path, consolidated=True)
 
+        # Appending a variable the store doesn't have creates it with a single episode,
+        # leaving the store with conflicting episode-dim sizes that break every later open.
+        # A "coordinates" encoding on the source data can re-promote variables to coords on read,
+        # so compare against the store with the same reset_coords treatment given to ds above.
+        store_vars = set(ds_store.reset_coords().data_vars)
+        ds_vars = set(ds.data_vars)
+        if ds_vars != store_vars:
+            raise ValueError(
+                f"Variable mismatch between dataset and existing zarr store: "
+                f"missing from dataset {sorted(store_vars - ds_vars)}, "
+                f"new in dataset {sorted(ds_vars - store_vars)}. "
+                f"All episodes must provide the same set of variables."
+            )
+
         # Handle dimension size changes for all dimensions except episode_dim
+        considered_dims = set(ds.dims) - {episode_dim}
+        missing_dims = considered_dims - set(ds_store.dims)
+        if missing_dims:
+            raise ValueError(f"Dimensions {sorted(missing_dims)} are not present in the zarr store.")
+        store_dim_sizes = {dim: ds_store.sizes[dim] for dim in considered_dims}
+        if time_dim in store_dim_sizes and store_time_dim_size is not None:
+            store_dim_sizes[time_dim] = store_time_dim_size
+
+        # An episode that outgrows the store is padded to its bound, so the store is extended at most once.
+        dim_bounds_outgrown = {dim: bound for dim, bound in dim_bounds.items() if ds.sizes[dim] > store_dim_sizes[dim]}
+        ds = _padded_to_sizes(ds, dim_bounds_outgrown)
+
         pad_dims = {}
         extend_dims = {}
-
-        # Check all other dimensions that exist in both datasets
-        considered_dims = set(ds.dims) - {episode_dim}
-        for dim in considered_dims:
-            if dim in ds_store.dims:
-                if dim == time_dim and store_time_dim_size is not None:
-                    store_dim_size = store_time_dim_size
-                else:
-                    store_dim_size = ds_store.sizes[dim]
-
-                ds_dim_size = ds.sizes[dim]
-
-                if ds_dim_size < store_dim_size:
-                    pad_dims[dim] = (0, store_dim_size - ds_dim_size)
-                elif ds_dim_size > store_dim_size:
-                    extend_dims[dim] = ds_dim_size - store_dim_size
-            else:
-                raise ValueError(f"Dimension {dim} is not present in the zarr store.")
+        for dim, store_dim_size in store_dim_sizes.items():
+            ds_dim_size = ds.sizes[dim]
+            if ds_dim_size < store_dim_size:
+                pad_dims[dim] = (0, store_dim_size - ds_dim_size)
+            elif ds_dim_size > store_dim_size:
+                extend_dims[dim] = ds_dim_size - store_dim_size
 
         # Extend the zarr store for any dimensions that need to grow
         for dim, n_extend in extend_dims.items():

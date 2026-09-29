@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import ArrayLike
@@ -65,6 +66,39 @@ def soft_clip(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, sharpnes
 
     # Apply the soft clipping using a scaled hyperbolic tangent.
     return center + half_range * jnp.tanh(sharpness * (x - center) / effective_half_range)
+
+
+def smooth_clamp(x: ArrayLike, min_value: ArrayLike, max_value: ArrayLike, min_width: float, max_width: float) -> ArrayLike:
+    """A smooth alternative to clipping built from two softplus ramps, bounded to [min_value, max_value].
+
+    Away from the bounds the output follows x,
+    deviating by roughly width * exp(-distance / width) near each bound.
+    A larger width smooths more gradually but bends more of the range of x.
+    Requires max_value > min_value.
+
+    Args:
+        x (ArrayLike): the value(s) to be clamped.
+        min_value (ArrayLike): the minimum value(s) to clamp to.
+        max_value (ArrayLike): the maximum value(s) to clamp to.
+        min_width (float): the width of the smoothing region near min_value.
+        max_width (float): the width of the smoothing region near max_value.
+
+    Returns:
+        ArrayLike: the clamped value(s).
+    """
+    # The lower ramp always lifts its input, so the upper ramp hinges just below max_value,
+    # at the inverse softplus point that the lower ramp maps exactly onto max_value.
+    scaled_range = (max_value - min_value) / min_width
+    hinge_fraction = -jnp.expm1(-scaled_range)
+    log_hinge_fraction = jnp.log(hinge_fraction)
+    upper_hinge = max_value + min_width * log_hinge_fraction
+    scaled_distance_below_hinge = (upper_hinge - x) / max_width
+    ramp_below_hinge = jax.nn.softplus(scaled_distance_below_hinge)
+    x_upper_clamped = upper_hinge - max_width * ramp_below_hinge
+    scaled_distance_above_min = (x_upper_clamped - min_value) / min_width
+    ramp_above_min = jax.nn.softplus(scaled_distance_above_min)
+    x_clamped = min_value + min_width * ramp_above_min
+    return x_clamped
 
 
 def padded_relative_error(predicted: ArrayLike, target: ArrayLike, pad: float = 1.0) -> ArrayLike:

@@ -3,15 +3,17 @@ import equinox as eqx
 import jax
 import jax.flatten_util
 import jax.numpy as jnp
+import numpy as np
 import pytest
 import xarray as xr
 
+from popsim.ml._types import TrainingMetadata
 from popsim.ml.dataloading import DataLoader, XarrayPreppedDataset
 from popsim.ml.eval import (
-    batch_loss,
     batched_model_eval_and_loss,
     eval_model_on_data,
     make_val_loss_eval_fn,
+    masked_batch_loss,
     model_eval_and_loss,
     run_evals,
 )
@@ -55,9 +57,12 @@ def test_eval_and_loss(simple_model):
     expected_losses = jnp.array([expected_loss, expected_loss])
     assert jnp.allclose(losses, expected_losses)
 
-    # Now test batch_loss, which requires a partition first.
+    # Now test masked_batch_loss with every sample kept, which requires a partition first.
     trainable, static = eqx.partition(simple_model, eqx.is_inexact_array_like)
-    assert batch_loss(trainable, static, loss_fn, simple_input, simple_target) == expected_loss
+    sample_mask = jnp.ones(losses.shape, dtype=bool)
+    masked_mean_loss, sample_losses = masked_batch_loss(trainable, static, loss_fn, simple_input, simple_target, sample_mask)
+    assert masked_mean_loss == expected_loss
+    assert jnp.allclose(sample_losses, expected_losses)
 
 def test_eval():
     from popsim.modules.profile_predictor.train_configs import DUMMY_CONFIG
@@ -104,7 +109,6 @@ def test_eval():
 @pytest.mark.parametrize("convert_xr_to_jnp", [True, False])
 def test_eval_shuffling(convert_xr_to_jnp):
     """Test that the evaluation function doesn't return scrambled outputs when the dataloader is shuffled."""
-    from popsim.ml._types import TrainingMetadata
 
     class Module(eqx.Module):
         def __call__(self, x):
@@ -146,3 +150,31 @@ def test_eval_shuffling(convert_xr_to_jnp):
     assert eval_data2.output_ds['a'].equals(eval_data2.input_ds['b'])
 
     assert eval_data2.output_ds.equals(eval_data.output_ds)
+
+
+def test_pad_last_eval_matches_unpadded():
+    """Evaluation trims the padded duplicates, so a dataloader with pad_last=True gives the same outputs and loss as an unpadded one."""
+
+    class ShiftModule(eqx.Module):
+        def __call__(self, x):
+            return jax.tree.map(lambda x: x + 1.0, x)
+
+    n_samples = 23
+    sample_values = np.arange(n_samples, dtype=float)
+    ds = xr.Dataset({"a": ("sample", sample_values), "b": ("sample", np.zeros(n_samples))}, coords={"sample": np.arange(n_samples)})
+    training_metadata = TrainingMetadata(
+        sample_coord="sample", sample_dim="sample", input_vars=["a"], target_vars=["b"], convert_xr_to_jnp=True
+    )
+    prepped_ds = XarrayPreppedDataset(ds=ds, training_metadata=training_metadata)
+    # The final batch [20, 21, 22] is padded to [20, 21, 22, 22, 22], and each sample has a different loss.
+    dl_padded = DataLoader(dataset=prepped_ds, batch_size=5, shuffle=False, pad_last=True)
+    dl_unpadded = DataLoader(dataset=prepped_ds, batch_size=5, shuffle=False)
+    val_loss_eval_fn = make_val_loss_eval_fn(loss_fn)
+
+    eval_data_padded = eval_model_on_data(model=ShiftModule(), dataloader=dl_padded)
+    eval_data_unpadded = eval_model_on_data(model=ShiftModule(), dataloader=dl_unpadded)
+    xr.testing.assert_identical(eval_data_padded.output_ds, eval_data_unpadded.output_ds)
+
+    val_loss_padded = val_loss_eval_fn(eval_data_padded)
+    val_loss_unpadded = val_loss_eval_fn(eval_data_unpadded)
+    chex.assert_trees_all_equal(val_loss_padded, val_loss_unpadded)

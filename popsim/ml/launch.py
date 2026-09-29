@@ -3,6 +3,7 @@ import importlib.util
 import inspect
 import os
 import warnings
+from collections.abc import Callable
 
 import loguru
 from absl import logging as absl_logging
@@ -25,7 +26,7 @@ def launch_train(
 
     Args:
         config (str | os.PathLike[str] | dict): Path to a yaml file or a python module path pointing to a config dict (e.g. `popsim.modules fun_module.TRAIN_CONFIG)
-        use_wandb (bool, optional): Whether to use Weights & Biases for logging. Defaults to False.. Defaults to False.
+        use_wandb (bool, optional): Whether to use Weights & Biases for logging. Defaults to False.
 
     Returns:
         tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]: Objects relevant to the training run.
@@ -38,12 +39,19 @@ def launch_train(
     return _run_train(training_config, use_wandb=use_wandb)
 
 
-def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_config_path: str | os.PathLike[str] | dict):
+def launch_sweep(
+    config: str | os.PathLike[str] | dict | TrainConfig,
+    sweep_config_path: str | os.PathLike[str] | dict,
+    kwargs_sweep: dict | None = None,
+    kwargs_agent: dict | None = None,
+):
     """Launch a hyperparameter sweep using Weights & Biases.
 
     Args:
         config (str | os.PathLike[str] | dict | TrainConfig): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
         sweep_config_path (str | os.PathLike[str] | dict): "Path to a yaml file, toml file, or a python module path pointing to a sweep config dict (e.g. `popsim.modules.fun_module.SWEEP_CONFIG)"
+        kwargs_sweep (dict | None, optional): Additional keyword arguments to pass to `wandb.sweep`. Defaults to None.
+        kwargs_agent (dict | None, optional): Additional keyword arguments to pass to `wandb.agent`. Defaults to None.
     """
     import wandb
 
@@ -52,19 +60,23 @@ def launch_sweep(config: str | os.PathLike[str] | dict | TrainConfig, sweep_conf
     else:
         training_config = TrainConfig.load(config)
     sweep_config = load_dict(sweep_config_path)
-    sweep_id = wandb.sweep(sweep_config, project=training_config.project)
-    launch_agent(training_config, sweep_id)
+
+    sweep_id = wandb.sweep(sweep_config, project=training_config.project, **(kwargs_sweep or {}))
+    launch_agent(training_config, sweep_id, kwargs_agent)
 
 
-def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: str):
+def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: str, kwargs_agent: dict | None = None):
     """Launch a Weights & Biases agent as a part of a hyperparameter sweep.
 
     Args:
         config (str | os.PathLike[str] | dict | TrainConfig): "Path to a yaml file, toml file, or a python module path pointing to a config dict (e.g. `popsim.modules.fun_module.TRAIN_CONFIG)"
         sweep_id (str): The ID of the sweep to join.
+        kwargs_agent (dict | None, optional): Additional keyword arguments to pass to `wandb.agent`. Defaults to None.
 
     """
     import wandb
+
+    from popsim.ml.sweep_agent import CooperativeStopAgent
 
     if isinstance(config, TrainConfig):
         training_config = config
@@ -72,12 +84,35 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
         training_config = TrainConfig.load(config)
 
     def _train_fn():
-        return _run_train(training_config, use_wandb=True)
+        return _run_train(training_config, use_wandb=True, run_should_stop=agent.run_should_stop)
 
-    wandb.agent(sweep_id, function=_train_fn, project=training_config.project)
+    # wandb.agent hardwires pyagent.Agent, whose stop kills the run thread with an injected exception.
+    wandb.login()
+    agent = CooperativeStopAgent(sweep_id, function=_train_fn, project=training_config.project, **(kwargs_agent or {}))
+    agent.run()
 
 
-def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
+def _resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
+    """Convert a horizon-invariant transition_frac into absolute transition_steps.
+
+    transition_frac is the learning-rate decay time constant as a fraction of steps_per_epoch * max_epochs.
+    Sweeping the fraction lets tuned schedules transfer between epoch budgets, dataset sizes and batch sizes.
+    Returns a copy with transition_frac replaced by transition_steps, or optimizer_config unchanged without it.
+    """
+    if "transition_frac" not in optimizer_config:
+        return optimizer_config
+    optimizer_config = dict(optimizer_config)
+    frac = optimizer_config.pop("transition_frac")
+    total_steps = steps_per_epoch * max_epochs
+    transition_steps = max(1, round(frac * total_steps))
+    loguru.logger.info(
+        f"Resolved transition_frac={frac} to transition_steps={transition_steps} ({steps_per_epoch} steps/epoch x {max_epochs} epochs)"
+    )
+    optimizer_config["transition_steps"] = transition_steps
+    return optimizer_config
+
+
+def get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type) -> TrainRunBuilder:
     """Get the training run builder class from a string, path, or class."""
     if inspect.isclass(train_run_builder):
         if not issubclass(train_run_builder, TrainRunBuilder):
@@ -96,24 +131,25 @@ def _get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | typ
 def _run_train(
     training_config: TrainConfig,
     use_wandb: bool = False,
+    run_should_stop: Callable[[str], bool] | None = None,
 ) -> tuple[Trainer, DataLoader, DataLoader, DataLoader, dict]:
     if use_wandb:
         import wandb
 
         run = wandb.init(project=training_config.project, config=training_config.model_dump())
         run.config.update({"checkpoint_dir": run.dir}, allow_val_change=True)
-        logger = WandbLogger(run)
+        logger = WandbLogger(run, run_should_stop)
         training_config = dict(run.config)
         training_config = TrainConfig(**training_config)
     else:
         logger = NullLogger()
 
     loguru.logger.info(f"Building training run for {training_config.project}")
-    train_run_builder = _get_train_run_builder_class(training_config.train_run_builder)
+    train_run_builder = get_train_run_builder_class(training_config.train_run_builder)
     loguru.logger.info("Loading the dataset and creating dataloaders...")
     # If this is a submodule, use the dataloader construction logic from the main module. Fallback to using the submodule's own logic otherwise.
     if training_config.dataloader_config.get("data_train_run_builder"):
-        data_train_run_builder = _get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
+        data_train_run_builder = get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
         _, train_dl, val_dl, test_dl = data_train_run_builder.get_dataloaders(training_config.dataloader_config)
     else:
         _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
@@ -123,7 +159,8 @@ def _run_train(
     loguru.logger.info("Initializing the loss function...")
     loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
     loguru.logger.info("Initializing the optimizer...")
-    opt = train_run_builder.get_optimizer(training_config.optimizer_config)
+    optimizer_config = _resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
+    opt = train_run_builder.get_optimizer(optimizer_config)
     loguru.logger.info("Building the trainer...")
     trainer = Trainer(
         model=model,
@@ -131,6 +168,8 @@ def _run_train(
         optimizer=opt,
         checkpoint_dir=training_config.checkpoint_dir,
         trainable_getter=train_run_builder.get_trainable_getter(training_config.model_init_config),
+        resume=training_config.resume,
+        checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
     )
     loguru.logger.info("Trainer built.")
 
@@ -140,12 +179,13 @@ def _run_train(
         val_dl,
         max_epochs=training_config.max_epochs,
         epochs_per_val=training_config.epochs_per_val,
-        logger=logger or NullLogger(),
+        patience=training_config.patience,
+        max_wall_seconds=training_config.max_wall_seconds,
+        logger=logger,
         eval_suite=train_run_builder.get_val_eval_suite(training_config.val_eval_suite_config),
         test_dl=test_dl,
         test_eval_suite=train_run_builder.get_test_eval_suite(training_config.test_eval_suite_config),
     )
-    loguru.logger.info("Training completed.")
     return trainer, train_dl, val_dl, test_dl, test_results
 
 

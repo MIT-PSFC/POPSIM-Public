@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from popsim.math_utils import inverse_signed_log, safe_log, signed_log, soft_clip
+from popsim.math_utils import inverse_signed_log, safe_log, signed_log, smooth_clamp, soft_clip
 
 
 def test_normal_log_nan_issue():
@@ -101,3 +101,37 @@ def test_soft_clip_vec():
         return jnp.sum(soft_clip(x, mins, maxs))
     grads = jax.grad(fn)(values)
     assert not jnp.any(jnp.isnan(grads))
+
+
+@pytest.mark.parametrize("dtype", [jnp.float32, jnp.float64])
+@pytest.mark.parametrize(
+    "min_value, max_value, min_width, max_width",
+    [
+        (0.0, 100.0, 1.0, 1.0),
+        # Widths comparable to or wider than the range, where the two ramps overlap.
+        (-1.0, 1.0, 0.5, 2.0),
+        (1e-3, 2e-3, 1e-3, 1e-4),
+    ],
+)
+def test_smooth_clamp_bounds(min_value, max_value, min_width, max_width, dtype):
+    """The output never leaves [min_value, max_value], never decreases, and has finite gradients, even far outside the range."""
+    x_range = max_value - min_value
+    x = jnp.linspace(min_value - 1e3 * x_range, max_value + 1e3 * x_range, 100001, dtype=dtype)
+    x_clamped = smooth_clamp(x, min_value, max_value, min_width, max_width)
+    assert jnp.all(x_clamped >= min_value)
+    assert jnp.all(x_clamped <= max_value)
+    x_clamped_steps = jnp.diff(x_clamped)
+    assert jnp.all(x_clamped_steps >= 0)
+
+    grad_fn = jax.grad(smooth_clamp)
+    grads = jax.vmap(grad_fn, in_axes=(0, None, None, None, None))(x, min_value, max_value, min_width, max_width)
+    assert jnp.all(jnp.isfinite(grads))
+
+
+@pytest.mark.parametrize("dtype", [jnp.float32, jnp.float64])
+def test_smooth_clamp_is_identity_far_from_bounds(dtype):
+    """Many widths from either bound the output equals x to within rounding."""
+    x = jnp.linspace(40.0, 60.0, 101, dtype=dtype)
+    x_clamped = smooth_clamp(x, 0.0, 100.0, 1.0, 1.0)
+    rtol = 10 * jnp.finfo(dtype).eps
+    assert jnp.allclose(x_clamped, x, rtol=rtol, atol=0.0)

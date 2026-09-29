@@ -3,7 +3,7 @@ import importlib.util
 import os
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PositiveInt
 
 from popsim.ml.train_run_builder import TrainRunBuilder
 
@@ -14,6 +14,7 @@ class TrainConfig(BaseModel):
     max_epochs: int  # Maximum number of training epochs.
     epochs_per_val: int  # Number of epochs between each validation.
     checkpoint_dir: str | None = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
+    patience: int | None = None  # Number of validation steps with no improvement before early stopping. If None, no early stopping.
     dataloader_config: dict  # Configuration dictionary for building the dataloaders.
     model_init_config: dict  # Configuration dictionary for initializing the model.
     loss_config: dict  # Configuration dictionary used to initialize the loss function.
@@ -21,6 +22,9 @@ class TrainConfig(BaseModel):
     trainable_getter_config: dict | None = None  # Configuration dictionary used in the function that gets trainable parameters.
     val_eval_suite_config: dict | None = None  # Configuration dictionary used to build the validation evaluation suite.
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
+    resume: bool = False  # Resume from the latest checkpoint in checkpoint_dir if one exists. No effect under W&B, where checkpoint_dir is replaced by the fresh run directory.
+    checkpoint_max_to_keep: PositiveInt = 1  # Best-by-validation-loss checkpoints to keep, the latest is always kept too.
+    max_wall_seconds: float | None = None  # Wall-clock budget in s, when exceeded save a checkpoint and stop without the test eval.
 
     model_config = ConfigDict(frozen=True)  # Make the model immutable after creation.
 

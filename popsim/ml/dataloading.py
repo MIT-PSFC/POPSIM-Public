@@ -1,3 +1,4 @@
+import time
 import typing
 
 import jax
@@ -18,13 +19,34 @@ DEFAULT_SAMPLE_DIM = "sample"
 PRNG_KEY_VAR = "prng_key"
 
 
+def _load_with_retry(ds: xr.Dataset, max_attempts: int = 3) -> xr.Dataset:
+    """Load a dataset into memory, retrying transient I/O failures.
+
+    Reads from network filesystems or zarr stores can fail intermittently.
+    Only OSError and RuntimeError are retried, since netCDF and HDF5 raise RuntimeError on failed reads.
+    """
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return ds.load()
+        except (OSError, RuntimeError) as exc:
+            last_exc = exc
+            if attempt < max_attempts:
+                logger.warning(
+                    f"Dataset load failed on attempt {attempt}/{max_attempts}, retrying. error_type={type(exc).__name__}, error={exc!r}"
+                )
+                time.sleep(0.1 * attempt)
+    raise RuntimeError(f"Dataset load failed after {max_attempts} attempts") from last_exc
+
+
 class XarrayPreppedDataset:
     """A thin wrapper around an xr.Dataset that also contains necessary metadata for training models."""
 
     ds: xr.Dataset
     training_metadata: TrainingMetadata
+    n_padded: int  # Trailing samples that repeat the last real sample, set by DataLoader when pad_last=True
 
-    def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata):
+    def __init__(self, ds: xr.Dataset, training_metadata: TrainingMetadata, n_padded: int = 0):
         if ds[training_metadata.sample_coord].ndim != 1:
             raise ValueError(f"The sample coordinate '{training_metadata.sample_coord}' must be 1D.")
 
@@ -32,14 +54,20 @@ class XarrayPreppedDataset:
             ds = ds.transpose(training_metadata.sample_dim, ...)
         self.ds = ds
         self.training_metadata = training_metadata
+        self.n_padded = n_padded
 
     def __len__(self):
         return self.sample_coord.size
 
     def __getitem__(self, idx) -> "XarrayPreppedDataset":
+        return self.select_samples(idx)
+
+    def select_samples(self, idx, n_padded: int = 0) -> "XarrayPreppedDataset":
+        """Select samples by position along the sample dim.
+        n_padded marks how many trailing samples are padding duplicates."""
         sample_dim = self.training_metadata.sample_dim
         ds_slice = self.ds.isel({sample_dim: idx})
-        return XarrayPreppedDataset(ds_slice, self.training_metadata)
+        return XarrayPreppedDataset(ds_slice, self.training_metadata, n_padded=n_padded)
 
     def __eq__(self, other: "XarrayPreppedDataset") -> bool:
         # xr.Dataset requires special handling for equality comparison.
@@ -70,20 +98,20 @@ class XarrayPreppedDataset:
         if self.training_metadata.is_time_dependent:
             # Get the time and sample coordinate variable, then drop them from the dataset.
             # We want to drop them because having different coordinates will re-trigger JIT compilation.
-            time = ds[training_metadata.time_dep_metadata.time_coord]
+            da_time = ds[training_metadata.time_dep_metadata.time_coord]
             samples = ds[training_metadata.sample_coord]
             ds = ds.drop_vars(_sample_coords_to_drop(ds))
 
-            inputs = ds[input_vars].load()
-            targets = ds[training_metadata.target_vars].load()
+            inputs = _load_with_retry(ds[input_vars])
+            targets = _load_with_retry(ds[training_metadata.target_vars])
 
             # If the sample dimension is not in the time dimension (i.e. all samples have the same time base), expand time to include the sample dimension.
-            if training_metadata.sample_dim not in time.dims:
-                time = time.expand_dims({training_metadata.sample_dim: samples})
+            if training_metadata.sample_dim not in da_time.dims:
+                da_time = da_time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
-            state_init = (
-                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0}).load()
+            state_init = _load_with_retry(
+                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
             )
 
             if training_metadata.convert_xr_to_jnp:
@@ -94,15 +122,15 @@ class XarrayPreppedDataset:
             env_input = ModuleEvalEnvInput(
                 initial_state=state_init,
                 inputs=inputs,
-                time=time.data,
+                time=da_time.data,
             )
 
             return env_input, targets
         else:
             # Time-independent case.
             ds = ds.drop_vars(_sample_coords_to_drop(ds))
-            inputs = ds[input_vars].load()
-            targets = ds[training_metadata.target_vars].load()
+            inputs = _load_with_retry(ds[input_vars])
+            targets = _load_with_retry(ds[training_metadata.target_vars])
 
             if training_metadata.convert_xr_to_jnp:
                 inputs = ds_to_dict_jnp(inputs)
@@ -137,6 +165,7 @@ class DataLoader:
         batch_size: int,
         shuffle: bool,
         drop_last: bool = False,
+        pad_last: bool = False,
         key: jax.random.PRNGKey = jax.random.key(0),  # noqa: B008
         generate_prng: bool = False,
         **kwargs,
@@ -146,14 +175,27 @@ class DataLoader:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.drop_last = drop_last
+        self.pad_last = pad_last
         self.generate_prng = generate_prng
 
         if self.generate_prng and not shuffle:
             raise ValueError("generate_prng must be False if shuffle is False")
 
+        if self.drop_last and self.pad_last:
+            raise ValueError("drop_last and pad_last are mutually exclusive")
+
+        if self.drop_last and len(self.indices) < self.batch_size:
+            logger.warning(
+                f"drop_last requested but the dataset has only {len(self.indices)} samples, "
+                f"fewer than batch_size={self.batch_size}. Keeping the single partial batch."
+            )
+
     def __len__(self):
         complete_batches, remainder = divmod(len(self.indices), self.batch_size)
-        return complete_batches if self.drop_last else complete_batches + bool(remainder)
+        # Keep a single partial batch even with drop_last so tiny datasets are not dropped entirely
+        if self.drop_last and complete_batches > 0:
+            return complete_batches
+        return complete_batches + bool(remainder)
 
     def __iter__(self):
         if self.generate_prng:
@@ -163,16 +205,26 @@ class DataLoader:
             seed = jax.random.randint(self.next_key(), (), minval=0, maxval=jnp.iinfo(jnp.int32).max, dtype=jnp.int32).item()
             self.dataset.update_prng_seed(seed)
 
-        def EpochIterator(data, batch_size: int, indices: typing.Sequence[int]):
+        def EpochIterator(data, batch_size: int, indices: typing.Sequence[int], pad_last: bool):
+            # Padding only helps when full batches exist.
+            # A single partial batch already has a stable shape.
+            pad_last = pad_last and len(indices) > batch_size
             for i in range(0, len(indices), batch_size):
                 idx = indices[i : i + batch_size]
-                yield data[idx]
+                n_padded = batch_size - len(idx) if pad_last else 0
+                if n_padded > 0:
+                    # Repeat the last real sample so the final batch needs no extra XLA compilation.
+                    # Training masks the duplicates via n_padded, evaluation trims them.
+                    idx = np.concatenate([idx, np.repeat(idx[-1], n_padded)])
+                yield data.select_samples(idx, n_padded=n_padded)
 
         # shuffle (permutation) indices every epoch
         indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
-        if self.drop_last:
-            indices = indices[: len(self.indices) - len(self.indices) % self.batch_size]
-        return EpochIterator(self.dataset, self.batch_size, indices)
+        n_full = len(indices) - len(indices) % self.batch_size
+        # Keep a single partial batch even with drop_last so tiny datasets are not dropped entirely
+        if self.drop_last and n_full > 0:
+            indices = indices[:n_full]
+        return EpochIterator(self.dataset, self.batch_size, indices, self.pad_last)
 
     def next_key(self):
         self.key, subkey = jax.random.split(self.key)
@@ -217,7 +269,7 @@ class DataLoader:
 
         prep_ds = XarrayPreppedDataset(lim_ds, self.dataset.training_metadata)
         # Extract integer from PRNG key if needed
-        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, key=self.key)
+        lim_dl = DataLoader(prep_ds, self.batch_size, self.shuffle, self.drop_last, self.pad_last, key=self.key)
 
         return lim_dl
 
@@ -303,7 +355,7 @@ def make_standard_dataloaders(
     batch_size: int | None = None,
     segment_length: int | None = None,
     segment_overlap: int | None = 0,
-    nan_handling: str | None = "drop_slice_all",
+    nan_handling: str = "drop_slice_all",
 ) -> typing.Sequence[DataLoader]:
     """Create standard training, validation, and test DataLoaders from a single dataset by splitting along the episode dimension.
 
@@ -346,6 +398,26 @@ def make_standard_dataloaders(
     )
 
 
+def _broadcast_per_dataset(name: str, value, n_datasets: int, scalar_types: tuple[type, ...], none_default: list | None = None) -> list:
+    """One value per dataset for a make_dataloaders argument.
+
+    A scalar is repeated for every dataset, a sequence must have one entry per dataset,
+    and None becomes none_default when one is given.
+    """
+    if value is None and none_default is not None:
+        return none_default
+    if isinstance(value, scalar_types):
+        return [value] * n_datasets
+    if isinstance(value, typing.Sequence) and not isinstance(value, str):
+        if len(value) != n_datasets:
+            raise ValueError(
+                f"If {name} is provided as a sequence, it must have one value per dataset. Got {len(value)} values for {n_datasets} datasets."
+            )
+        return list(value)
+    type_names = " or ".join(scalar_type.__name__ for scalar_type in scalar_types)
+    raise ValueError(f"{name} must be of type {type_names}, or a sequence of them. Got {type(value)}")
+
+
 def make_dataloaders(
     datasets: list[xr.Dataset],
     time_coord: str,
@@ -359,11 +431,13 @@ def make_dataloaders(
     segment_length: int | typing.Sequence[int | None] | None = None,
     segment_overlap: int | typing.Sequence[int | None] | None = 0,
     shuffle: bool | typing.Sequence[bool] | None = None,
-    nan_handling: str | typing.Sequence[str] | None = "drop_slice_all",
+    nan_handling: str | typing.Sequence[str] = "drop_slice_all",
+    drop_last: bool | typing.Sequence[bool] = False,
+    pad_last: bool | typing.Sequence[bool] = False,
 ) -> typing.Sequence[DataLoader]:
     """Create DataLoaders from a list of datasets. Each dataset is processed independently to create a DataLoader.
 
-    `batch_size`, `segment_length`, `segment_overlap`, `shuffle`, and `nan_handling` may be provided as sequences of the same size as the number of datasets,
+    `batch_size`, `segment_length`, `segment_overlap`, `shuffle`, `nan_handling`, `drop_last`, and `pad_last` may be provided as sequences of the same size as the number of datasets,
     in which case each dataset will be processed with the corresponding value from the sequence.
     If they are provided as a single value, that value will be used for all datasets.
     If `shuffle` is not provided, the first dataset will be shuffled and the rest will not be, which is a common pattern for train/val/test splits.
@@ -382,6 +456,8 @@ def make_dataloaders(
         segment_overlap (int, typing.Sequence[int], optional): Number of time steps that each segment overlaps with the previous segment. Defaults to 0.
         shuffle (bool, typing.Sequence[bool], optional): Whether to shuffle the samples in each DataLoader. If None, only the first DataLoader is shuffled.
         nan_handling (str, typing.Sequence[str], optional): Passed to make_time_dep_dataloader, see that function for details. Defaults to "drop_slice_all".
+        drop_last (bool, typing.Sequence[bool], optional): Whether to drop the final partial batch so all batches have the same shape. Defaults to False.
+        pad_last (bool, typing.Sequence[bool], optional): Whether to pad the final partial batch by repeating the last sample so all batches have the same shape. Consumers must trim the padded duplicates before aggregating. Defaults to False.
 
     Returns:
         list[DataLoader]: List of DataLoaders created from the input datasets.
@@ -391,74 +467,20 @@ def make_dataloaders(
             "segment_length and segment_overlap are only valid for making time-dependent dataloaders, when state_init_vars are provided"
         )
 
-    def _check_and_format_args(batch_size, segment_length, segment_overlap, shuffle, nan_handling):  # noqa: PLR0912
-        # Ensure all variables which may be passed in as a sequence are formatted as tuples of the same length as the number of datasets.
-        if batch_size is None:
-            batch_size = [None for _ in datasets]
-        elif isinstance(batch_size, int):
-            batch_size = [batch_size for _ in datasets]
-        elif isinstance(batch_size, typing.Sequence):
-            if len(batch_size) != len(datasets):
-                raise ValueError(
-                    f"If batch_size is provided as a list, it must be the same length as the number of datasets. Got {len(batch_size)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"batch_size must be an int, a sequence of ints, or None. Got {type(batch_size)}")
-
-        if segment_length is None:
-            segment_length = [None for _ in datasets]
-        elif isinstance(segment_length, int):
-            segment_length = [segment_length for _ in datasets]
-        elif isinstance(segment_length, typing.Sequence):
-            if len(segment_length) != len(datasets):
-                raise ValueError(
-                    f"If segment_length is provided as a list, it must be the same length as the number of datasets. Got {len(segment_length)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"segment_length must be an int, a sequence of ints, or None. Got {type(segment_length)}")
-
-        if segment_overlap is None:
-            segment_overlap = [0 for _ in datasets]
-        elif isinstance(segment_overlap, int):
-            segment_overlap = [segment_overlap for _ in datasets]
-        elif isinstance(segment_overlap, typing.Sequence):
-            if len(segment_overlap) != len(datasets):
-                raise ValueError(
-                    f"If segment_overlap is provided as a list, it must be the same length as the number of datasets. Got {len(segment_overlap)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"segment_overlap must be an int, a sequence of ints, or None. Got {type(segment_overlap)}")
-
-        # By default, only shuffle the first dataset.
-        if shuffle is None:
-            shuffle = [True if i == 0 else False for i in range(len(datasets))]
-        elif isinstance(shuffle, bool):
-            shuffle = [shuffle for _ in range(len(datasets))]
-        elif isinstance(shuffle, typing.Sequence):
-            if len(shuffle) != len(datasets):
-                raise ValueError(
-                    f"If shuffle is provided as a list, it must be the same length as the number of datasets. Got {len(shuffle)} values for {len(datasets)} datasets."
-                )
-
-        if isinstance(nan_handling, str):
-            nan_handling = [nan_handling for _ in datasets]
-        elif isinstance(nan_handling, typing.Sequence):
-            if len(nan_handling) != len(datasets):
-                raise ValueError(
-                    f"If nan_handling is provided as a list, it must be the same length as the number of datasets. Got {len(nan_handling)} values for {len(datasets)} datasets."
-                )
-        else:
-            raise ValueError(f"nan_handling must be a str, a sequence of str, or None. Got {type(nan_handling)}")
-
-        return batch_size, segment_length, segment_overlap, shuffle, nan_handling
-
-    batch_size, segment_length, segment_overlap, shuffle, nan_handling = _check_and_format_args(
-        batch_size, segment_length, segment_overlap, shuffle, nan_handling
-    )
+    n_datasets = len(datasets)
+    batch_size = _broadcast_per_dataset("batch_size", batch_size, n_datasets, (int,), none_default=[None] * n_datasets)
+    segment_length = _broadcast_per_dataset("segment_length", segment_length, n_datasets, (int,), none_default=[None] * n_datasets)
+    segment_overlap = _broadcast_per_dataset("segment_overlap", segment_overlap, n_datasets, (int,), none_default=[0] * n_datasets)
+    # By default, only shuffle the first dataset.
+    shuffle_first_only = [i == 0 for i in range(n_datasets)]
+    shuffle = _broadcast_per_dataset("shuffle", shuffle, n_datasets, (bool,), none_default=shuffle_first_only)
+    nan_handling = _broadcast_per_dataset("nan_handling", nan_handling, n_datasets, (str,))
+    drop_last = _broadcast_per_dataset("drop_last", drop_last, n_datasets, (bool,))
+    pad_last = _broadcast_per_dataset("pad_last", pad_last, n_datasets, (bool,))
 
     if state_init_vars is None:
 
-        def dl_fun(ds_, batch_size, shuffle):
+        def dl_fun(ds_, batch_size, shuffle, drop_last, pad_last):
             return make_time_indep_dataloader(
                 ds=ds_,
                 time_coord=time_coord,
@@ -469,12 +491,17 @@ def make_dataloaders(
                 extra_vars=extra_vars,
                 batch_size=batch_size,
                 shuffle=shuffle,
+                drop_last=drop_last,
+                pad_last=pad_last,
             )
 
-        return [dl_fun(ds_, batch_size, sh) for ds_, batch_size, sh in zip(datasets, batch_size, shuffle, strict=False)]
+        return [
+            dl_fun(ds_, batch_size, sh, dl_, pl)
+            for ds_, batch_size, sh, dl_, pl in zip(datasets, batch_size, shuffle, drop_last, pad_last, strict=True)
+        ]
     else:
 
-        def dl_fun(ds_, batch_size, segment_length, segment_overlap, shuffle, nan_handling):
+        def dl_fun(ds_, batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last):
             return make_time_dep_dataloader(
                 ds=ds_,
                 time_coord=time_coord,
@@ -489,12 +516,14 @@ def make_dataloaders(
                 batch_size=batch_size,
                 shuffle=shuffle,
                 nan_handling=nan_handling,
+                drop_last=drop_last,
+                pad_last=pad_last,
             )
 
         return [
-            dl_fun(ds_, batch_size, seg_len, seg_overlap, sh, nan_handling)
-            for ds_, batch_size, seg_len, seg_overlap, sh, nan_handling in zip(
-                datasets, batch_size, segment_length, segment_overlap, shuffle, nan_handling, strict=False
+            dl_fun(ds_, batch_size, seg_len, seg_overlap, sh, nan_handling, dl_, pl)
+            for ds_, batch_size, seg_len, seg_overlap, sh, nan_handling, dl_, pl in zip(
+                datasets, batch_size, segment_length, segment_overlap, shuffle, nan_handling, drop_last, pad_last, strict=True
             )
         ]
 
@@ -510,6 +539,8 @@ def make_time_indep_dataloader(
     batch_size: int | None = None,
     shuffle: bool = True,
     generate_prng: bool = False,
+    drop_last: bool = False,
+    pad_last: bool = False,
 ) -> DataLoader:
     """Create a DataLoader for training tasks that do not require time dependence.
 
@@ -524,6 +555,8 @@ def make_time_indep_dataloader(
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
         generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
+        drop_last (bool, optional): Whether to drop the final partial batch so all batches have the same shape. Defaults to False.
+        pad_last (bool, optional): Whether to pad the final partial batch by repeating the last sample. Defaults to False.
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
@@ -564,7 +597,9 @@ def make_time_indep_dataloader(
         training_metadata=train_meta,
     )
 
-    dl = DataLoader(dataset=prepped_ds, batch_size=batch_size, shuffle=shuffle, generate_prng=generate_prng)
+    dl = DataLoader(
+        dataset=prepped_ds, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, pad_last=pad_last, generate_prng=generate_prng
+    )
     return dl
 
 
@@ -582,7 +617,9 @@ def make_time_dep_dataloader(
     batch_size: int | None = None,
     shuffle: bool = True,
     generate_prng: bool = False,
-    nan_handling: str | None = "drop_slice_all",
+    nan_handling: str = "drop_slice_all",
+    drop_last: bool = False,
+    pad_last: bool = False,
 ) -> DataLoader:
     """Given a multi-episode time series dataset, generate a DataLoader. This function does some pre-processing, and you should expect the resultant data to have the following properties:
         1 (optionally). Time slices where any of the input/target/state/extra vars are NaN are dropped
@@ -605,7 +642,9 @@ def make_time_dep_dataloader(
         batch_size (int, optional): Number of samples in each batch. If None, load all samples in a single batch. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the samples. Defaults to True.
         generate_prng (bool, optional): Whether to generate a prng variable for each sample in the dataset. This is only valid if shuffle is True. Defaults to False.
-        nan_handling (str | None, optional): Method for handling NaN values in the dataset. If "drop_slice_all", time slices where all of the vars are NaN are dropped, and if NaNs remain raises ValueError. If "drop_slice_any", time slices where any of the vars are NaN are dropped. If "drop_segment", samples containing NaNs are dropped. Defaults to "drop_slice_all".
+        nan_handling (str, optional): Method for handling NaN values in the dataset. If "drop_slice_all", time slices where all of the vars are NaN are dropped, and if NaNs remain raises ValueError. If "drop_slice_any", time slices where any of the vars are NaN are dropped. If "drop_segment", samples containing NaNs are dropped. Defaults to "drop_slice_all".
+        drop_last (bool, optional): Whether to drop the final partial batch so all batches have the same shape. Defaults to False.
+        pad_last (bool, optional): Whether to pad the final partial batch by repeating the last sample. Defaults to False.
 
     Returns:
         DataLoader: DataLoader for training the model wrapping a XarrayPreppedDataset.
@@ -754,6 +793,8 @@ def make_time_dep_dataloader(
         dataset=prepped_ds,
         batch_size=batch_size,
         shuffle=shuffle,
+        drop_last=drop_last,
+        pad_last=pad_last,
         generate_prng=generate_prng,
     )
     return dl

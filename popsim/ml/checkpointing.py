@@ -34,11 +34,23 @@ class TrainState:
         return cls(step=0, epoch=0, model=model, opt_state=opt_state)
 
 
-def create_default_checkpoint_manager(directory: PathLike) -> ocp.CheckpointManager:
-    """Create the default CheckpointManager which only saves the best checkpoint based on the validation loss.
+def _validation_loss(metrics: dict) -> float:
+    """The metric checkpoints are ranked by, lower is better."""
+    return metrics["loss"]
+
+
+def create_default_checkpoint_manager(directory: PathLike, max_to_keep: int = 1) -> ocp.CheckpointManager:
+    """Create the default CheckpointManager.
+
+    It keeps the max_to_keep best checkpoints by validation loss, plus the latest checkpoint for resuming.
+    Nothing is deleted while at most max_to_keep checkpoints exist.
+    A checkpoint saved without a loss never counts as best,
+    and is deleted once it is no longer the latest and more than max_to_keep checkpoints exist.
+    Deletion only happens on save(), so a restore-only manager never deletes checkpoints.
 
     Args:
         directory (PathLike): the directory to save the checkpoints in.
+        max_to_keep (int): how many best-by-validation-loss checkpoints to keep.
 
     Returns:
         ocp.CheckpointManager: the CheckpointManager.
@@ -47,11 +59,22 @@ def create_default_checkpoint_manager(directory: PathLike) -> ocp.CheckpointMana
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+    policy_latest = ocp.checkpoint_managers.LatestN(n=1)
+    policy_best = ocp.checkpoint_managers.BestN(
+        get_metric_fn=_validation_loss,
+        reverse=True,
+        n=max_to_keep,
+        keep_checkpoints_without_metrics=False,
+    )
+    preservation_policy = ocp.checkpoint_managers.AnyPreservationPolicy([policy_latest, policy_best])
+
+    # preservation_policy replaces max_to_keep, orbax raises if both are set.
+    # best_fn and best_mode still rank checkpoints for best_step().
     options = ocp.CheckpointManagerOptions(
-        max_to_keep=1,
         save_interval_steps=1,
-        best_fn=lambda val_metrics: val_metrics["loss"],
+        best_fn=_validation_loss,
         best_mode="min",
+        preservation_policy=preservation_policy,
     )
 
     manager = ocp.CheckpointManager(
@@ -67,13 +90,13 @@ def partition_saveable(pytree: PyTree) -> tuple[PyTree, PyTree]:
     return eqx.partition(pytree, eqx.is_array_like)
 
 
-def save_train_state(train_state: TrainState, checkpoint_manager: ocp.CheckpointManager, loss: float):
-    """Save the training state to a checkpoint
+def save_train_state(train_state: TrainState, checkpoint_manager: ocp.CheckpointManager, loss: float | None):
+    """Save the training state to a checkpoint, a no-op if this epoch was already saved.
 
     Args:
         train_state (TrainState): the training state to save.
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager to save to.
-        loss (float): the loss value of the model.
+        loss (float | None): the validation loss of the model, None for an epoch without validation.
     """
     metadata = {
         "step": train_state.step,
@@ -89,25 +112,43 @@ def save_train_state(train_state: TrainState, checkpoint_manager: ocp.Checkpoint
         metadata=ocp.args.JsonSave(metadata),
     )
 
+    # A None loss must be saved as no metrics, a None metric breaks the best-checkpoint ranking.
+    metrics = {"loss": loss} if loss is not None else None
     checkpoint_manager.save(
         train_state.epoch,
         args=composite_save,
-        metrics={"loss": loss},
+        metrics=metrics,
     )
     checkpoint_manager.wait_until_finished()
 
 
-def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: TrainState) -> TrainState:
+def _step_to_restore(checkpoint_manager: ocp.CheckpointManager, step: int | None) -> int:
+    """The requested step, or the best step by validation loss when step is None.
+
+    Raises instead of passing None to orbax, which would silently restore the latest step.
+    """
+    step_to_restore = step if step is not None else checkpoint_manager.best_step()
+    if step_to_restore is None:
+        raise FileNotFoundError(
+            f"No validated checkpoint in {checkpoint_manager.directory}. "
+            "Checkpoints saved without a validation DataLoader or by the wall-clock budget carry no loss, "
+            "so none of them can be the best checkpoint."
+        )
+    return step_to_restore
+
+
+def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: TrainState, step: int | None = None) -> TrainState:
     """Restore the training state from a checkpoint.
 
     Args:
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager that was used to save the checkpoint.
         template (TrainState): a template of the training state to restore. This should have the same structure as the training state that was saved.
+        step (int | None): the step to restore. Defaults to None, which restores the best step.
 
     Returns:
         TrainState: the restored training state.
     """
-    step_to_restore = checkpoint_manager.best_step()
+    step_to_restore = _step_to_restore(checkpoint_manager, step)
 
     model_saveable, model_non_saveable = partition_saveable(template.model)
     opt_state_saveable, opt_state_non_saveable = partition_saveable(template.opt_state)
@@ -131,17 +172,18 @@ def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: Tra
     return train_state
 
 
-def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel) -> TrainableModel:
+def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel, step: int | None = None) -> TrainableModel:
     """Restore just the model from a checkpoint.
 
     Args:
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager that was used to save the checkpoint.
         template (TrainableModel): a template of the model to restore. This should have the same structure as the model that was saved.
+        step (int | None): the step to restore. Defaults to None, which restores the best step.
 
     Returns:
         TrainableModel: the restored model.
     """
-    step_to_restore = checkpoint_manager.best_step()
+    step_to_restore = _step_to_restore(checkpoint_manager, step)
 
     model_saveable, model_non_saveable = partition_saveable(template)
 

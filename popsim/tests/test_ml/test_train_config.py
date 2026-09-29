@@ -12,6 +12,7 @@ VALID_INPUT_EXAMPLE = {
     "max_epochs": 10,
     "epochs_per_val": 2,
     "checkpoint_dir": None,
+    "patience": None,
     "dataloader_config": {},
     "model_init_config": {},
     "loss_config": {},
@@ -25,11 +26,16 @@ INVALID_INPUT_EXAMPLE = {
     "foo": "bar",
 }
 
+def _provided_test_fields(config: TrainConfig) -> dict:
+    """The dumped values of only the fields set in VALID_INPUT_EXAMPLE, ignoring defaults."""
+    config_dump = config.model_dump()
+    return {key: config_dump[key] for key in VALID_INPUT_EXAMPLE}
+
 def test_valid_input():
     # From dictionary
     config = TrainConfig.load(VALID_INPUT_EXAMPLE)
     assert isinstance(config, TrainConfig)
-    assert config.model_dump() == VALID_INPUT_EXAMPLE
+    assert _provided_test_fields(config) == VALID_INPUT_EXAMPLE
 
     # From YAML file
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml", encoding="utf-8") as temp_file:
@@ -38,12 +44,12 @@ def test_valid_input():
 
     config_from_yaml = TrainConfig.load(temp_file_path)
     assert isinstance(config_from_yaml, TrainConfig)
-    assert config_from_yaml.model_dump() == VALID_INPUT_EXAMPLE
+    assert _provided_test_fields(config_from_yaml) == VALID_INPUT_EXAMPLE
 
     # From module path
     config_from_module = TrainConfig.load(__name__ + ".VALID_INPUT_EXAMPLE")
     assert isinstance(config_from_module, TrainConfig)
-    assert config_from_module.model_dump() == VALID_INPUT_EXAMPLE
+    assert _provided_test_fields(config_from_module) == VALID_INPUT_EXAMPLE
 
 def test_invalid_input():
     with pytest.raises(ValueError):

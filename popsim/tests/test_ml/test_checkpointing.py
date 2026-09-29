@@ -6,6 +6,7 @@ import equinox as eqx
 import jax
 import numpy as np
 import optax
+import pytest
 
 from popsim.ml.checkpointing import (
     TrainState,
@@ -84,3 +85,55 @@ def test_checkpointing(tmpdir):
     model_path = os.path.join(ckpt_dir, str(train_state_lower_loss.epoch), "model")
     restored_model = restore_model_from_path(model_path, nested_module)
     chex.assert_trees_all_equal(restored_model, restored_train_state.model)
+
+
+def _train_state_at_epoch(base: TrainState, epoch: int) -> TrainState:
+    """A copy of base whose epoch and model weights both encode epoch, so a restore can be traced back."""
+    model = {"w": np.full(3, float(epoch))}
+    return dataclasses.replace(base, epoch=epoch, model=model)
+
+
+def test_checkpoint_retention(tmpdir):
+    """The default manager keeps the best max_to_keep checkpoints by loss plus the latest.
+
+    Nothing is pruned while at most max_to_keep checkpoints exist.
+    A checkpoint without a loss never counts as best,
+    and is pruned once it is no longer the latest and more than max_to_keep checkpoints exist.
+    Saving an epoch that is already on disk is a no-op.
+    """
+    base = TrainState.create_new(
+        model={"w": np.zeros(3)},
+        partition_fn=lambda m: eqx.partition(m, eqx.is_inexact_array_like),
+        optimizer=optax.adam(1e-3),
+    )
+    ckpt_dir = tmpdir / "ckpt"
+    manager = create_default_checkpoint_manager(ckpt_dir, max_to_keep=2)
+
+    # epoch, loss, steps on disk after the save, best step after the save
+    save_sequence = [
+        (1, None, [1], None),
+        (2, 3.0, [1, 2], 2),
+        (3, 1.0, [2, 3], 3),
+        (4, 2.0, [3, 4], 3),
+        (5, None, [3, 4, 5], 3),
+        (5, 0.5, [3, 4, 5], 3),
+        (6, 0.1, [3, 6], 6),
+    ]
+    for epoch, loss, expected_steps, expected_best in save_sequence:
+        train_state = _train_state_at_epoch(base, epoch)
+        save_train_state(train_state, manager, loss=loss)
+        assert manager.all_steps() == expected_steps, (epoch, loss)
+        assert manager.best_step() == expected_best, (epoch, loss)
+        if expected_best is None:
+            # Orbax would silently fall back to the unvalidated latest step.
+            with pytest.raises(FileNotFoundError):
+                restore_train_state(manager, base)
+
+    # A restore-only manager with a smaller max_to_keep never deletes anything.
+    manager_reopened = create_default_checkpoint_manager(ckpt_dir, max_to_keep=1)
+    assert manager_reopened.all_steps() == [3, 6]
+
+    restored_best = restore_train_state(manager_reopened, base)
+    chex.assert_trees_all_equal(restored_best, _train_state_at_epoch(base, 6))
+    restored_step_3 = restore_train_state(manager_reopened, base, step=3)
+    chex.assert_trees_all_equal(restored_step_3, _train_state_at_epoch(base, 3))

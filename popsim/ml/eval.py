@@ -1,5 +1,6 @@
+import functools
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -20,10 +21,22 @@ This module contains utilities for evaluating models on data.
 """
 
 
-class EvalData(NamedTuple):
-    model: TrainableModel  # The model to train.
-    dataloader: DataLoader  # DataLoader that was used to evaluate the module.
-    output_ds: xr.Dataset  # The output of the model converted to an xarray dataset.
+class EvalData:
+    """A model, the dataloader it is evaluated on, and the model outputs.
+
+    output_ds is built on first access,
+    so evaluation functions that only need the model and dataloader skip the full forward pass.
+    """
+
+    def __init__(self, model: TrainableModel, dataloader: DataLoader, output_ds_builder: Callable[[], xr.Dataset]):
+        self.model = model
+        self.dataloader = dataloader
+        self._output_ds_builder = output_ds_builder
+
+    @functools.cached_property
+    def output_ds(self) -> xr.Dataset:
+        """The output of the model converted to an xarray dataset."""
+        return self._output_ds_builder()
 
     @property
     def input_ds(self):
@@ -45,8 +58,10 @@ EvaluationSuite = dict[str, EvaluationFn]
 def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalData:
     """Evaluate a module on data from a dataloader.
 
+    The forward pass runs when output_ds is first accessed on the returned EvalData.
+
     Args:
-        env (TrainableModel): the module wrapped in an evaluation environment.
+        model (TrainableModel): the model, or a module wrapped in an evaluation environment.
         dataloader (DataLoader): the dataloader to use for evaluation.
 
     Returns:
@@ -103,15 +118,18 @@ def eval_model_on_data(model: TrainableModel, dataloader: DataLoader) -> EvalDat
     else:
         eval_fn = eval_model_return_xarray
 
-    sim_outs_and_batches = [(eval_fn(model, batch), batch) for batch in dataloader]
+    def _build_output_ds() -> xr.Dataset:
+        sim_outs = [eval_fn(model, batch) for batch in dataloader]
 
-    sim_outs = [sim_out for sim_out, _ in sim_outs_and_batches]
+        ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
 
-    ds_sim = xr.concat(sim_outs, dim=DEFAULT_SAMPLE_DIM)
+        # Drop padded duplicate samples from a pad_last dataloader before reindexing
+        ds_sim = ds_sim.isel({DEFAULT_SAMPLE_DIM: slice(0, dataloader.dataset.n_samples)})
 
-    ds_sim = ds_sim.reindex_like(dataloader.ds)
+        ds_sim = ds_sim.reindex_like(dataloader.ds)
+        return ds_sim
 
-    eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds=ds_sim)
+    eval_fn_input = EvalData(model=model, dataloader=dataloader, output_ds_builder=_build_output_ds)
     return eval_fn_input
 
 
@@ -189,14 +207,19 @@ def batched_model_eval_and_loss(
     return losses
 
 
-def batch_loss(
+def masked_batch_loss(
     trainable: TrainableModel,
     static: TrainableModel,
     loss_fn: LossFunction,
     inputs: PyTree[Array],
     targets: PyTree[Array],
-) -> float:
-    """Computes the mean batch loss with support for partitioning the model into trainable and static parts.
+    sample_mask: Array,
+) -> tuple[Array, Array]:
+    """Mean batch loss over the samples where sample_mask is True, plus every per-sample loss.
+
+    Masked-out samples add no loss and no gradient only while their own loss is finite,
+    because 0 * NaN = NaN in both the forward and backward pass.
+    Callers must overwrite non-finite samples with finite ones before masking them out.
 
     Args:
         trainable (TrainableModel): the trainable part of the model.
@@ -204,13 +227,17 @@ def batch_loss(
         loss_fn (LossFunction): the loss function to use.
         inputs (PyTree[Array]): the inputs to the model.
         targets (PyTree[Array]): the targets to compare the model output to in the loss function.
+        sample_mask (Array): boolean vector over the sample dim, True = include the sample.
+            Must have at least one True entry.
 
     Returns:
-        float: the mean batch loss.
+        tuple[Array, Array]: the masked mean loss and the vector of per-sample losses.
     """
     model = eqx.combine(trainable, static)
-    losses = batched_model_eval_and_loss(model, loss_fn, inputs, targets)
-    return losses.mean()
+    sample_losses = batched_model_eval_and_loss(model, loss_fn, inputs, targets)
+    sample_weights = sample_mask.astype(sample_losses.dtype)
+    masked_mean_loss = jnp.sum(sample_losses * sample_weights) / jnp.sum(sample_weights)
+    return masked_mean_loss, sample_losses
 
 
 def make_val_loss_eval_fn(
@@ -225,11 +252,19 @@ def make_val_loss_eval_fn(
         EvaluationFn: the evaluation function.
     """
 
+    # A fresh closure per suite gets its own filter_jit cache, reused by every validation of this run.
+    # A cache shared across unrelated models can raise instead of retracing,
+    # since some statics (e.g. xarray attrs holding numpy arrays) raise on __eq__
+    def _eval_and_loss(model, loss_fn, inputs, targets):
+        return batched_model_eval_and_loss(model, loss_fn, inputs, targets)
+
+    jit_eval_and_loss = eqx.filter_jit(_eval_and_loss)
+
     def eval_fn(inp: EvalData) -> float:
         loss_vecs = []
         for batch in inp.dataloader:
             inputs, targets = batch.get_inputs_and_targets()
-            loss_vec = batched_model_eval_and_loss(
+            loss_vec = jit_eval_and_loss(
                 inp.model,
                 loss_fn,
                 inputs,
@@ -237,6 +272,8 @@ def make_val_loss_eval_fn(
             )
             loss_vecs.append(loss_vec)
         loss_vec = jnp.concatenate(loss_vecs)
+        # Drop padded duplicate samples from a pad_last dataloader
+        loss_vec = loss_vec[: inp.dataloader.dataset.n_samples]
         out = {
             "mean": loss_vec.mean(),
             "vec": loss_vec,
