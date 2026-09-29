@@ -1,6 +1,7 @@
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 import xarray as xr
 
@@ -48,3 +49,22 @@ def test_simple_norm():
     # Check that apply_norm works.
     normed_tree2 = jax.tree.map(apply_norm, tree, means, scales)
     chex.assert_trees_all_close(normed_tree, normed_tree2)
+
+@pytest.mark.parametrize("scaling_type", [ScalingType.STD, ScalingType.QUANTILE_50, ScalingType.L2])
+def test_norm_data_xr_multiple_dims(scaling_type):
+    """Reducing over several dims normalizes each variable over the subset of those dims it has."""
+    rng = np.random.default_rng(0)
+    ds = xr.Dataset(
+        {
+            "a": (("sample", "window", "feat"), rng.normal(size=(50, 4, 3)) * 3 + 1),
+            "b": (("sample", "feat"), rng.normal(size=(50, 3)) * 2 - 1),
+        }
+    )
+    normed, means, scales = norm_data_xr(ds, scaling_type=scaling_type, sample_dim=["sample", "window"])
+
+    assert means["a"].dims == ("feat",)
+    assert means["b"].dims == ("feat",)
+    xr.testing.assert_allclose(ds, normed * scales + means)
+    if scaling_type == ScalingType.STD:
+        np.testing.assert_allclose(normed["a"].std(dim=["sample", "window"]).values, 1.0)
+        np.testing.assert_allclose(normed["b"].std(dim="sample").values, 1.0)

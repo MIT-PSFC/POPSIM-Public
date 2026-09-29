@@ -1,6 +1,7 @@
 import jax
 import jax.flatten_util
 import jax.numpy as jnp
+import numpy as np
 from jaxtyping import Array, PyTree
 
 from popsim import TimeIndepModule
@@ -113,3 +114,34 @@ class LinearAutoEncoder(TimeIndepModule):
 
         encoders = jax.tree.map(fit_fn, tree, n_latent_tree, is_leaf=lambda x: isinstance(x, Array))
         return encoders
+
+
+def choose_n_latent(
+    arr: Array, explained_variance: float = 0.99, min_latent: int = 2, max_latent: int | None = None
+) -> tuple[int, np.ndarray]:
+    """Pick a latent size from the covariance spectrum of already-normalized samples.
+
+    The smallest number of principal components whose cumulative explained variance
+    reaches explained_variance, clipped to [min_latent, max_latent].
+    This is a linear estimate of the information content of the data:
+    small enough that a model cannot fit every quirk, large enough to capture the shared structure.
+
+    Args:
+        arr (Array): 2D array of normalized samples, the first dimension is the sample dimension.
+        explained_variance (float, optional): Fraction of variance the latent space must explain. Defaults to 0.99.
+        min_latent (int, optional): Lower bound on the latent size. Defaults to 2.
+        max_latent (int | None, optional): Upper bound on the latent size. Defaults to the number of features.
+
+    Returns:
+        tuple[int, np.ndarray]: The latent size and the cumulative explained variance ratio of every component.
+    """
+    n_samples, n_features = arr.shape
+    n_components = min(n_samples, n_features)
+    _, explained_variance_ratio = LinearAutoEncoder.fit(arr, n_components, scaling_type=ScalingType.NONE)
+    cumulative_ratio = np.cumsum(np.asarray(explained_variance_ratio))
+
+    # searchsorted gives the number of components strictly below the target, so one more reaches it.
+    n_latent = int(np.searchsorted(cumulative_ratio, explained_variance)) + 1
+    max_latent = n_features if max_latent is None else max_latent
+    n_latent = int(np.clip(n_latent, min_latent, max_latent))
+    return n_latent, cumulative_ratio

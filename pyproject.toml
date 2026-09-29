@@ -1,6 +1,6 @@
 [project]
 name = "popsim"
-version = "0.2.1"
+version = "0.2.2"
 description = "Framework for developing control-oriented dynamics models in JAX"
 authors = [{ name = "Allen Wang", email = "allenw@mit.edu" }]
 requires-python = ">=3.12,<3.14"
@@ -42,6 +42,7 @@ torax = ["torax==1.4.3"]
 
 [project.scripts]
 setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
+popsim-autocheck = "popsim.data.autocheck:main"
 
 [dependency-groups]
 dev = [

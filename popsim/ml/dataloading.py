@@ -110,9 +110,12 @@ class XarrayPreppedDataset:
                 da_time = da_time.expand_dims({training_metadata.sample_dim: samples})
 
             # Grab the first time slice to get the initial state.
-            state_init = _load_with_retry(
-                ds[training_metadata.time_dep_metadata.state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0})
-            )
+            # A model without state (e.g. a sequence model) has no state_init_vars, and an empty Dataset has no time dim to select.
+            state_init_vars = training_metadata.time_dep_metadata.state_init_vars
+            if state_init_vars:
+                state_init = _load_with_retry(ds[state_init_vars].isel({training_metadata.time_dep_metadata.time_dim: 0}))
+            else:
+                state_init = ds[[]]
 
             if training_metadata.convert_xr_to_jnp:
                 state_init = ds_to_dict_jnp(state_init)

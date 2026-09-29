@@ -894,3 +894,37 @@ def test_time_dep_dl_dim_naming():
     for batch in dl:
         assert dict(batch.ds.sizes) == {"sample": batch.ds.sizes["sample"], "time_slice_input": segment_length, "rho": num_rho, "channel": num_channels}
         np.testing.assert_allclose(batch.ds["rho"].values, rhogrid)
+
+
+@pytest.mark.parametrize("convert_xr_to_jnp", [True, False])
+def test_time_dep_dl_empty_state_init_vars(convert_xr_to_jnp):
+    """A model without state gets an empty initial state, the inputs and the segment times."""
+    ds = xr.Dataset(
+        data_vars={
+            "input_1": (("shot", "time_idx"), np.array([[1.0, 1.1, 1.2, 1.3], [1.0, 1.1, 1.2, 1.3]])),
+            "input_2": (("shot", "time_idx", "rho"), np.arange(24, dtype=float).reshape(2, 4, 3)),
+        },
+        coords={
+            "time": (("shot", "time_idx"), np.array([[0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.2, 0.3]])),
+            "shot": [1, 2],
+            "rho": [0, 0.5, 1],
+        },
+    )
+    dl = make_time_dep_dataloader(
+        ds=ds,
+        time_coord="time",
+        episode_coord="shot",
+        state_init_vars=[],
+        input_vars=["input_1", "input_2"],
+        target_vars=["input_1", "input_2"],
+        convert_xr_to_jnp=convert_xr_to_jnp,
+        batch_size=None,
+        shuffle=False,
+    )
+    env_input, targets = next(iter(dl)).get_inputs_and_targets()
+
+    assert len(env_input.initial_state) == 0
+    assert env_input.time.shape == (2, 4)
+    assert set(env_input.inputs) == {"input_1", "input_2"}
+    assert set(targets) == {"input_1", "input_2"}
+    assert env_input.inputs["input_2"].shape == (2, 4, 3)

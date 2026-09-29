@@ -87,4 +87,5 @@ nav:
             - Dataloading and Xarray-Based Pre-processing: 'notebooks/preprocess_and_dataloader.ipynb'
             - Training Modules: 'notebooks/training_td_modules.ipynb'
             - Training a Profile Predictor: 'notebooks/profile_predictor.ipynb'
+            - Dataset Autocheck: 'notebooks/autocheck_dataset.ipynb'
         - Dev Workflow Basics: 'development_workflow.md'

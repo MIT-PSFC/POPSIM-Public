@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from enum import StrEnum
 
 import jax
@@ -73,14 +74,15 @@ def norm_data(tree: PyTree, scaling_type: ScalingType | str = ScalingType.STD, s
 
 
 def norm_data_xr(
-    ds: xr.Dataset, scaling_type: ScalingType | str = ScalingType.STD, sample_dim: str = "sample"
+    ds: xr.Dataset, scaling_type: ScalingType | str = ScalingType.STD, sample_dim: str | Sequence[str] = "sample"
 ) -> tuple[xr.Dataset, xr.Dataset, xr.Dataset]:
     """Normalize a Dataset by subtracting means and scaling.
 
     Args:
         ds: Dataset to normalize. Each variable must be at most 2D.
         scaling_type: Type of scaling to apply. Can be ScalingType enum or string ("std", "l2", "none").
-        sample_dim: Dimension along which to compute statistics (default "sample").
+        sample_dim: Dimension or dimensions along which to compute statistics (default "sample").
+            Each variable is reduced over the subset of these dimensions it has.
 
     Returns:
         Tuple of (normalized_ds, means_ds, scaling_factors_ds).
@@ -92,24 +94,30 @@ def norm_data_xr(
     if isinstance(scaling_type, str):
         scaling_type = ScalingType(scaling_type)
 
-    means = ds.mean(dim=sample_dim)
+    sample_dims = (sample_dim,) if isinstance(sample_dim, str) else tuple(sample_dim)
+
+    def reduce_dims(x: xr.DataArray) -> list[str]:
+        return [d for d in sample_dims if d in x.dims]
+
+    means = ds.map(lambda x: x.mean(dim=reduce_dims(x)))
     ds = ds - means
 
     def scaling_factor_fn(x):
+        dims = reduce_dims(x)
         if scaling_type == ScalingType.STD:
-            return x.std(dim=sample_dim)
+            return x.std(dim=dims)
         elif scaling_type == ScalingType.MIN_MAX:
-            return x.max(dim=sample_dim) - x.min(dim=sample_dim)
+            return x.max(dim=dims) - x.min(dim=dims)
         elif scaling_type == ScalingType.QUANTILE_50:
             # Drop the scalar "quantile" coordinate: with xarray_jax's global
             # arithmetic_compat="override" option, q75 - q25 would otherwise silently
             # keep the left operand's conflicting coordinate on the result.
-            q75 = x.quantile(0.75, dim=sample_dim).drop_vars("quantile")
-            q25 = x.quantile(0.25, dim=sample_dim).drop_vars("quantile")
+            q75 = x.quantile(0.75, dim=dims).drop_vars("quantile")
+            q25 = x.quantile(0.25, dim=dims).drop_vars("quantile")
             return q75 - q25
         elif scaling_type == ScalingType.L2:
             # Take the L2 norm across all non-sample dimensions and average over samples.
-            return np.mean(np.sqrt((x**2).sum(dim=set(x.dims) - {sample_dim})))
+            return np.mean(np.sqrt((x**2).sum(dim=set(x.dims) - set(dims))))
         elif scaling_type == ScalingType.NONE:
             return xr.ones_like(x)
         else:
