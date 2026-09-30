@@ -1,6 +1,7 @@
 import jax
 import jax.flatten_util
 import jax.numpy as jnp
+import loguru
 import numpy as np
 from jaxtyping import Array, PyTree
 
@@ -116,15 +117,24 @@ class LinearAutoEncoder(TimeIndepModule):
         return encoders
 
 
-def choose_n_latent(
-    arr: Array, explained_variance: float = 0.99, min_latent: int = 2, max_latent: int | None = None
-) -> tuple[int, np.ndarray]:
+LOGGED_VARIANCE_TARGETS = (0.95, 0.99, 0.999)
+
+
+def _n_components_reaching(cumulative_ratio: np.ndarray, target: float) -> int:
+    """The number of leading components whose cumulative explained variance ratio reaches target."""
+    # searchsorted counts the components strictly below the target, so one more reaches it.
+    n_below = int(np.searchsorted(cumulative_ratio, target))
+    return min(n_below + 1, len(cumulative_ratio))
+
+
+def choose_n_latent(arr: Array, explained_variance: float = 0.99, min_latent: int = 2, max_latent: int | None = None) -> int:
     """Pick a latent size from the covariance spectrum of already-normalized samples.
 
-    The smallest number of principal components whose cumulative explained variance
-    reaches explained_variance, clipped to [min_latent, max_latent].
+    The smallest number of principal components whose cumulative explained variance reaches explained_variance,
+    clipped to [min_latent, max_latent].
     This is a linear estimate of the information content of the data:
     small enough that a model cannot fit every quirk, large enough to capture the shared structure.
+    The components needed for LOGGED_VARIANCE_TARGETS are logged to help pick explained_variance.
 
     Args:
         arr (Array): 2D array of normalized samples, the first dimension is the sample dimension.
@@ -133,15 +143,17 @@ def choose_n_latent(
         max_latent (int | None, optional): Upper bound on the latent size. Defaults to the number of features.
 
     Returns:
-        tuple[int, np.ndarray]: The latent size and the cumulative explained variance ratio of every component.
+        int: The latent size.
     """
     n_samples, n_features = arr.shape
     n_components = min(n_samples, n_features)
     _, explained_variance_ratio = LinearAutoEncoder.fit(arr, n_components, scaling_type=ScalingType.NONE)
     cumulative_ratio = np.cumsum(np.asarray(explained_variance_ratio))
 
-    # searchsorted gives the number of components strictly below the target, so one more reaches it.
-    n_latent = int(np.searchsorted(cumulative_ratio, explained_variance)) + 1
+    n_latent = _n_components_reaching(cumulative_ratio, explained_variance)
     max_latent = n_features if max_latent is None else max_latent
     n_latent = int(np.clip(n_latent, min_latent, max_latent))
-    return n_latent, cumulative_ratio
+
+    n_components_per_target = {target: _n_components_reaching(cumulative_ratio, target) for target in LOGGED_VARIANCE_TARGETS}
+    loguru.logger.info(f"Latent size {n_latent} for {n_features} features. Components per explained variance: {n_components_per_target}.")
+    return n_latent

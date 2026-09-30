@@ -298,7 +298,7 @@ def ds_to_dict_jnp(ds: xr.Dataset) -> dict[str, Array]:
     return {var: jnp.asarray(ds[var].values) for var in ds.data_vars}
 
 
-def _get_and_check_episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str) -> tuple[str, str]:
+def episode_and_time_dims(ds: xr.Dataset, episode_var_name: str, time_var_name: str) -> tuple[str, str]:
     """Given a dataset and the names of the episode and time variables, extract the dimension names of these variables and check that they are consistent.
 
     Args:
@@ -381,7 +381,7 @@ def make_standard_dataloaders(
         typing.Sequence[DataLoader]: List of DataLoaders for training, validation, and testing.
     """
 
-    episode_var_dim, _ = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+    episode_var_dim, _ = episode_and_time_dims(ds, episode_coord, time_coord)
     datasets = ds.popsim_ml.split_along_dim(episode_var_dim, split_fracs, key)
 
     return make_dataloaders(
@@ -568,7 +568,7 @@ def make_time_indep_dataloader(
         extra_vars = []
 
     ds = ds[input_vars + target_vars + extra_vars]
-    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+    episode_var_dim, time_var_dim = episode_and_time_dims(ds, episode_coord, time_coord)
 
     # Load time coordinate into memory for consistency with time-dependent dataloader.
     # Must happen before the stack
@@ -668,7 +668,7 @@ def make_time_dep_dataloader(
 
     training_vars = set(input_vars + target_vars + state_init_vars + extra_vars)
     ds = ds[training_vars]
-    episode_var_dim, time_var_dim = _get_and_check_episode_and_time_dims(ds, episode_coord, time_coord)
+    episode_var_dim, time_var_dim = episode_and_time_dims(ds, episode_coord, time_coord)
 
     # If dataset has 1D time, expand to 2D along the shot dimension.
     if episode_var_dim not in ds[time_coord].dims:

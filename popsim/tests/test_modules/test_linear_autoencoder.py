@@ -4,10 +4,11 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 import xarray as xr
 
 from popsim import DATA_DIR
-from popsim.modules.linear_autoencoder import LinearAutoEncoder
+from popsim.modules.linear_autoencoder import LinearAutoEncoder, choose_n_latent
 
 
 def test_linear_encoder():
@@ -61,3 +62,9 @@ def test_linear_encoder():
         return relative_error
     relative_errors_flat = jax.vmap(roundtrip_flattened_tree_sample)(data_flat)
     assert relative_errors_flat.mean() < 1e-3
+
+
+def test_choose_n_latent_recovers_rank():
+    rng = np.random.default_rng(0)
+    rows = rng.normal(size=(200, 3)) @ rng.normal(size=(3, 12))
+    assert choose_n_latent(rows, explained_variance=0.99) == 3

@@ -10,12 +10,22 @@ from jaxtyping import Array
 from popsim.ml.dataloading import DataLoader
 from popsim.norm_data import ScalingType, apply_norm, apply_unnorm, norm_data_xr
 
+VARIABLE_DIM = "variable"
+
+
+def _row_dims(dl: DataLoader) -> list[str]:
+    """The dims a loader spreads its rows over: the sample dim, plus the segment time dim of a time-dependent loader."""
+    row_dims = [dl.metadata.sample_dim]
+    if dl.metadata.is_time_dependent:
+        row_dims.append(dl.metadata.time_dep_metadata.time_dim)
+    return row_dims
+
 
 class VariableFlattener(eqx.Module):
     """Normalize a set of variables and flatten them into one vector per sample.
 
-    The normalization statistics have the feature shape of each variable (no sample or time dimension),
-    so they broadcast against a single sample (*feature) and against a sequence of steps (time, *feature).
+    The normalization statistics have the feature shape of each variable, without sample or time dims.
+    They broadcast against a single sample (*feature) and against a sequence of steps (time, *feature).
     Static metadata is stored as tuples aligned with `variables` so the module stays hashable under jit.
     """
 
@@ -60,16 +70,15 @@ class VariableFlattener(eqx.Module):
     def normalize_flat(self, inputs: xr.Dataset | dict[str, Array]) -> Array:
         """Normalize every variable and concatenate them along the last axis.
 
-        Returns (n_flat,) for a single sample, or (n_time, n_flat) when the variables carry a leading time axis.
+        Axes in front of a variable's feature dims, such as time, are kept.
+        Returns (n_flat,) for a single sample, or (n_time, n_flat) for a sequence of steps.
         """
         flat_parts = []
         for name, shape in zip(self.variables, self.var_shapes, strict=True):
             x = self._var_data(inputs, name)
             x_normed = apply_norm(x, self.means[name], self.scales[name])
-            has_time_axis = x_normed.ndim == len(shape) + 1
-            n_leading = x_normed.shape[0] if has_time_axis else None
-            x_flat = x_normed.reshape(n_leading, -1) if has_time_axis else x_normed.reshape(-1)
-            flat_parts.append(x_flat)
+            leading_shape = x_normed.shape[: x_normed.ndim - len(shape)]
+            flat_parts.append(x_normed.reshape(*leading_shape, -1))
         return jnp.concatenate(flat_parts, axis=-1)
 
     def unflatten_unnorm(self, x_flat: Array) -> dict[str, Array]:
@@ -85,26 +94,31 @@ class VariableFlattener(eqx.Module):
             out[name] = apply_unnorm(x_normed, self.means[name], self.scales[name])
         return out
 
-    def normalized_rows(self, ds: xr.Dataset, n_max_rows: int, seed: int = 0) -> np.ndarray:
-        """A (n_rows, n_flat) matrix of normalized flattened samples, subsampled to at most n_max_rows.
+    def mean_per_variable(self, x_flat: Array) -> Array:
+        """Mean of a flattened array over the features of each variable, shape (..., n_variables)."""
+        var_means = [x_flat[..., start:stop].mean(axis=-1) for start, stop in self.flat_slices.values()]
+        return jnp.stack(var_means, axis=-1)
 
-        A time dimension (any dim of the variables besides the sample and feature dims) is folded into the rows.
-        Samples are subsampled before anything is materialized so large datasets stay cheap.
+    def normalized_rows(self, dl: DataLoader, n_max_rows: int, seed: int = 0) -> np.ndarray:
+        """A (n_rows, n_flat) matrix of the normalized flattened samples of a loader, at most n_max_rows.
+
+        Every step of a time-dependent loader is its own row.
+        Samples are subsampled before anything is materialized, so large datasets stay cheap.
         """
-        sample_dim = next(iter(ds[self.variables[0]].dims))
-        extra_dims = [d for d in ds[self.variables[0]].dims if d != sample_dim and d not in self.dims_of(self.variables[0])]
-        n_time = math.prod(ds.sizes[d] for d in extra_dims)
-        n_samples = ds.sizes[sample_dim]
-        n_keep = min(n_samples, max(1, math.ceil(n_max_rows / n_time)))
+        sample_dim, *step_dims = _row_dims(dl)
+        n_steps = math.prod(dl.ds.sizes[d] for d in step_dims)
+        n_samples = dl.ds.sizes[sample_dim]
+        n_keep = min(n_samples, max(1, math.ceil(n_max_rows / n_steps)))
         rng = np.random.default_rng(seed)
-        keep_idx = np.sort(rng.choice(n_samples, size=n_keep, replace=False))
-        ds_sub = ds.isel({sample_dim: keep_idx})
+        keep_idx = rng.choice(n_samples, size=n_keep, replace=False)
+        keep_idx = np.sort(keep_idx)
+        ds_kept = dl.ds[list(self.variables)].isel({sample_dim: keep_idx})
 
         rows = []
         for name in self.variables:
-            da = ds_sub[name].transpose(sample_dim, *extra_dims, *self.dims_of(name))
+            da = ds_kept[name].transpose(sample_dim, *step_dims, *self.dims_of(name))
             x_normed = apply_norm(da.values, np.asarray(self.means[name]), np.asarray(self.scales[name]))
-            rows.append(x_normed.reshape(n_keep * n_time, -1))
+            rows.append(x_normed.reshape(n_keep * n_steps, -1))
         return np.concatenate(rows, axis=1)
 
     @classmethod
@@ -113,15 +127,13 @@ class VariableFlattener(eqx.Module):
     ) -> "VariableFlattener":
         """Compute normalization statistics from a training DataLoader.
 
-        Statistics are reduced over the sample dimension, and over the segment time dimension too for a time-dependent loader,
-        so each variable is normalized per feature. The loader's dataset must be loaded into memory.
+        Statistics are reduced over the sample dim, and over the segment time dim of a time-dependent loader,
+        so each variable is normalized per feature.
+        The loader's dataset must be loaded into memory.
         """
         variables = tuple(variables)
         ds = train_dl.ds[list(variables)]
-        reduce_dims = [train_dl.metadata.sample_dim]
-        if train_dl.metadata.is_time_dependent:
-            reduce_dims.append(train_dl.metadata.time_dep_metadata.time_dim)
-
+        reduce_dims = _row_dims(train_dl)
         _, means_ds, scales_ds = norm_data_xr(ds, scaling_type, sample_dim=reduce_dims)
 
         means, scales, var_dims, var_shapes = {}, {}, [], []
