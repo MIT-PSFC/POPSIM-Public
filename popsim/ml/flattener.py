@@ -11,6 +11,29 @@ from popsim.ml.dataloading import DataLoader
 from popsim.norm_data import ScalingType, apply_norm, apply_unnorm, norm_data_xr
 
 VARIABLE_DIM = "variable"
+MAGNITUDE_PERCENTILE = 99
+# Feature scales below this fraction of their variable's magnitude count as no spread.
+# Such a feature is pinned up to noise, e.g. a fitted gradient anchored to zero at the axis,
+# and scaling by its own spread would blow that noise up to ~1.
+MIN_SCALE_FRACTION = 1e-3
+
+
+def _variable_magnitude(values: np.ndarray) -> float:
+    """Typical variation of a variable, the p99 of |x - median| over all of its rows and features.
+
+    Measured from the median so an offset does not count:
+    e.g. a roughly constant B0 at 5 T is scaled to the size of its fluctuations, not 5 T.
+    Falls back to the largest deviation for a variable that differs from its median in under 1 percent of its entries,
+    and to 1 for a constant variable.
+    """
+    median = np.nanmedian(values)
+    abs_deviation = np.abs(values - median)
+    magnitude = float(np.nanpercentile(abs_deviation, MAGNITUDE_PERCENTILE))
+    if not magnitude > 0.0:
+        magnitude = float(np.nanmax(abs_deviation))
+    if not magnitude > 0.0:
+        magnitude = 1.0
+    return magnitude
 
 
 def _row_dims(dl: DataLoader) -> list[str]:
@@ -129,19 +152,30 @@ class VariableFlattener(eqx.Module):
 
         Statistics are reduced over the sample dim, and over the segment time dim of a time-dependent loader,
         so each variable is normalized per feature.
+        They are computed in units of each variable's magnitude, see _variable_magnitude.
+        A feature whose scale is below MIN_SCALE_FRACTION in those units gets a scale of 1,
+        one typical magnitude of its variable.
+        That covers a feature with no spread, e.g. a heating power that is off in most samples,
+        and one pinned up to noise, e.g. a fitted gradient anchored to zero at the axis.
+        Every other scale is unchanged, since the mean and the spread scale with the units.
         The loader's dataset must be loaded into memory.
         """
         variables = tuple(variables)
         ds = train_dl.ds[list(variables)]
         reduce_dims = _row_dims(train_dl)
-        _, means_ds, scales_ds = norm_data_xr(ds, scaling_type, sample_dim=reduce_dims)
+        magnitudes = {name: _variable_magnitude(ds[name].values) for name in variables}
+        ds_unit = xr.Dataset({name: ds[name] / magnitudes[name] for name in variables})
+        _, means_unit_ds, scales_unit_ds = norm_data_xr(ds_unit, scaling_type, sample_dim=reduce_dims)
 
         means, scales, var_dims, var_shapes = {}, {}, [], []
         for name in variables:
             feature_dims = tuple(d for d in ds[name].dims if d not in reduce_dims)
             var_dims.append(feature_dims)
             var_shapes.append(tuple(ds.sizes[d] for d in feature_dims))
-            means[name] = jnp.asarray(means_ds[name].transpose(*feature_dims).values, dtype=float)
-            scales[name] = jnp.asarray(scales_ds[name].transpose(*feature_dims).values, dtype=float)
+            means_unit = means_unit_ds[name].transpose(*feature_dims).values
+            scales_unit = scales_unit_ds[name].transpose(*feature_dims).values
+            scales_unit = np.where(scales_unit < MIN_SCALE_FRACTION, 1.0, scales_unit)
+            means[name] = jnp.asarray(means_unit * magnitudes[name], dtype=float)
+            scales[name] = jnp.asarray(scales_unit * magnitudes[name], dtype=float)
 
         return cls(means=means, scales=scales, variables=variables, var_dims=tuple(var_dims), var_shapes=tuple(var_shapes))

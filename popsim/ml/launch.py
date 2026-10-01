@@ -92,7 +92,7 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
     agent.run()
 
 
-def _resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
+def resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
     """Convert a horizon-invariant transition_frac into absolute transition_steps.
 
     transition_frac is the learning-rate decay time constant as a fraction of steps_per_epoch * max_epochs.
@@ -159,7 +159,7 @@ def _run_train(
     loguru.logger.info("Initializing the loss function...")
     loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
     loguru.logger.info("Initializing the optimizer...")
-    optimizer_config = _resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
+    optimizer_config = resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
     opt = train_run_builder.get_optimizer(optimizer_config)
     loguru.logger.info("Building the trainer...")
     trainer = Trainer(
