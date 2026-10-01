@@ -29,6 +29,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from popsim.ml.dataloading import make_time_indep_dataloader
 from popsim.ml.eval import make_val_loss_eval_fn
+from popsim.ml.loggers import STOP_REQUESTED_SUMMARY_KEY
 from popsim.ml.train_run_builder import TrainRunBuilder
 
 LIVE_TESTS_ENABLED = os.environ.get("POPSIM_LIVE_WANDB_TESTS") == "1" and wandb.api.api_key is not None
@@ -252,6 +253,7 @@ def _assert_stopped_without_test_eval(sweep: _Sweep, run_id: str):
     state, summary = sweep.run_summary(run_id)
     assert state == "finished", state
     assert "test/loss.mean" not in summary
+    assert summary[STOP_REQUESTED_SUMMARY_KEY] is True
     assert STOP_AT_EPOCH <= summary["train/epoch"] < TRAIN_CONFIG["max_epochs"]
 
 
@@ -280,6 +282,7 @@ def test_run_stop_leaves_next_trial_healthy(sweep, agent_process):
     next_state, next_summary = sweep.run_summary(next_run_id)
     assert next_state == "finished", next_state
     assert "test/loss.mean" in next_summary
+    assert STOP_REQUESTED_SUMMARY_KEY not in next_summary
     assert next_summary["train/epoch"] == TRAIN_CONFIG["max_epochs"]
 
 

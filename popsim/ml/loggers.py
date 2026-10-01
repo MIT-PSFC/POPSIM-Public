@@ -13,6 +13,9 @@ Logging utilities for tracking training progress.
 TODO(allenw): not much time was spent on this, it could use considerable improvement.
 """
 
+# Run summary key set when a sweep stops the run before it trains to completion (e.g. hyperband pruning)
+STOP_REQUESTED_SUMMARY_KEY = "stop_requested"
+
 
 def convert_val_to_serializable(val):
     if isinstance(val, Array | np.ndarray):
@@ -86,7 +89,12 @@ class WandbLogger(LoggerBase):
     def stop_requested(self) -> bool:
         if self.run_should_stop is None:
             return False
-        return self.run_should_stop(self.run.id)
+        should_stop = self.run_should_stop(self.run.id)
+        # A cooperatively stopped run still ends "finished" on the WandB server,
+        # so the summary is the only record that it did not train to completion.
+        if should_stop:
+            self.run.summary[STOP_REQUESTED_SUMMARY_KEY] = True
+        return should_stop
 
 
 def get_logger(logger_type: str, **kwargs) -> LoggerBase:
