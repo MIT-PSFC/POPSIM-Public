@@ -8,6 +8,20 @@ from popsim.ml.envs import ModuleTrainingEnv
 from popsim.tree_util import keypath_to_string
 
 
+def _flagged_leaves(tree, predicate) -> list[tuple[str, object]]:
+    """(path, leaf) of every leaf of the tree the predicate flags.
+
+    Walks the leaves instead of using eqx.filter,
+    which rebuilds the tree around per-leaf booleans
+    and so fails on pytrees that check their leaves on unflatten, like xr.Datasets under xarray_jax.
+    """
+    flagged = []
+    for path, leaf in jax.tree_util.tree_leaves_with_path(tree):
+        if predicate(leaf):
+            flagged.append((keypath_to_string(path), leaf))
+    return flagged
+
+
 def check_large_model_weights(model, threshold: float | None = 1e3) -> list[str]:
     """
     Check if any model weights exceed a certain threshold.
@@ -24,12 +38,8 @@ def check_large_model_weights(model, threshold: float | None = 1e3) -> list[str]
     def _large_weights(leaf):
         return eqx.is_array(leaf) and jnp.any(jnp.abs(leaf) > threshold)
 
-    large_weights_tree = eqx.filter(model, _large_weights)
-    large_weights_leaves_with_paths = jax.tree_util.tree_leaves_with_path(large_weights_tree)
-
     error_paths = []
-    for path, leaf in large_weights_leaves_with_paths:
-        path_str = keypath_to_string(path)
+    for path_str, leaf in _flagged_leaves(model, _large_weights):
         max_val = jnp.max(jnp.abs(leaf))
         error_paths.append(path_str)
         loguru.logger.warning(f"Large weight in {path_str}: max |weight| = {max_val}")
@@ -55,12 +65,8 @@ def check_zero_variance_variables(data) -> list[str]:
         else:
             return jnp.var(leaf) == 0
 
-    zero_variance_tree = eqx.filter(data, _zero_variance)
-    zero_variance_leaves_with_paths = jax.tree_util.tree_leaves_with_path(zero_variance_tree)
-
     error_paths = []
-    for path, _ in zero_variance_leaves_with_paths:
-        path_str = keypath_to_string(path)
+    for path_str, _ in _flagged_leaves(data, _zero_variance):
         error_paths.append(path_str)
         loguru.logger.warning(f"Zero variance in {path_str}")
 
@@ -86,12 +92,8 @@ def check_large_values(data, threshold: float | None = 1e3) -> list[str]:
         else:
             return jnp.any(jnp.abs(leaf) > threshold)
 
-    large_values_tree = eqx.filter(data, _large_values)
-    large_values_leaves_with_paths = jax.tree_util.tree_leaves_with_path(large_values_tree)
-
     error_paths = []
-    for path, leaf in large_values_leaves_with_paths:
-        path_str = keypath_to_string(path)
+    for path_str, leaf in _flagged_leaves(data, _large_values):
         error_paths.append(path_str)
         if jnp.isscalar(leaf) or leaf.ndim == 0:
             loguru.logger.warning(f"Large value in {path_str}: {leaf}")
