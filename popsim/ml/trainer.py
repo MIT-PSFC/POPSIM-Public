@@ -1,3 +1,4 @@
+import math
 import time
 import typing
 import warnings
@@ -17,6 +18,7 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.checkpointing import (
     TrainState,
     create_default_checkpoint_manager,
+    restore_early_stopping_state,
     restore_train_state,
     save_train_state,
 )
@@ -335,7 +337,10 @@ def train_epoch(
 
 
 class EarlyStopping:
-    """Track the validation loss and signal when it has stopped improving for `patience` checks."""
+    """Track the validation loss and signal when it has stopped improving for `patience` checks.
+
+    Its state rides in the metadata of every checkpoint, so a resumed run continues the count.
+    """
 
     def __init__(self, patience: int):
         self.patience = patience
@@ -349,6 +354,15 @@ class EarlyStopping:
             return False
         self.counter += 1
         return self.counter >= self.patience
+
+    def state(self) -> dict:
+        """JSON-serializable state, the best loss is None before the first validation since JSON has no inf."""
+        best_loss = self.best_loss if math.isfinite(self.best_loss) else None
+        return {"best_loss": best_loss, "counter": self.counter}
+
+    def load_state(self, state: dict):
+        self.best_loss = state["best_loss"] if state["best_loss"] is not None else float("inf")
+        self.counter = state["counter"]
 
 
 class Trainer:
@@ -400,10 +414,16 @@ class Trainer:
         self.checkpoint_manager = (
             create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep) if checkpoint_dir else None
         )
+        self.early_stopping: EarlyStopping | None = None
+        # Set when the last train() call stopped on its wall-clock budget
+        self.wall_budget_exceeded = False
+        # The resumed checkpoint's early-stopping state, loaded once train() knows the patience
+        self._resumed_early_stopping_state: dict | None = None
 
         latest_step = self.checkpoint_manager.latest_step() if (resume and self.checkpoint_manager) else None
         if latest_step is not None:
             self.train_state = restore_train_state(self.checkpoint_manager, self.train_state, step=latest_step)
+            self._resumed_early_stopping_state = restore_early_stopping_state(self.checkpoint_manager, latest_step)
             loguru.logger.info(
                 f"Resumed train state from latest checkpoint at epoch {self.train_state.epoch} (step {self.train_state.step})"
             )
@@ -432,7 +452,7 @@ class Trainer:
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
             max_epochs (int, optional): Total number of epochs to train. A run resumed after N completed epochs trains the remaining max_epochs - N (absolute target, not additive). Defaults to 1000.
             epochs_per_val (int, optional): Validate after every epochs_per_val completed epochs, and always after the final epoch. Defaults to 1.
-            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). Note the patience counter is not persisted across resumed runs.
+            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). The count is saved with every checkpoint, so a resumed run continues it.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
             max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish.
                 It is checked once per epoch after validation, so leave a margin of one epoch plus one validation. Defaults to None (no budget).
@@ -448,7 +468,11 @@ class Trainer:
         # Log summary metrics of the dataloaders.
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
-        early_stopping = EarlyStopping(patience) if patience is not None else None
+        self.early_stopping = EarlyStopping(patience) if patience is not None else None
+        if self.early_stopping is not None and self._resumed_early_stopping_state is not None:
+            self.early_stopping.load_state(self._resumed_early_stopping_state)
+        self._resumed_early_stopping_state = None
+        self.wall_budget_exceeded = False
         interrupted = False
         consecutive_high_skip_epochs = 0
         tstart_train = time.time()
@@ -500,9 +524,11 @@ class Trainer:
                     | eval_results
                 )
 
+                should_stop = self.early_stopping is not None and self.early_stopping.should_stop(val_loss_mean)
+                # Saved after the patience update, so a run resumed from here continues the count past this validation
                 self._save_checkpoint(val_loss_mean)
 
-                if early_stopping is not None and early_stopping.should_stop(val_loss_mean):
+                if should_stop:
                     loguru.logger.info(
                         f"Early stopping: validation loss has not improved for {patience} validation steps ({patience * epochs_per_val} epochs)."
                     )
@@ -553,7 +579,13 @@ class Trainer:
     def _save_checkpoint(self, val_loss_mean: float | None):
         """Save the current train state, ranked by val_loss_mean, or kept only as the latest when it is None."""
         if self.checkpoint_manager:
-            save_train_state(train_state=self.train_state, checkpoint_manager=self.checkpoint_manager, loss=val_loss_mean)
+            early_stopping_state = self.early_stopping.state() if self.early_stopping is not None else None
+            save_train_state(
+                train_state=self.train_state,
+                checkpoint_manager=self.checkpoint_manager,
+                loss=val_loss_mean,
+                early_stopping_state=early_stopping_state,
+            )
 
     def _wall_budget_exceeded(self, tstart_train: float, max_wall_seconds: float | None) -> bool:
         """Check the wall-clock budget, saving the latest checkpoint before reporting it exceeded."""
@@ -561,6 +593,7 @@ class Trainer:
             return False
         # Save progress since the last validation (does nothing when this epoch was just validated and saved)
         self._save_checkpoint(val_loss_mean=None)
+        self.wall_budget_exceeded = True
         loguru.logger.info(
             f"Wall-clock budget of {max_wall_seconds} s exceeded at epoch {self.train_state.epoch}. "
             "Saved the latest checkpoint and stopping without the test eval so a resumed job can finish training."

@@ -14,6 +14,9 @@ from jaxtyping import PyTree
 from popsim.ml._types import TrainableModel
 from popsim.ml.partition import PartitionFn
 
+# Checkpoint metadata key of the early-stopping state, None for a run without early stopping
+EARLY_STOPPING_METADATA_KEY = "early_stopping"
+
 
 @chex.dataclass
 class TrainState:
@@ -90,17 +93,24 @@ def partition_saveable(pytree: PyTree) -> tuple[PyTree, PyTree]:
     return eqx.partition(pytree, eqx.is_array_like)
 
 
-def save_train_state(train_state: TrainState, checkpoint_manager: ocp.CheckpointManager, loss: float | None):
+def save_train_state(
+    train_state: TrainState,
+    checkpoint_manager: ocp.CheckpointManager,
+    loss: float | None,
+    early_stopping_state: dict | None = None,
+):
     """Save the training state to a checkpoint, a no-op if this epoch was already saved.
 
     Args:
         train_state (TrainState): the training state to save.
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager to save to.
         loss (float | None): the validation loss of the model, None for an epoch without validation.
+        early_stopping_state (dict | None): the trainer's EarlyStopping.state(), None for a run without early stopping.
     """
     metadata = {
         "step": train_state.step,
         "epoch": train_state.epoch,
+        EARLY_STOPPING_METADATA_KEY: early_stopping_state,
     }
 
     model_save, _ = partition_saveable(train_state.model)
@@ -170,6 +180,21 @@ def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: Tra
 
     train_state = TrainState(step=metadata["step"], epoch=metadata["epoch"], model=model, opt_state=opt_state)
     return train_state
+
+
+def restore_early_stopping_state(checkpoint_manager: ocp.CheckpointManager, step: int) -> dict | None:
+    """The early-stopping state saved with a checkpoint, None when its run had no early stopping.
+
+    Raises when the checkpoint carries no such state,
+    so a resumed run never silently restarts its patience count.
+    """
+    metadata = checkpoint_manager.restore(step, args=ocp.args.Composite(metadata=ocp.args.JsonRestore()))["metadata"]
+    if EARLY_STOPPING_METADATA_KEY not in metadata:
+        raise KeyError(
+            f"Checkpoint step {step} in {checkpoint_manager.directory} has no {EARLY_STOPPING_METADATA_KEY!r} metadata, "
+            "so its run cannot resume with its patience count. Delete the checkpoint directory and retrain."
+        )
+    return metadata[EARLY_STOPPING_METADATA_KEY]
 
 
 def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel, step: int | None = None) -> TrainableModel:

@@ -409,3 +409,34 @@ def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
 
     chex.assert_trees_all_equal(session_3.train_state, reference.train_state)
     chex.assert_trees_all_equal(resumed_test_results, reference_test_results)
+
+
+def test_patience_count_survives_wall_budget_resumes(tmpdir):
+    """A run cut by the wall budget after every epoch early-stops at the same epoch as an uninterrupted one.
+
+    A zero learning rate keeps the validation loss constant,
+    so the first validation sets the best loss and each later one adds to the count.
+    Restarting the count on resume would never let a run cut after every epoch reach the patience.
+    """
+    x = np.linspace(0.1, 1.0, 8)
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    patience = 2
+    train_kwargs = dict(train_dl=dl, val_dl=dl, max_epochs=20, epochs_per_val=1, patience=patience, logger=NullLogger())
+
+    def _make_trainer(checkpoint_dir, resume=False):
+        model = _LinearModel(w=jnp.array(0.5))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.sgd(0.0), checkpoint_dir=checkpoint_dir, resume=resume)
+
+    reference = _make_trainer(tmpdir / "reference")
+    reference.train(**train_kwargs)
+    assert reference.train_state.epoch == 1 + patience
+
+    checkpoint_dir = tmpdir / "resumed"
+    session = _make_trainer(checkpoint_dir)
+    session.train(**train_kwargs, max_wall_seconds=0.0)
+    while session.wall_budget_exceeded:
+        session = _make_trainer(checkpoint_dir, resume=True)
+        session.train(**train_kwargs, max_wall_seconds=0.0)
+
+    assert session.train_state.epoch == reference.train_state.epoch
+    assert session.early_stopping.state() == reference.early_stopping.state()

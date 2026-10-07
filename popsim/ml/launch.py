@@ -4,6 +4,7 @@ import inspect
 import os
 import warnings
 from collections.abc import Callable
+from pathlib import Path
 
 import loguru
 from absl import logging as absl_logging
@@ -84,12 +85,29 @@ def launch_agent(config: str | os.PathLike[str] | dict | TrainConfig, sweep_id: 
         training_config = TrainConfig.load(config)
 
     def _train_fn():
-        return _run_train(training_config, use_wandb=True, run_should_stop=agent.run_should_stop)
+        trainer, *_ = _run_train(training_config, use_wandb=True, run_should_stop=agent.run_should_stop)
+        run = wandb.run
+        finish_sweep_run(run, trainer, stop_requested=agent.run_should_stop(run.id))
 
     # wandb.agent hardwires pyagent.Agent, whose stop kills the run thread with an injected exception.
     wandb.login()
     agent = CooperativeStopAgent(sweep_id, function=_train_fn, project=training_config.project, **(kwargs_agent or {}))
     agent.run()
+
+
+def finish_sweep_run(run, trainer: Trainer, stop_requested: bool):
+    """End a sweep trial as preempted when the wall-clock budget cut it short, else leave it to finish normally.
+
+    The sweep holds a preempted run out of its bayes fit and requeues it,
+    and the next agent resumes it from its checkpoint under the same run id.
+    So every trial is scored on its full epoch budget, whatever device and job length it ran on.
+    A trial the sweep stopped ends normally even when the budget ran out in the same epoch.
+    """
+    if not trainer.wall_budget_exceeded or stop_requested:
+        return
+    loguru.logger.info(f"Trial {run.id} stopped at the wall-clock budget, marking it preempted so the sweep requeues it")
+    run.mark_preempting()
+    run.finish(exit_code=1)
 
 
 def resolve_transition_frac(optimizer_config: dict, steps_per_epoch: int, max_epochs: int) -> dict:
@@ -136,8 +154,11 @@ def _run_train(
     if use_wandb:
         import wandb
 
-        run = wandb.init(project=training_config.project, config=training_config.model_dump())
-        run.config.update({"checkpoint_dir": run.dir}, allow_val_change=True)
+        # A requeued sweep trial comes back under its run id, resume="allow" continues that run
+        run = wandb.init(project=training_config.project, config=training_config.model_dump(), resume="allow")
+        # Under a given checkpoint_dir each run keeps its own subdirectory, so a resumed trial finds its checkpoints
+        checkpoint_dir = Path(training_config.checkpoint_dir) / run.id if training_config.checkpoint_dir else run.dir
+        run.config.update({"checkpoint_dir": str(checkpoint_dir)}, allow_val_change=True)
         logger = WandbLogger(run, run_should_stop)
         training_config = dict(run.config)
         training_config = TrainConfig(**training_config)

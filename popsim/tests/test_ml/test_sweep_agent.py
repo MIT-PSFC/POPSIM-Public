@@ -57,6 +57,9 @@ SWEEP_CONFIG = {
     },
 }
 STOP_AT_EPOCH = 2
+# A preempted trial job stops after a few of its 1 s epochs, so a full trial takes several jobs
+PREEMPT_WALL_SECONDS = 5.0
+MAX_RESUMED_JOBS = 10
 TRIAL_PROGRESS_TIMEOUT_S = 120.0
 AGENT_EXIT_TIMEOUT_S = 180.0
 RUN_STATE_SETTLE_TIMEOUT_S = 60.0
@@ -150,12 +153,12 @@ class _Sweep:
         assert InternalApi().stop_run(run.storage_id)
 
     def run_summary(self, run_id: str) -> tuple[str, dict]:
-        """The run's state and summary once the server has moved it out of running."""
+        """The run's state and summary once the server has moved it out of running or preempting."""
         deadline = time.monotonic() + RUN_STATE_SETTLE_TIMEOUT_S
         while True:
             # A fresh Api each poll, the public Api caches run objects.
             run = wandb.Api().run(self.run_path(run_id))
-            if run.state != "running" or time.monotonic() > deadline:
+            if run.state not in ("running", "preempting") or time.monotonic() > deadline:
                 return run.state, dict(run.summary)
             time.sleep(2.0)
 
@@ -225,14 +228,14 @@ def sweep():
 
 @pytest.fixture
 def agent_process(sweep, tmp_path):
-    """Hand back a factory that starts launch_agent on the sweep, so tests choose the trial count."""
-    config_path = tmp_path / "train_config.yaml"
-    with open(config_path, "w") as config_file:
-        yaml.safe_dump(TRAIN_CONFIG, config_file)
+    """Hand back a factory that starts launch_agent on the sweep, so tests choose the trial count and train config."""
     env = dict(os.environ) | {"WANDB_DIR": str(tmp_path), "PYTHONUNBUFFERED": "1"}
     started = []
 
-    def _start(count: int) -> _AgentProcess:
+    def _start(count: int, train_config: dict = TRAIN_CONFIG) -> _AgentProcess:
+        config_path = tmp_path / f"train_config_{len(started)}.yaml"
+        with open(config_path, "w") as config_file:
+            yaml.safe_dump(train_config, config_file)
         command = [sys.executable, "-c", LAUNCH_AGENT_SCRIPT, str(config_path), sweep.sweep_id, str(count)]
         agent = _AgentProcess(command, cwd=str(tmp_path), env=env)
         started.append(agent)
@@ -296,3 +299,35 @@ def test_sigint_stops_at_epoch_boundary(sweep, agent_process):
     assert "Stopping sweep after the current epoch" in output, output
     assert STOP_MESSAGE in output, output
     _assert_stopped_without_test_eval(sweep, run_id)
+
+
+def test_wall_budget_trial_is_preempted_and_resumed_to_completion(sweep, agent_process, tmp_path):
+    """A trial cut by the wall-clock budget ends preempted, and the sweep hands the same run to the next agent.
+
+    That agent resumes it from the run's own checkpoint subdirectory,
+    until a job reaches max_epochs and the run finishes with its test eval.
+    """
+    train_config = TRAIN_CONFIG | {
+        "checkpoint_dir": str(tmp_path / "trial_checkpoints"),
+        "resume": True,
+        "max_wall_seconds": PREEMPT_WALL_SECONDS,
+    }
+    first_agent = agent_process(count=1, train_config=train_config)
+    run_id = first_agent.wait_for_trial_epoch(0, 1)
+    output = first_agent.finish()
+    assert "marking it preempted" in output, output
+    state, _ = sweep.run_summary(run_id)
+    assert state == "preempted", state
+
+    for _ in range(MAX_RESUMED_JOBS):
+        agent = agent_process(count=1, train_config=train_config)
+        output = agent.finish()
+        assert f"Agent Starting Run: {run_id}" in output, output
+        assert "Resumed train state from latest checkpoint" in output, output
+        state, summary = sweep.run_summary(run_id)
+        if state != "preempted":
+            break
+
+    assert state == "finished", state
+    assert summary["train/epoch"] == TRAIN_CONFIG["max_epochs"]
+    assert "test/loss.mean" in summary
