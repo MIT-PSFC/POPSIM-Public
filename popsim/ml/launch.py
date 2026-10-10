@@ -146,6 +146,50 @@ def get_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type
     return train_run_builder_cls
 
 
+def get_data_train_run_builder_class(train_run_builder: str | os.PathLike[str] | type, dataloader_config: dict) -> TrainRunBuilder:
+    """The training run builder whose get_dataloaders builds a run's data.
+
+    A submodule run names its main module's builder in dataloader_config["data_train_run_builder"],
+    every other run builds its data with its own builder.
+    This allows enforcing dataset consistency between the main module and its submodules.
+    """
+    data_train_run_builder = dataloader_config.get("data_train_run_builder") or train_run_builder
+    return get_train_run_builder_class(data_train_run_builder)
+
+
+def build_train_run(training_config: TrainConfig) -> tuple[Trainer, DataLoader, DataLoader, DataLoader]:
+    """The trainer of a training run and its train, val and test dataloaders, built without training.
+
+    _run_train trains on them, and a caller restoring a trained run restores the trainer's checkpoint instead.
+    """
+    loguru.logger.info(f"Building training run for {training_config.project}")
+    train_run_builder = get_train_run_builder_class(training_config.train_run_builder)
+    data_train_run_builder = get_data_train_run_builder_class(training_config.train_run_builder, training_config.dataloader_config)
+    loguru.logger.info("Loading the dataset and creating dataloaders...")
+    _, train_dl, val_dl, test_dl = data_train_run_builder.get_dataloaders(training_config.dataloader_config)
+    loguru.logger.info("Dataset and dataloaders created.")
+    loguru.logger.info("Initializing the module...")
+    model = train_run_builder.model_init(train_dl, training_config.model_init_config)
+    loguru.logger.info("Initializing the loss function...")
+    loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
+    loguru.logger.info("Initializing the optimizer...")
+    optimizer_config = resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
+    optimizer = train_run_builder.get_optimizer(optimizer_config)
+    loguru.logger.info("Building the trainer...")
+    trainable_getter = train_run_builder.get_trainable_getter(training_config.model_init_config)
+    trainer = Trainer(
+        model=model,
+        loss_fn=loss_fn,
+        optimizer=optimizer,
+        checkpoint_dir=training_config.checkpoint_dir,
+        trainable_getter=trainable_getter,
+        resume=training_config.resume,
+        checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
+    )
+    loguru.logger.info("Trainer built.")
+    return trainer, train_dl, val_dl, test_dl
+
+
 def _run_train(
     training_config: TrainConfig,
     use_wandb: bool = False,
@@ -165,34 +209,8 @@ def _run_train(
     else:
         logger = NullLogger()
 
-    loguru.logger.info(f"Building training run for {training_config.project}")
+    trainer, train_dl, val_dl, test_dl = build_train_run(training_config)
     train_run_builder = get_train_run_builder_class(training_config.train_run_builder)
-    loguru.logger.info("Loading the dataset and creating dataloaders...")
-    # If this is a submodule, use the dataloader construction logic from the main module. Fallback to using the submodule's own logic otherwise.
-    if training_config.dataloader_config.get("data_train_run_builder"):
-        data_train_run_builder = get_train_run_builder_class(training_config.dataloader_config["data_train_run_builder"])
-        _, train_dl, val_dl, test_dl = data_train_run_builder.get_dataloaders(training_config.dataloader_config)
-    else:
-        _, train_dl, val_dl, test_dl = train_run_builder.get_dataloaders(training_config.dataloader_config)
-    loguru.logger.info("Dataset and dataloaders created.")
-    loguru.logger.info("Initializing the module...")
-    model = train_run_builder.model_init(train_dl, training_config.model_init_config)
-    loguru.logger.info("Initializing the loss function...")
-    loss_fn = train_run_builder.get_loss_fn(training_config.loss_config)
-    loguru.logger.info("Initializing the optimizer...")
-    optimizer_config = resolve_transition_frac(training_config.optimizer_config, len(train_dl), training_config.max_epochs)
-    opt = train_run_builder.get_optimizer(optimizer_config)
-    loguru.logger.info("Building the trainer...")
-    trainer = Trainer(
-        model=model,
-        loss_fn=loss_fn,
-        optimizer=opt,
-        checkpoint_dir=training_config.checkpoint_dir,
-        trainable_getter=train_run_builder.get_trainable_getter(training_config.model_init_config),
-        resume=training_config.resume,
-        checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
-    )
-    loguru.logger.info("Trainer built.")
 
     loguru.logger.info("Starting training...")
     test_results = trainer.train(
