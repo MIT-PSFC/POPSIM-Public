@@ -440,3 +440,29 @@ def test_patience_count_survives_wall_budget_resumes(tmpdir):
 
     assert session.train_state.epoch == reference.train_state.epoch
     assert session.early_stopping.state() == reference.early_stopping.state()
+
+
+def test_resumed_early_stopped_run_trains_no_further(tmpdir):
+    """A run resumed after it stopped early, as when its job died before the test eval, trains no further.
+
+    A zero learning rate keeps the validation loss constant, so the run stops after 1 + patience epochs.
+    Another validation interval on resume could move the best checkpoint.
+    """
+    x = np.linspace(0.1, 1.0, 8)
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    patience = 2
+    train_kwargs = dict(train_dl=dl, val_dl=dl, max_epochs=20, epochs_per_val=1, patience=patience, logger=NullLogger())
+
+    def _make_trainer(resume=False):
+        model = _LinearModel(w=jnp.array(0.5))
+        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.sgd(0.0), checkpoint_dir=tmpdir, resume=resume)
+
+    stopped_early = _make_trainer()
+    stopped_early.train(**train_kwargs)
+    assert stopped_early.train_state.epoch == 1 + patience
+    checkpoint_steps = stopped_early.checkpoint_manager.all_steps()
+
+    resumed = _make_trainer(resume=True)
+    resumed.train(**train_kwargs)
+    assert resumed.train_state.epoch == 1 + patience
+    assert resumed.checkpoint_manager.all_steps() == checkpoint_steps

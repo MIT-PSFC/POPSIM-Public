@@ -452,7 +452,7 @@ class Trainer:
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
             max_epochs (int, optional): Total number of epochs to train. A run resumed after N completed epochs trains the remaining max_epochs - N (absolute target, not additive). Defaults to 1000.
             epochs_per_val (int, optional): Validate after every epochs_per_val completed epochs, and always after the final epoch. Defaults to 1.
-            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). The count is saved with every checkpoint, so a resumed run continues it.
+            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). The count is saved with every checkpoint, so a resumed run continues it, and a run resumed after it stopped early trains no further.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
             max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish.
                 It is checked once per epoch after validation, so leave a margin of one epoch plus one validation. Defaults to None (no budget).
@@ -469,8 +469,10 @@ class Trainer:
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
         self.early_stopping = EarlyStopping(patience) if patience is not None else None
+        resumed_stopped_early = False
         if self.early_stopping is not None and self._resumed_early_stopping_state is not None:
             self.early_stopping.load_state(self._resumed_early_stopping_state)
+            resumed_stopped_early = self.early_stopping.counter >= self.early_stopping.patience
         self._resumed_early_stopping_state = None
         self.wall_budget_exceeded = False
         interrupted = False
@@ -478,11 +480,13 @@ class Trainer:
         tstart_train = time.time()
 
         # max_epochs is an absolute target, a run resumed after N completed epochs trains the remaining max_epochs - N.
-        # An empty range (a resumed run that finished training but died before the test eval) goes straight to the test eval.
+        # An empty range goes straight to the test eval (a resumed run that finished training or stopped early, then died before the test eval)
         start_epoch = self.train_state.epoch
         if start_epoch > 0:
-            loguru.logger.info(f"Resuming training after {start_epoch} of {max_epochs} epochs")
-        epoch_range = range(start_epoch, max_epochs)
+            resume_note = ", it already stopped early, so straight to the test eval" if resumed_stopped_early else ""
+            loguru.logger.info(f"Resuming training after {start_epoch} of {max_epochs} epochs{resume_note}")
+        end_epoch = start_epoch if resumed_stopped_early else max_epochs
+        epoch_range = range(start_epoch, end_epoch)
 
         for epoch_idx in tqdm(epoch_range, desc="Epochs", initial=start_epoch, total=max_epochs):
             tstart_epoch = time.time()
