@@ -12,7 +12,7 @@ import pytest
 import xarray as xr
 
 from popsim import TimeDepModule
-from popsim.ml.checkpointing import TrainState, restore_model
+from popsim.ml.checkpointing import CHECKPOINT_FORMATS, TrainState, restore_model
 from popsim.ml.dataloading import DataLoader, make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
 from popsim.ml.eval import make_val_loss_eval_fn, run_evals
@@ -456,8 +456,9 @@ def test_validation_and_checkpoint_use_averaged_model(tmpdir):
     assert float(raw_eval_results["loss"]["mean"]) != best_val_loss
 
 
+@pytest.mark.parametrize("checkpoint_format", CHECKPOINT_FORMATS)
 @pytest.mark.parametrize("ema_horizon_epochs", [None, 2.5], ids=["raw", "averaged"])
-def test_resume_across_wall_budget_matches_uninterrupted(tmpdir, ema_horizon_epochs):
+def test_resume_across_wall_budget_matches_uninterrupted(tmpdir, ema_horizon_epochs, checkpoint_format):
     """Stopping on the wall budget and resuming twice gives exactly the uninterrupted result.
 
     Session 1 stops after epoch 1, which has no validation, so it saves a checkpoint without a loss.
@@ -493,6 +494,7 @@ def test_resume_across_wall_budget_matches_uninterrupted(tmpdir, ema_horizon_epo
             checkpoint_dir=checkpoint_dir,
             resume=resume,
             ema_horizon_epochs=ema_horizon_epochs,
+            checkpoint_format=checkpoint_format,
         )
 
     reference = _make_trainer(tmpdir / "reference")

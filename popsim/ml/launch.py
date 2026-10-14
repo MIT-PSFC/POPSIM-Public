@@ -186,6 +186,7 @@ def build_train_run(training_config: TrainConfig) -> tuple[Trainer, DataLoader, 
         resume=training_config.resume,
         checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
         ema_horizon_epochs=training_config.ema_horizon_epochs,
+        checkpoint_format=training_config.checkpoint_format,
     )
     loguru.logger.info("Trainer built.")
     return trainer, train_dl, val_dl, test_dl

@@ -10,12 +10,13 @@ import jax.numpy as jnp
 import loguru
 import numpy as np
 import optax
-import orbax.checkpoint as ocp
 from jaxtyping import Array, PyTree
 from tqdm import tqdm
 
 from popsim.ml._types import TrainableModel
 from popsim.ml.checkpointing import (
+    CheckpointFormat,
+    CheckpointManager,
     TrainState,
     create_default_checkpoint_manager,
     evaluated_model,
@@ -413,7 +414,7 @@ class Trainer:
     optimizer: optax.GradientTransformation
     partition_fn: PartitionFn
     loss_fn: LossFunction
-    checkpoint_manager: ocp.CheckpointManager
+    checkpoint_manager: CheckpointManager
 
     def __init__(
         self,
@@ -426,6 +427,7 @@ class Trainer:
         resume: bool = False,
         checkpoint_max_to_keep: int = 1,
         ema_horizon_epochs: float | None = None,
+        checkpoint_format: CheckpointFormat = "orbax",
     ):
         """Initialize a Trainer object.
 
@@ -442,6 +444,8 @@ class Trainer:
                 The running mean of every iterate until the horizon, then an exponential moving average over it (see _average_step_size).
                 The averaged model (eval_model) is the one validated, checkpointed, ranked, restored and tested,
                 while training continues from the live iterate (train_state.model). Defaults to None, no averaging.
+            checkpoint_format (CheckpointFormat, optional): "orbax" (an OCDBT database per item, for large or sharded models)
+                or "minimal" (one .npz file per checkpoint). Defaults to "orbax".
 
         """
         if isinstance(model, ModuleTrainingEnv):
@@ -460,8 +464,11 @@ class Trainer:
         self.train_state = TrainState.create_new(model, self.partition_fn, optimizer, average_weights=ema_horizon_epochs is not None)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
+        self.checkpoint_format = checkpoint_format
         self.checkpoint_manager = (
-            create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep) if checkpoint_dir else None
+            create_default_checkpoint_manager(checkpoint_dir, max_to_keep=checkpoint_max_to_keep, checkpoint_format=checkpoint_format)
+            if checkpoint_dir
+            else None
         )
         self.early_stopping: EarlyStopping | None = None
         # Set when the last train() call stopped on its wall-clock budget
@@ -688,11 +695,11 @@ class Trainer:
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
 
         Args:
-            path (typing.Optional[PathLike], optional): path to the checkpoint that should be loaded. Defaults to None.
+            path (typing.Optional[PathLike], optional): path to the checkpoint that should be loaded, saved in the trainer's checkpoint_format. Defaults to None.
 
         """
         if path:
-            checkpoint_manager = create_default_checkpoint_manager(path)
+            checkpoint_manager = create_default_checkpoint_manager(path, checkpoint_format=self.checkpoint_format)
             self.train_state = restore_train_state(checkpoint_manager, self.train_state)
         else:
             if not self.checkpoint_manager:

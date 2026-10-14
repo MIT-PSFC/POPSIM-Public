@@ -5,6 +5,7 @@ import os
 import yaml
 from pydantic import BaseModel, ConfigDict, NonNegativeFloat, PositiveFloat, PositiveInt
 
+from popsim.ml.checkpointing import CheckpointFormat
 from popsim.ml.train_run_builder import TrainRunBuilder
 
 
@@ -26,6 +27,7 @@ class TrainConfig(BaseModel):
     test_eval_suite_config: dict | None = None  # Configuration dictionary used to build the test evaluation suite.
     resume: bool = False  # Resume from the latest checkpoint in checkpoint_dir if one exists. Under W&B a run checkpoints in checkpoint_dir / run id, so a requeued trial resumes its own.
     checkpoint_max_to_keep: PositiveInt = 1  # Best-by-validation-loss checkpoints to keep, the latest is always kept too.
+    checkpoint_format: CheckpointFormat = "orbax"  # "orbax" (OCDBT, large or sharded models) or "minimal" (one .npz per checkpoint).
     max_wall_seconds: float | None = None  # Wall-clock budget in s, when exceeded save a checkpoint and stop without the test eval.
 
     model_config = ConfigDict(frozen=True)  # Make the model immutable after creation.
