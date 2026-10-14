@@ -4,9 +4,11 @@ Utilities for saving and loading model and training checkpoints.
 
 import os
 from os import PathLike
+from pathlib import Path
 
 import chex
 import equinox as eqx
+import jax
 import optax
 import orbax.checkpoint as ocp
 from jaxtyping import PyTree
@@ -16,6 +18,9 @@ from popsim.ml.partition import PartitionFn
 
 # Checkpoint metadata key of the early-stopping state, None for a run without early stopping
 EARLY_STOPPING_METADATA_KEY = "early_stopping"
+# Checkpoint item of the live iterate's trainable partition, saved only by a run that averages its weights.
+# Its "model" item is then the averaged model, and a resumed run continues training from this item.
+RAW_TRAINABLE_ITEM = "raw_trainable"
 
 
 @chex.dataclass
@@ -24,6 +29,9 @@ class TrainState:
     epoch: int
     model: TrainableModel
     opt_state: optax.OptState
+    # The weight average of the trainable partition, None positions where the model is frozen.
+    # None when the run does not average its weights.
+    averaged_trainable: PyTree | None = None
 
     @classmethod
     def create_new(
@@ -31,10 +39,35 @@ class TrainState:
         model: TrainableModel,
         partition_fn: PartitionFn,
         optimizer: optax.GradientTransformation,
+        average_weights: bool = False,
     ) -> "TrainState":
         trainable, _ = partition_fn(model)
         opt_state = optimizer.init(trainable)
-        return cls(step=0, epoch=0, model=model, opt_state=opt_state)
+        # The average starts at the init, which counts as its first iterate
+        averaged_trainable = trainable if average_weights else None
+        return cls(step=0, epoch=0, model=model, opt_state=opt_state, averaged_trainable=averaged_trainable)
+
+
+def evaluated_model(train_state: TrainState) -> TrainableModel:
+    """The model a train state is validated, checkpointed, restored and tested as.
+
+    With weight averaging it is the averaged trainable leaves over the live model's frozen ones,
+    so frozen buffers (normalizer statistics, frozen layers) are always the live model's.
+    Without it, the live model itself.
+    """
+    if train_state.averaged_trainable is None:
+        return train_state.model
+    return eqx.combine(train_state.averaged_trainable, train_state.model)
+
+
+def _leaves_at_positions_of(full_tree: PyTree, positions_template: PyTree) -> PyTree:
+    """full_tree's leaves where positions_template holds a leaf, None where it holds None."""
+    return jax.tree.map(
+        lambda template_leaf, leaf: None if template_leaf is None else leaf,
+        positions_template,
+        full_tree,
+        is_leaf=lambda leaf: leaf is None,
+    )
 
 
 def _validation_loss(metrics: dict) -> float:
@@ -83,7 +116,7 @@ def create_default_checkpoint_manager(directory: PathLike, max_to_keep: int = 1)
     manager = ocp.CheckpointManager(
         directory=directory,
         options=options,
-        item_names=("model", "opt_state", "metadata"),
+        item_names=("model", "opt_state", "metadata", RAW_TRAINABLE_ITEM),
     )
     return manager
 
@@ -101,6 +134,9 @@ def save_train_state(
 ):
     """Save the training state to a checkpoint, a no-op if this epoch was already saved.
 
+    The "model" item is the evaluated model (evaluated_model), the one every restore_model reads.
+    A run that averages its weights also saves the live iterate's trainable partition as RAW_TRAINABLE_ITEM.
+
     Args:
         train_state (TrainState): the training state to save.
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager to save to.
@@ -113,14 +149,20 @@ def save_train_state(
         EARLY_STOPPING_METADATA_KEY: early_stopping_state,
     }
 
-    model_save, _ = partition_saveable(train_state.model)
+    model = evaluated_model(train_state)
+    model_save, _ = partition_saveable(model)
     opt_state_save, _ = partition_saveable(train_state.opt_state)
 
-    composite_save = ocp.args.Composite(
-        model=ocp.args.StandardSave(model_save),
-        opt_state=ocp.args.StandardSave(opt_state_save),
-        metadata=ocp.args.JsonSave(metadata),
-    )
+    items_save = {
+        "model": ocp.args.StandardSave(model_save),
+        "opt_state": ocp.args.StandardSave(opt_state_save),
+        "metadata": ocp.args.JsonSave(metadata),
+    }
+    if train_state.averaged_trainable is not None:
+        raw_trainable = _leaves_at_positions_of(train_state.model, train_state.averaged_trainable)
+        raw_trainable_save, _ = partition_saveable(raw_trainable)
+        items_save[RAW_TRAINABLE_ITEM] = ocp.args.StandardSave(raw_trainable_save)
+    composite_save = ocp.args.Composite(**items_save)
 
     # A None loss must be saved as no metrics, a None metric breaks the best-checkpoint ranking.
     metrics = {"loss": loss} if loss is not None else None
@@ -147,8 +189,32 @@ def _step_to_restore(checkpoint_manager: ocp.CheckpointManager, step: int | None
     return step_to_restore
 
 
+def _check_weight_averaging_matches(checkpoint_manager: ocp.CheckpointManager, step: int, averages_weights: bool):
+    """Raise unless the checkpoint at step was saved by a run that averages its weights exactly when the template does.
+
+    An averaging run cannot resume a checkpoint without the live iterate,
+    and a run without averaging would continue training from the averaged weights with the live iterate's optimizer state.
+    """
+    step_dir = Path(checkpoint_manager.directory) / str(step)
+    raw_trainable_dir = step_dir / RAW_TRAINABLE_ITEM
+    holds_raw_trainable = raw_trainable_dir.is_dir()
+    if averages_weights and not holds_raw_trainable:
+        raise KeyError(
+            f"Checkpoint step {step} in {checkpoint_manager.directory} has no {RAW_TRAINABLE_ITEM!r} item, "
+            "so it was saved without weight averaging and cannot resume a run that averages. Delete the checkpoint directory and retrain."
+        )
+    if holds_raw_trainable and not averages_weights:
+        raise ValueError(
+            f"Checkpoint step {step} in {checkpoint_manager.directory} was saved with weight averaging, "
+            "so its model is the average and only a run that averages can resume it. restore_model reads the averaged model."
+        )
+
+
 def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: TrainState, step: int | None = None) -> TrainState:
     """Restore the training state from a checkpoint.
+
+    A template that averages its weights restores the live iterate from RAW_TRAINABLE_ITEM and the average from the "model" item.
+    It must match the checkpoint, averaging both or neither.
 
     Args:
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager that was used to save the checkpoint.
@@ -159,26 +225,48 @@ def restore_train_state(checkpoint_manager: ocp.CheckpointManager, template: Tra
         TrainState: the restored training state.
     """
     step_to_restore = _step_to_restore(checkpoint_manager, step)
+    averages_weights = template.averaged_trainable is not None
+    _check_weight_averaging_matches(checkpoint_manager, step_to_restore, averages_weights)
 
-    model_saveable, model_non_saveable = partition_saveable(template.model)
+    model_template = evaluated_model(template)
+    model_saveable, model_non_saveable = partition_saveable(model_template)
     opt_state_saveable, opt_state_non_saveable = partition_saveable(template.opt_state)
 
-    composite_restore = ocp.args.Composite(
-        model=ocp.args.StandardRestore(model_saveable),
-        opt_state=ocp.args.StandardRestore(opt_state_saveable),
-        metadata=ocp.args.JsonRestore(),
-    )
+    items_restore = {
+        "model": ocp.args.StandardRestore(model_saveable),
+        "opt_state": ocp.args.StandardRestore(opt_state_saveable),
+        "metadata": ocp.args.JsonRestore(),
+    }
+    if averages_weights:
+        raw_trainable_template = _leaves_at_positions_of(template.model, template.averaged_trainable)
+        raw_trainable_saveable, _ = partition_saveable(raw_trainable_template)
+        items_restore[RAW_TRAINABLE_ITEM] = ocp.args.StandardRestore(raw_trainable_saveable)
 
+    composite_restore = ocp.args.Composite(**items_restore)
     restored = checkpoint_manager.restore(
         step_to_restore,
         args=composite_restore,
     )
 
-    model = eqx.combine(restored["model"], model_non_saveable)
+    model_evaluated = eqx.combine(restored["model"], model_non_saveable)
     opt_state = eqx.combine(restored["opt_state"], opt_state_non_saveable)
     metadata = restored["metadata"]
 
-    train_state = TrainState(step=metadata["step"], epoch=metadata["epoch"], model=model, opt_state=opt_state)
+    if averages_weights:
+        # The live iterate at its trainable positions, the frozen leaves are the same in both models
+        model = eqx.combine(restored[RAW_TRAINABLE_ITEM], model_evaluated)
+        averaged_trainable = _leaves_at_positions_of(model_evaluated, template.averaged_trainable)
+    else:
+        model = model_evaluated
+        averaged_trainable = None
+
+    train_state = TrainState(
+        step=metadata["step"],
+        epoch=metadata["epoch"],
+        model=model,
+        opt_state=opt_state,
+        averaged_trainable=averaged_trainable,
+    )
     return train_state
 
 
@@ -198,7 +286,7 @@ def restore_early_stopping_state(checkpoint_manager: ocp.CheckpointManager, step
 
 
 def restore_model(checkpoint_manager: ocp.CheckpointManager, template: TrainableModel, step: int | None = None) -> TrainableModel:
-    """Restore just the model from a checkpoint.
+    """Restore just the model from a checkpoint, the averaged model when the run averaged its weights.
 
     Args:
         checkpoint_manager (ocp.CheckpointManager): the checkpoint manager that was used to save the checkpoint.

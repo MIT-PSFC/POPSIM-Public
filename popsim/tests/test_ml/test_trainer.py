@@ -12,15 +12,15 @@ import pytest
 import xarray as xr
 
 from popsim import TimeDepModule
-from popsim.ml.checkpointing import TrainState
+from popsim.ml.checkpointing import TrainState, restore_model
 from popsim.ml.dataloading import DataLoader, make_time_dep_dataloader, make_time_indep_dataloader
 from popsim.ml.envs import ModuleTrainingEnv
-from popsim.ml.eval import make_val_loss_eval_fn
+from popsim.ml.eval import make_val_loss_eval_fn, run_evals
 from popsim.ml.loggers import LoggerBase, NullLogger
 from popsim.ml.loss import IntegralLoss
 from popsim.ml.partition import make_partition_by_members
 from popsim.ml.split_utils import split_dataset_by_fracs
-from popsim.ml.trainer import MAX_HIGH_SKIP_EPOCHS, Trainer, TrainingDivergedError, train_epoch
+from popsim.ml.trainer import MAX_HIGH_SKIP_EPOCHS, EarlyStopping, Trainer, TrainingDivergedError, train_epoch
 from popsim.simulate import StepperType
 from popsim.tests.fixtures import oscillator_dataset  # noqa: F401  (pytest fixture)
 
@@ -238,11 +238,37 @@ def test_early_stopping_patience(oscillator_dataset):
     assert trainer.train_state.epoch < 20
 
 
+def test_early_stopping_ignores_improvements_below_tolerance():
+    """Only a loss beating the best by more than the relative tolerance resets the count.
+
+    The first finite loss sets the best at any tolerance, since inf - tol * inf is NaN.
+    """
+    early_stopping = EarlyStopping(patience=2, min_relative_improvement=0.1)
+    assert not early_stopping.should_stop(1.0)
+    assert (early_stopping.best_loss, early_stopping.counter) == (1.0, 0)
+    # 5 percent better counts as no improvement
+    assert not early_stopping.should_stop(0.95)
+    assert (early_stopping.best_loss, early_stopping.counter) == (1.0, 1)
+    # 15 percent better resets the count
+    assert not early_stopping.should_stop(0.85)
+    assert (early_stopping.best_loss, early_stopping.counter) == (0.85, 0)
+    assert not early_stopping.should_stop(0.8)
+    assert early_stopping.should_stop(0.79)
+
+
 class _LinearModel(eqx.Module):
     w: jax.Array
 
     def __call__(self, inputs):
         return {"y": self.w * inputs["x"]}
+
+
+class _AffineModel(eqx.Module):
+    w: jax.Array
+    b: jax.Array
+
+    def __call__(self, inputs):
+        return {"y": self.w * inputs["x"] + self.b}
 
 
 class _SqrtInputModel(eqx.Module):
@@ -262,8 +288,10 @@ def _squared_error(prediction, target):
     return jnp.square(prediction["y"] - target["y"])
 
 
-def _xy_dataloader(x: np.ndarray, y: np.ndarray, batch_size: int | None, pad_last: bool = False) -> DataLoader:
-    """An unshuffled time-independent dataloader over one episode with input x and target y."""
+def _xy_dataloader(
+    x: np.ndarray, y: np.ndarray, batch_size: int | None, pad_last: bool = False, shuffle: bool = False, fill_last: bool = False
+) -> DataLoader:
+    """A time-independent dataloader over one episode with input x and target y, unshuffled unless asked."""
     ds = xr.Dataset(
         {"x": (("episode", "time"), x.reshape(1, -1)), "y": (("episode", "time"), y.reshape(1, -1))},
         coords={"episode": [0], "time": np.arange(x.size, dtype=float)},
@@ -275,8 +303,9 @@ def _xy_dataloader(x: np.ndarray, y: np.ndarray, batch_size: int | None, pad_las
         input_vars=["x"],
         target_vars=["y"],
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=shuffle,
         pad_last=pad_last,
+        fill_last=fill_last,
     )
 
 
@@ -368,43 +397,122 @@ def test_stop_request_ends_training_without_test_eval(tmpdir):
     assert trainer.train_state.epoch == 1
 
 
-def test_resume_across_wall_budget_matches_uninterrupted(tmpdir):
+def test_averaged_trainable_running_mean_then_ema():
+    """The weight average is the exact running mean of the init and every iterate up to the horizon, then an EMA over it.
+
+    A one-sample loader makes each train_epoch call one step.
+    """
+    x = np.array([0.5])
+    dl = _xy_dataloader(x, 2.0 * x, batch_size=1)
+    optimizer = optax.sgd(0.5)
+    partition_fn = make_partition_by_members(lambda m: m)
+    average_horizon_steps = 3
+    train_state = TrainState.create_new(_LinearModel(w=jnp.array(0.0)), partition_fn, optimizer, average_weights=True)
+
+    iterates = [float(train_state.model.w)]
+    average_expected = iterates[0]
+    for _ in range(6):
+        train_state, _ = train_epoch(train_state, partition_fn, _squared_error, optimizer, dl, average_horizon_steps=average_horizon_steps)
+        iterates.append(float(train_state.model.w))
+        if train_state.step + 1 <= average_horizon_steps:
+            average_expected = np.mean(iterates)
+        else:
+            average_expected = average_expected + (iterates[-1] - average_expected) / average_horizon_steps
+        np.testing.assert_allclose(float(train_state.averaged_trainable.w), average_expected, rtol=1e-12)
+    # The iterate kept moving, so the average lags it
+    assert float(train_state.averaged_trainable.w) != iterates[-1]
+
+
+def test_validation_and_checkpoint_use_averaged_model(tmpdir):
+    """Validation, the best checkpoint and the test eval are the averaged model's, never the live iterate's.
+
+    The frozen leaf has no slot in the average and is the live model's in the evaluated model.
+    """
+    x = np.linspace(0.1, 1.0, 8)
+    dl = _xy_dataloader(x, 2.0 * x + 0.5, batch_size=2)
+    loss_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
+    model = _AffineModel(w=jnp.array(0.0), b=jnp.array(0.5))
+    trainer = Trainer(
+        model=model,
+        loss_fn=_squared_error,
+        optimizer=optax.sgd(0.1),
+        checkpoint_dir=tmpdir,
+        trainable_getter=lambda m: m.w,
+        ema_horizon_epochs=2.0,
+    )
+    trainer.train(train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=loss_eval_suite, max_epochs=6, patience=100, logger=NullLogger())
+
+    # train() restored the best checkpoint for the test eval
+    assert trainer.train_state.averaged_trainable.b is None
+    assert float(trainer.eval_model.b) == float(trainer.train_state.model.b) == 0.5
+    assert float(trainer.eval_model.w) != float(trainer.train_state.model.w)
+    model_restored = restore_model(trainer.checkpoint_manager, model)
+    chex.assert_trees_all_equal(model_restored, trainer.eval_model)
+
+    best_val_loss = trainer.early_stopping.best_loss
+    averaged_loss = trainer.compute_loss(dl)
+    assert float(averaged_loss["mean"]) == best_val_loss
+    raw_eval_results = run_evals(trainer.train_state.model, dl, loss_eval_suite)
+    assert float(raw_eval_results["loss"]["mean"]) != best_val_loss
+
+
+@pytest.mark.parametrize("ema_horizon_epochs", [None, 2.5], ids=["raw", "averaged"])
+def test_resume_across_wall_budget_matches_uninterrupted(tmpdir, ema_horizon_epochs):
     """Stopping on the wall budget and resuming twice gives exactly the uninterrupted result.
 
     Session 1 stops after epoch 1, which has no validation, so it saves a checkpoint without a loss.
     Session 2 resumes there, validates epoch 2 and stops again.
     Session 3 finishes and runs the test eval on the best checkpoint.
+    Every session builds fresh dataloaders like a resumed job,
+    and the shuffled, filled training passes still replay the uninterrupted run's batches.
     """
-    x = np.linspace(0.1, 1.0, 8)
-    # No shuffle, so a resumed run sees the same batches as an uninterrupted one.
-    dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+    x = np.linspace(0.1, 1.0, 10)
     test_eval_suite = {"loss": make_val_loss_eval_fn(_squared_error)}
-    train_kwargs = dict(
-        train_dl=dl, val_dl=dl, test_dl=dl, test_eval_suite=test_eval_suite, max_epochs=5, epochs_per_val=2, logger=NullLogger()
-    )
 
+    def _train_kwargs() -> dict:
+        train_dl = _xy_dataloader(x, 2.0 * x, batch_size=4, shuffle=True, fill_last=True)
+        eval_dl = _xy_dataloader(x, 2.0 * x, batch_size=4)
+        return dict(
+            train_dl=train_dl,
+            val_dl=eval_dl,
+            test_dl=eval_dl,
+            test_eval_suite=test_eval_suite,
+            max_epochs=5,
+            epochs_per_val=2,
+            logger=NullLogger(),
+        )
+
+    # Momentum makes the result depend on the batch order, which Adam on this model normalizes away
     def _make_trainer(checkpoint_dir, resume=False):
         model = _LinearModel(w=jnp.array(0.0))
-        return Trainer(model=model, loss_fn=_squared_error, optimizer=optax.adam(0.05), checkpoint_dir=checkpoint_dir, resume=resume)
+        optimizer = optax.sgd(0.05, momentum=0.9)
+        return Trainer(
+            model=model,
+            loss_fn=_squared_error,
+            optimizer=optimizer,
+            checkpoint_dir=checkpoint_dir,
+            resume=resume,
+            ema_horizon_epochs=ema_horizon_epochs,
+        )
 
     reference = _make_trainer(tmpdir / "reference")
-    reference_test_results = reference.train(**train_kwargs)
+    reference_test_results = reference.train(**_train_kwargs())
 
     checkpoint_dir = tmpdir / "resumed"
     session_1 = _make_trainer(checkpoint_dir)
-    assert session_1.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_1.train(**_train_kwargs(), max_wall_seconds=0.0) is None
     assert session_1.checkpoint_manager.all_steps() == [1]
     assert session_1.checkpoint_manager.best_step() is None
 
     session_2 = _make_trainer(checkpoint_dir, resume=True)
     assert session_2.train_state.epoch == 1
-    assert session_2.train(**train_kwargs, max_wall_seconds=0.0) is None
+    assert session_2.train(**_train_kwargs(), max_wall_seconds=0.0) is None
     assert session_2.checkpoint_manager.all_steps() == [2]
     assert session_2.checkpoint_manager.best_step() == 2
 
     session_3 = _make_trainer(checkpoint_dir, resume=True)
     assert session_3.train_state.epoch == 2
-    resumed_test_results = session_3.train(**train_kwargs)
+    resumed_test_results = session_3.train(**_train_kwargs())
     assert session_3.checkpoint_manager.all_steps() == [5]
 
     chex.assert_trees_all_equal(session_3.train_state, reference.train_state)

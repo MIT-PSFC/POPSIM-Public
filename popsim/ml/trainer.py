@@ -18,6 +18,7 @@ from popsim.ml._types import TrainableModel
 from popsim.ml.checkpointing import (
     TrainState,
     create_default_checkpoint_manager,
+    evaluated_model,
     restore_early_stopping_state,
     restore_train_state,
     save_train_state,
@@ -112,11 +113,14 @@ def train_step(
     inputs: PyTree[Array],
     targets: PyTree[Array],
     sample_mask: Array,
-) -> tuple[TrainableModel, optax.OptState, Array, Array]:
+    averaged_trainable: PyTree | None = None,
+    average_step_size: Array | None = None,
+) -> tuple[TrainableModel, optax.OptState, Array, Array, PyTree | None]:
     """Train the model for one step of SGD on the mean loss over the samples where sample_mask is True.
 
     sample_mask is always a boolean array over the batch, so padded and NaN-retry steps reuse one compilation.
-    Returns the new model, the new optimizer state, the masked mean loss, and the per-sample losses.
+    When averaged_trainable is given, the weight average moves average_step_size of the way to the new trainable leaves.
+    Returns the new model, the new optimizer state, the masked mean loss, the per-sample losses and the new average (None without one).
     """
     # Partition the model into trainable and static parts.
     trainable, static = partition_fn(model)
@@ -138,9 +142,13 @@ def train_step(
     # Apply the updates to the trainable part of the model.
     trainable = eqx.apply_updates(trainable, model_updates)
 
+    # A convex combination of two finite trees, so a step that passes the NaN check keeps the average finite too.
+    if averaged_trainable is not None:
+        averaged_trainable = optax.incremental_update(trainable, averaged_trainable, average_step_size)
+
     # Combine the trainable and static parts of the model to get back the whole model.
     new_model = eqx.combine(trainable, static)
-    return new_model, opt_state, loss_value, sample_losses
+    return new_model, opt_state, loss_value, sample_losses, averaged_trainable
 
 
 def _retry_step_without_nonfinite_samples(
@@ -153,13 +161,15 @@ def _retry_step_without_nonfinite_samples(
     mask_valid: np.ndarray,
     bad_sample_ids: set,
     verbose: bool,
-) -> tuple[TrainableModel, optax.OptState, Array] | None:
+    average_step_size: Array | None = None,
+) -> tuple[TrainableModel, optax.OptState, Array, PyTree | None] | None:
     """Retake a NaN/Inf train step with the samples whose loss is non-finite masked out.
 
     Non-finite samples are overwritten with a finite sample so the backward pass stays finite,
     then masked out so they add no loss or gradient.
     The retry has the same shapes and dtypes, so it reuses the compiled train_step.
-    Returns the (model, opt_state, loss_value) of the retried step, or None when the step must be skipped.
+    It updates the weight average from train_state's, the one before the failed step.
+    Returns the (model, opt_state, loss_value, averaged_trainable) of the retried step, or None when the step must be skipped.
     The step is skipped when every per-sample loss is finite, since the NaN/Inf then came from the backward pass or optimizer update.
     It is also skipped when no valid sample is finite, or when the retry still produces NaN/Inf.
     """
@@ -216,8 +226,10 @@ def _retry_step_without_nonfinite_samples(
         inputs_finite,
         targets_finite,
         sample_mask_good,
+        train_state.averaged_trainable,
+        average_step_size,
     )
-    model, opt_state, loss_value, _ = jax.block_until_ready(step_outputs)
+    model, opt_state, loss_value, _, averaged_trainable = jax.block_until_ready(step_outputs)
     if step_nan_check(model, opt_state, loss_value):
         if verbose:
             loguru.logger.warning(
@@ -226,7 +238,18 @@ def _retry_step_without_nonfinite_samples(
                 epoch,
             )
         return None
-    return model, opt_state, loss_value
+    return model, opt_state, loss_value, averaged_trainable
+
+
+def _average_step_size(n_applied_steps: int, average_horizon_steps: int) -> Array:
+    """The weight of the iterate the next applied step produces in the weight average.
+
+    The average holds the init, so after n_applied_steps applied steps the next one produces iterate number n_applied_steps + 2.
+    Until average_horizon_steps iterates the average is their exact running mean (Polyak-Ruppert),
+    after that an exponential moving average with a horizon of average_horizon_steps steps.
+    """
+    step_size = max(1.0 / average_horizon_steps, 1.0 / (n_applied_steps + 2))
+    return jnp.asarray(step_size)
 
 
 def train_epoch(
@@ -235,8 +258,14 @@ def train_epoch(
     loss_fn: LossFunction,
     optimizer: optax.GradientTransformation,
     train_dl: DataLoader,
+    average_horizon_steps: int | None = None,
 ) -> tuple[TrainState, dict[str, typing.Any] | None]:
-    """Train the model for one epoch. Returns the new train state and the metrics of the last step."""
+    """Train the model for one epoch. Returns the new train state and the metrics of the last step.
+
+    average_horizon_steps is given exactly when train_state averages its weights (see _average_step_size).
+    """
+    if (average_horizon_steps is None) != (train_state.averaged_trainable is None):
+        raise ValueError("average_horizon_steps must be given exactly when the train state averages its weights")
     train_metrics = None
     n_applied = 0
     n_masked = 0
@@ -257,6 +286,9 @@ def train_epoch(
         tend_prep = time.time()
 
         tstart_step = time.time()
+        average_step_size = None
+        if average_horizon_steps is not None:
+            average_step_size = _average_step_size(train_state.step, average_horizon_steps)
 
         # block_until_ready on JIT compiled functions is important for correctly benchmarking the elapsed time.
         step_outputs = train_step(
@@ -268,8 +300,10 @@ def train_epoch(
             inputs,
             targets,
             sample_mask_valid,
+            train_state.averaged_trainable,
+            average_step_size,
         )
-        model, opt_state, loss_value, sample_losses = jax.block_until_ready(step_outputs)
+        model, opt_state, loss_value, sample_losses, averaged_trainable = jax.block_until_ready(step_outputs)
 
         if step_nan_check(model, opt_state, loss_value):
             # Retry without the non-finite samples so the rest of the batch still trains,
@@ -285,11 +319,12 @@ def train_epoch(
                 mask_valid,
                 bad_sample_ids,
                 verbose=n_nan_events <= MAX_NAN_STEP_WARNINGS_PER_EPOCH,
+                average_step_size=average_step_size,
             )
             if recovered is None:
                 n_skipped += 1
                 continue
-            model, opt_state, loss_value = recovered
+            model, opt_state, loss_value, averaged_trainable = recovered
             n_masked += 1
 
         tend_step = time.time()
@@ -300,6 +335,7 @@ def train_epoch(
             epoch=train_state.epoch,
             model=model,
             opt_state=opt_state,
+            averaged_trainable=averaged_trainable,
         )
         train_metrics = {
             "train/loss": loss_value,
@@ -339,16 +375,23 @@ def train_epoch(
 class EarlyStopping:
     """Track the validation loss and signal when it has stopped improving for `patience` checks.
 
+    A loss improves only when it beats the best by more than min_relative_improvement of the best's magnitude,
+    the rtol of optax.contrib.reduce_on_plateau, so noise-sized gains do not reset the count.
     Its state rides in the metadata of every checkpoint, so a resumed run continues the count.
     """
 
-    def __init__(self, patience: int):
+    def __init__(self, patience: int, min_relative_improvement: float = 0.0):
         self.patience = patience
+        self.min_relative_improvement = min_relative_improvement
         self.best_loss = float("inf")
         self.counter = 0
 
     def should_stop(self, loss: float) -> bool:
-        if loss < self.best_loss:
+        # inf - tol * inf is NaN, so before the first finite loss the bar is the best itself
+        improvement_bar = self.best_loss
+        if math.isfinite(self.best_loss):
+            improvement_bar = self.best_loss - self.min_relative_improvement * abs(self.best_loss)
+        if loss < improvement_bar:
             self.best_loss = loss
             self.counter = 0
             return False
@@ -382,6 +425,7 @@ class Trainer:
         grad_clip: optax.GradientTransformation | None = None,
         resume: bool = False,
         checkpoint_max_to_keep: int = 1,
+        ema_horizon_epochs: float | None = None,
     ):
         """Initialize a Trainer object.
 
@@ -394,6 +438,10 @@ class Trainer:
             grad_clip (typing.Optional[optax.GradientTransformation], optional): Gradient clipping to apply before optimizer to avoid training instability. If None, then will default to optax.clip_by_global_norm(0.5). Defaults to None.
             resume (bool, optional): If True and checkpoint_dir has a checkpoint, restore the latest one (model, optimizer state, and epoch counter) and continue training from there. Defaults to False.
             checkpoint_max_to_keep (int, optional): How many best-by-validation-loss checkpoints to keep. The latest checkpoint is always kept as well. Defaults to 1.
+            ema_horizon_epochs (float | None, optional): Horizon of the weight average in epochs.
+                The running mean of every iterate until the horizon, then an exponential moving average over it (see _average_step_size).
+                The averaged model (eval_model) is the one validated, checkpointed, ranked, restored and tested,
+                while training continues from the live iterate (train_state.model). Defaults to None, no averaging.
 
         """
         if isinstance(model, ModuleTrainingEnv):
@@ -408,7 +456,8 @@ class Trainer:
         grad_clip = grad_clip or optax.clip_by_global_norm(0.5)
         optimizer = optax.chain(grad_clip, optimizer)
         self.partition_fn = partition_fn
-        self.train_state = TrainState.create_new(model, self.partition_fn, optimizer)
+        self.ema_horizon_epochs = ema_horizon_epochs
+        self.train_state = TrainState.create_new(model, self.partition_fn, optimizer, average_weights=ema_horizon_epochs is not None)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.checkpoint_manager = (
@@ -440,9 +489,11 @@ class Trainer:
         patience: int | None = None,
         logger: LoggerBase | None = None,
         max_wall_seconds: float | None = None,
+        min_relative_improvement: float = 0.0,
     ):
         """Train the model with periodic validation.
 
+        Validation, checkpoint ranking and the test eval all use eval_model, the weight average when the trainer averages.
         If training diverges (TrainingDivergedError), the test eval runs on the best checkpoint instead.
         The error is re-raised when no best checkpoint exists yet.
 
@@ -452,10 +503,12 @@ class Trainer:
             eval_suite (typing.Optional[EvaluationSuite], optional): Evaluation suite to run periodically. Defaults to None.
             max_epochs (int, optional): Total number of epochs to train. A run resumed after N completed epochs trains the remaining max_epochs - N (absolute target, not additive). Defaults to 1000.
             epochs_per_val (int, optional): Validate after every epochs_per_val completed epochs, and always after the final epoch. Defaults to 1.
-            patience (int | None, optional): Number of validation steps with no improvement in validation loss before stopping early. Defaults to None (no early stopping). The count is saved with every checkpoint, so a resumed run continues it, and a run resumed after it stopped early trains no further.
+            patience (int | None, optional): Number of validation steps with no improvement in validation loss (see min_relative_improvement) before stopping early. Defaults to None (no early stopping). The count is saved with every checkpoint, so a resumed run continues it, and a run resumed after it stopped early trains no further.
             logger (typing.Optional[LoggerBase], optional): Logger to record results. When logger.stop_requested() is True, training stops at the next epoch boundary and returns None without the test eval. Defaults to None.
             max_wall_seconds (float | None, optional): Wall-clock budget for this call. When exceeded, save the latest checkpoint and stop WITHOUT running the test eval, returning None, so a later job can resume and finish.
                 It is checked once per epoch after validation, so leave a margin of one epoch plus one validation. Defaults to None (no budget).
+            min_relative_improvement (float, optional): For early stopping, a validation loss counts as an improvement only when it beats the best
+                by more than this fraction of the best's magnitude. Defaults to 0.0, any decrease counts.
         """
         logger = logger or ConsoleLogger()
         eval_suite = eval_suite or {}
@@ -468,7 +521,8 @@ class Trainer:
         # Log summary metrics of the dataloaders.
         logger.log({"train_dl": train_dl.metrics, "val_dl": val_dl.metrics if val_dl else None})
 
-        self.early_stopping = EarlyStopping(patience) if patience is not None else None
+        self.early_stopping = EarlyStopping(patience, min_relative_improvement) if patience is not None else None
+        average_horizon_steps = self._average_horizon_steps(train_dl)
         resumed_stopped_early = False
         if self.early_stopping is not None and self._resumed_early_stopping_state is not None:
             self.early_stopping.load_state(self._resumed_early_stopping_state)
@@ -492,9 +546,18 @@ class Trainer:
             tstart_epoch = time.time()
             # Logs and checkpoints number epochs from 1, matching train/epoch once the epoch completes.
             n_epoch = epoch_idx + 1
+            # Keyed by the epoch, so a resumed run draws the batches an uninterrupted one would
+            train_dl.set_epoch(epoch_idx)
 
             try:
-                new_train_state, train_metrics = train_epoch(self.train_state, self.partition_fn, self.loss_fn, self.optimizer, train_dl)
+                new_train_state, train_metrics = train_epoch(
+                    self.train_state,
+                    self.partition_fn,
+                    self.loss_fn,
+                    self.optimizer,
+                    train_dl,
+                    average_horizon_steps=average_horizon_steps,
+                )
                 self.train_state = new_train_state
                 consecutive_high_skip_epochs = _high_skip_epoch_count(train_metrics, consecutive_high_skip_epochs, n_epoch)
             except TrainingDivergedError as exc:
@@ -534,7 +597,8 @@ class Trainer:
 
                 if should_stop:
                     loguru.logger.info(
-                        f"Early stopping: validation loss has not improved for {patience} validation steps ({patience * epochs_per_val} epochs)."
+                        f"Early stopping: validation loss has not improved by more than {min_relative_improvement:.2%} "
+                        f"for {patience} validation steps ({patience * epochs_per_val} epochs)."
                     )
                     break
 
@@ -550,6 +614,17 @@ class Trainer:
         if interrupted:
             return None
         return self._best_checkpoint_test_results(test_dl, test_eval_suite, logger)
+
+    def _average_horizon_steps(self, train_dl: DataLoader) -> int | None:
+        """The weight average's horizon in optimizer steps, None when the trainer does not average.
+
+        len(train_dl) counts every batch of a pass, the filled final one included.
+        """
+        if self.ema_horizon_epochs is None:
+            return None
+        steps_per_epoch = len(train_dl)
+        horizon_steps = round(self.ema_horizon_epochs * steps_per_epoch)
+        return max(1, horizon_steps)
 
     def _best_checkpoint_test_results(
         self, test_dl: DataLoader | None, test_eval_suite: EvaluationSuite | None, logger: LoggerBase
@@ -604,6 +679,11 @@ class Trainer:
         )
         return True
 
+    @property
+    def eval_model(self) -> TrainableModel:
+        """The model validation, checkpoints and evaluations use, the weight average when the trainer averages (evaluated_model)."""
+        return evaluated_model(self.train_state)
+
     def restore_best_checkpoint(self, path: PathLike | None = None):
         """Restore the best checkpoint. If no path is provided, restore from the path provided to the current checkpoint manager. If a path is provided, restore from the provided path.
 
@@ -629,7 +709,7 @@ class Trainer:
         Returns:
             typing.Union[dict[str, typing.Any], EvalData]: Dictionary of results from running the evaluation suite.
         """
-        eval_results = run_evals(self.train_state.model, dataloader, eval_suite)
+        eval_results = run_evals(self.eval_model, dataloader, eval_suite)
         return eval_results
 
     def compute_loss(self, dataloader: DataLoader) -> dict[str, typing.Any]:
@@ -643,5 +723,5 @@ class Trainer:
         """
         loss_eval_fn = make_val_loss_eval_fn(self.loss_fn)
         eval_suite = {"loss": loss_eval_fn}
-        results = run_evals(self.train_state.model, dataloader, eval_suite)
+        results = run_evals(self.eval_model, dataloader, eval_suite)
         return results["loss"]

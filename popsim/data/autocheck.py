@@ -185,7 +185,7 @@ def _train_scorer(
     )
     trainer.train(train_dl, val_dl, max_epochs=max_epochs, patience=patience, logger=logger)
     trainer.restore_best_checkpoint()
-    return trainer.train_state.model
+    return trainer.eval_model
 
 
 def _held_out_rows(scorer: AutocheckScorer, held_out_dl: DataLoader, episode_coord: str, time_coord: str, fold: int) -> xr.Dataset:

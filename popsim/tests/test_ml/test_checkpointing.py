@@ -11,6 +11,7 @@ import pytest
 from popsim.ml.checkpointing import (
     TrainState,
     create_default_checkpoint_manager,
+    evaluated_model,
     restore_model,
     restore_model_from_path,
     restore_train_state,
@@ -46,7 +47,7 @@ def test_checkpointing(tmpdir):
     ckpt_dir = tmpdir / "ckpt"
 
     manager = create_default_checkpoint_manager(ckpt_dir)
-    
+
     save_train_state(train_state, manager, loss=1.0)
 
 
@@ -137,3 +138,42 @@ def test_checkpoint_retention(tmpdir):
     chex.assert_trees_all_equal(restored_best, _train_state_at_epoch(base, 6))
     restored_step_3 = restore_train_state(manager_reopened, base, step=3)
     chex.assert_trees_all_equal(restored_step_3, _train_state_at_epoch(base, 3))
+
+
+def test_averaged_train_state_round_trip(tmpdir):
+    """An averaging train state restores its live model and its average exactly.
+
+    Its "model" item is the averaged model, which restore_model and restore_model_from_path read.
+    A template must average exactly when the checkpoint does, either mismatch raises.
+    """
+
+    def partition_fn(model):
+        return eqx.partition(model, eqx.is_inexact_array_like)
+
+    optimizer = optax.adam(1e-3)
+    train_state = TrainState.create_new(make_nested_module(10, key=0), partition_fn, optimizer, average_weights=True)
+    averaged_trainable = jax.tree.map(lambda leaf: leaf + 1.0, train_state.averaged_trainable)
+    train_state = dataclasses.replace(train_state, step=7, epoch=3, averaged_trainable=averaged_trainable)
+    ckpt_dir = tmpdir / "ckpt"
+    manager = create_default_checkpoint_manager(ckpt_dir)
+    save_train_state(train_state, manager, loss=1.0)
+
+    template = TrainState.create_new(make_nested_module(10, key=42), partition_fn, optimizer, average_weights=True)
+    restored_train_state = restore_train_state(manager, template)
+    chex.assert_trees_all_equal(restored_train_state, train_state)
+
+    model_evaluated = evaluated_model(train_state)
+    model_restored = restore_model(manager, template.model)
+    chex.assert_trees_all_equal(model_restored, model_evaluated)
+    model_path = os.path.join(ckpt_dir, str(train_state.epoch), "model")
+    model_restored_from_path = restore_model_from_path(model_path, template.model)
+    chex.assert_trees_all_equal(model_restored_from_path, model_evaluated)
+
+    template_raw = TrainState.create_new(make_nested_module(10, key=42), partition_fn, optimizer)
+    with pytest.raises(ValueError, match="saved with weight averaging"):
+        restore_train_state(manager, template_raw)
+
+    manager_raw = create_default_checkpoint_manager(tmpdir / "ckpt_raw")
+    save_train_state(template_raw, manager_raw, loss=1.0)
+    with pytest.raises(KeyError, match="raw_trainable"):
+        restore_train_state(manager_raw, template)

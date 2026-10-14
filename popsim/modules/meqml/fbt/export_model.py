@@ -29,7 +29,7 @@ def export_model(checkpoint_path: str, out_path: str, eval_shots: int = 10):
     )
     trainer.restore_best_checkpoint(checkpoint_path)
     test_dl = test_dl.limit_size(eval_shots, "shot")
-    export(trainer.train_state.model, out_path, test_dl)
+    export(trainer.eval_model, out_path, test_dl)
 
 
 if __name__ == "__main__":

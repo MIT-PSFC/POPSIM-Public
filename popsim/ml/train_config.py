@@ -3,7 +3,7 @@ import importlib.util
 import os
 
 import yaml
-from pydantic import BaseModel, ConfigDict, PositiveInt
+from pydantic import BaseModel, ConfigDict, NonNegativeFloat, PositiveFloat, PositiveInt
 
 from popsim.ml.train_run_builder import TrainRunBuilder
 
@@ -15,6 +15,8 @@ class TrainConfig(BaseModel):
     epochs_per_val: int  # Number of epochs between each validation.
     checkpoint_dir: str | None = None  # Directory to save model checkpoints. If None, checkpoints are not saved.
     patience: int | None = None  # Number of validation steps with no improvement before early stopping. If None, no early stopping.
+    min_relative_improvement: NonNegativeFloat = 0.0  # Early stopping counts a val loss as better only past this fraction of the best.
+    ema_horizon_epochs: PositiveFloat | None = None  # Horizon in epochs of the validated and saved weight average. If None, no averaging.
     dataloader_config: dict  # Configuration dictionary for building the dataloaders.
     model_init_config: dict  # Configuration dictionary for initializing the model.
     loss_config: dict  # Configuration dictionary used to initialize the loss function.
