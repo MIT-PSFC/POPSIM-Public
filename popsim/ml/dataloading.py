@@ -174,7 +174,11 @@ class DataLoader:
         fill_last: bool = False,
         **kwargs,
     ):
+        # The base key never changes, each pass draws from its epoch number folded into it.
+        # So the random draws of a pass depend only on the key and the epoch, never on how many passes ran before.
         self.key = key
+        # The epoch number of the next pass, advanced by every pass and pinned by set_epoch
+        self.epoch = 0
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -202,12 +206,24 @@ class DataLoader:
             return complete_batches
         return complete_batches + bool(remainder)
 
+    def set_epoch(self, epoch: int):
+        """Draw the next pass as pass number epoch (from 0), whatever passes ran before.
+
+        A trainer resumed after epoch completed epochs calls it,
+        so the resumed run trains on the batches an uninterrupted run would.
+        """
+        self.epoch = epoch
+
     def __iter__(self):
+        epoch_key = jax.random.fold_in(self.key, self.epoch)
+        self.epoch += 1
+        key_prng, key_permutation, key_fill = jax.random.split(epoch_key, 3)
+
         if self.generate_prng:
             # When shuffling, presume training mode.
             # Seed *must* be in [0, 2**32) for np.random.seed compatibility.
             # Also, in x32 mode Jax defaults to int32, so we use that here. This is plenty of seeds and keys in either mode.
-            seed = jax.random.randint(self.next_key(), (), minval=0, maxval=jnp.iinfo(jnp.int32).max, dtype=jnp.int32).item()
+            seed = jax.random.randint(key_prng, (), minval=0, maxval=jnp.iinfo(jnp.int32).max, dtype=jnp.int32).item()
             self.dataset.update_prng_seed(seed)
 
         def EpochIterator(data, batch_size: int, indices: typing.Sequence[int], pad_last: bool):
@@ -224,17 +240,17 @@ class DataLoader:
                 yield data.select_samples(idx, n_padded=n_padded)
 
         # shuffle (permutation) indices every epoch
-        indices = jax.random.permutation(self.next_key(), self.indices).__array__() if self.shuffle else self.indices
+        indices = jax.random.permutation(key_permutation, self.indices).__array__() if self.shuffle else self.indices
         n_full = len(indices) - len(indices) % self.batch_size
         # Keep a single partial batch even with drop_last so tiny datasets are not dropped entirely
         if self.drop_last and n_full > 0:
             indices = indices[:n_full]
         # Filling only applies when full batches exist, a single partial batch already has a stable shape
         if self.fill_last and 0 < n_full < len(indices):
-            indices = self._filled_indices(indices, n_full)
+            indices = self._filled_indices(indices, n_full, key_fill)
         return EpochIterator(self.dataset, self.batch_size, indices, self.pad_last)
 
-    def _filled_indices(self, indices: np.ndarray, n_full: int) -> np.ndarray:
+    def _filled_indices(self, indices: np.ndarray, n_full: int, key_fill: jax.Array) -> np.ndarray:
         """indices with the final partial batch filled up to batch_size by samples drawn without replacement from the full batches.
 
         Every sample of the epoch keeps its slot, and the fill samples are seen a second time.
@@ -242,12 +258,8 @@ class DataLoader:
         """
         n_fill = self.batch_size - (len(indices) - n_full)
         indices_full_batches = indices[:n_full]
-        indices_fill = jax.random.choice(self.next_key(), indices_full_batches, (n_fill,), replace=False).__array__()
+        indices_fill = jax.random.choice(key_fill, indices_full_batches, (n_fill,), replace=False).__array__()
         return np.concatenate([indices, indices_fill])
-
-    def next_key(self):
-        self.key, subkey = jax.random.split(self.key)
-        return subkey
 
     def limit_size(self, size: int, coord: str) -> "DataLoader":
         """Create a copy of the present DataLoader but with a restricted size along the specified coordinate.
