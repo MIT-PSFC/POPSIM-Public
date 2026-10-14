@@ -928,3 +928,55 @@ def test_time_dep_dl_empty_state_init_vars(convert_xr_to_jnp):
     assert set(env_input.inputs) == {"input_1", "input_2"}
     assert set(targets) == {"input_1", "input_2"}
     assert env_input.inputs["input_2"].shape == (2, 4, 3)
+
+
+def _sample_id_dataloader(n_samples: int, batch_size: int, fill_last: bool):
+    """A shuffled time-independent dataloader over one episode whose input sample_id names each sample."""
+    sample_id = np.arange(n_samples, dtype=float)
+    ds = xr.Dataset(
+        {"sample_id": (("shot", "time_slice"), sample_id[None, :]), "target": (("shot", "time_slice"), sample_id[None, :])},
+        coords={"shot": [0], "time_slice": np.arange(n_samples), "time": (("shot", "time_slice"), 1e-3 * sample_id[None, :])},
+    )
+    return make_time_indep_dataloader(
+        ds,
+        time_coord="time",
+        episode_coord="shot",
+        input_vars=["sample_id"],
+        target_vars=["target"],
+        convert_xr_to_jnp=False,
+        batch_size=batch_size,
+        shuffle=True,
+        fill_last=fill_last,
+    )
+
+
+def test_fill_last_fills_partial_batch_from_full_ones():
+    """The final partial batch is filled with distinct samples drawn from the full batches of the same epoch.
+
+    Every batch is full and holds no padding, every sample appears in the epoch,
+    and the fill samples are the only repeats, drawn anew every epoch.
+    """
+    dl = _sample_id_dataloader(n_samples=10, batch_size=4, fill_last=True)
+    assert len(dl) == 3
+    fills = []
+    for _ in range(4):
+        batches = list(dl)
+        assert [len(batch) for batch in batches] == [4, 4, 4]
+        assert all(batch.n_padded == 0 for batch in batches)
+        epoch_ids = np.concatenate([batch.ds["sample_id"].values for batch in batches])
+        assert sorted(set(epoch_ids.tolist())) == list(range(10))
+        last_batch_ids = batches[-1].ds["sample_id"].values
+        fill_ids = last_batch_ids[2:]
+        full_batch_ids = np.concatenate([batch.ds["sample_id"].values for batch in batches[:-1]])
+        assert len(set(fill_ids.tolist())) == 2
+        assert set(fill_ids.tolist()) <= set(full_batch_ids.tolist())
+        assert not set(fill_ids.tolist()) & set(last_batch_ids[:2].tolist())
+        fills.append(tuple(fill_ids.tolist()))
+    assert len(set(fills)) > 1
+
+
+def test_fill_last_keeps_set_under_one_batch_whole():
+    """With no full batch there is nothing to fill from, so the whole set stays one partial batch."""
+    dl = _sample_id_dataloader(n_samples=3, batch_size=4, fill_last=True)
+    (batch,) = list(dl)
+    assert sorted(batch.ds["sample_id"].values.tolist()) == [0.0, 1.0, 2.0]
