@@ -8,7 +8,7 @@ readme = "README.md"
 dependencies = [
     "diffrax>=0.7.2,<0.8",
     "equinox>=0.13.8,<0.14",
-    "jax>=0.10.0,<0.12",
+    "jax>=0.10.0,<0.13",
     "interpax>=0.3.14,<0.4",
     "chex>=0.1.92,<0.2",
     "hvplot>=0.12.2,<0.13",
@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-torax = ["torax==1.4.3"]
+torax = ["torax>=1.4.3"]
 
 [project.scripts]
 setup-radas = "popsim.cfspopcon_jax.setup_radas:run_radas"
@@ -71,7 +71,7 @@ dev = [
     "anywidget>=0.11.0",
     "h5py>=3.14,<4",
 ]
-gpu = ["jax[cuda13]>=0.10.0,<0.12"]
+gpu = ["jax[cuda13]>=0.10.0,<0.13"]
 
 [tool.uv]
 

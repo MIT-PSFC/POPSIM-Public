@@ -432,3 +432,31 @@ def test_scalar_inputs_unchanged_by_stacking():
     assert sol_multi["inputs.z"].dims == (DEFAULT_SIM_DIM_NAME, "time")
     assert jnp.allclose(sol_multi["inputs.z"].sel({DEFAULT_SIM_DIM_NAME: 0}).values, 0.5)
     assert jnp.allclose(sol_multi["inputs.z"].sel({DEFAULT_SIM_DIM_NAME: 1}).values, 1.5)
+
+
+def test_discrete_stepper_carries_returned_state():
+    """The DISCRETE stepper takes what a module returns as its next state, a field without the discrete label included."""
+
+    class DoublingModule(TimeDepModule):
+        @chex.dataclass
+        class State:
+            x: Array
+
+        @chex.dataclass
+        class Inputs:
+            pass
+
+        @chex.dataclass
+        class Output:
+            y: Array
+
+        def __call__(self, state: "DoublingModule.State", inputs: "DoublingModule.Inputs") -> tuple["DoublingModule.State", "DoublingModule.Output"]:
+            state_next = DoublingModule.State(x=2.0 * state.x)
+            return state_next, DoublingModule.Output(y=state.x)
+
+    ts = jnp.linspace(0.0, 1.0, 6)
+    sim_input = SimInput(time=ts, initial_state=DoublingModule.State(x=jnp.ones(2)), inputs=DoublingModule.Inputs())
+    out = simulate.simulate(DoublingModule(), sim_input, stepper_type=StepperType.DISCRETE, return_xarray=False)
+    expected = 2.0 ** jnp.arange(6)
+    assert jnp.allclose(out["output"].y, expected[:, jnp.newaxis] * jnp.ones(2))
+    assert jnp.allclose(out["state"].x, out["output"].y)

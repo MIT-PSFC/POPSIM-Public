@@ -42,6 +42,7 @@ class StepperType(IntEnum):
     DIFFRAX_EULER = 2  # diffrax.Euler()
     DIFFRAX_TSIT5 = 3  # diffrax.Tsit5()
     DIFFRAX_DOPRI5 = 4  # diffrax.Dopri5()
+    DISCRETE = 5  # _discrete_simulate, the module returns its next state
 
 
 def _check_sim_inputs(module: TimeDepModule, sim_inputs: typing.Sequence[SimInput], stepper_type: StepperType):
@@ -129,8 +130,8 @@ def simulate(
 
         def simulate_fun(mod, inp):
             return _diffrax_simulate(mod, inp, record_state=record_state, solver=solver)
-    elif stepper_type in _EULER_SIM_FUNCTIONS:
-        step_fun = _EULER_SIM_FUNCTIONS[stepper_type]
+    elif stepper_type in _SCAN_SIM_FUNCTIONS:
+        step_fun = _SCAN_SIM_FUNCTIONS[stepper_type]
 
         def simulate_fun(mod, inp):
             return step_fun(mod, inp, record_state=record_state)
@@ -319,10 +320,32 @@ def _simple_euler_simulate(module: TimeDepModule, sim_input: SimInput, record_st
     return outputs
 
 
+@eqx.filter_jit
+def _discrete_simulate(module: TimeDepModule, sim_input: SimInput, record_state: bool = True) -> PyTree:
+    """Function for simulating a single case whose module returns its next state.
+
+    Nothing is integrated in time and the state is never partitioned,
+    so the state can be any PyTree, such as the state of an external simulator that steps itself.
+    The module is called once per time of sim_input, each call advancing the state to the next time.
+    """
+
+    def _step(carry, t):
+        """Perform a single step of the module."""
+        state = carry
+        inputs_resolved = resolve_paths(sim_input.inputs, t)
+        state_next, out = module(state, inputs_resolved)
+        outputs = generate_save_output(state, inputs_resolved, out, record_state=record_state)
+        return state_next, outputs
+
+    _, outputs = xarray_jax.scan(_step, sim_input.initial_state, dim=DEFAULT_TIME_DIM_NAME, xs=sim_input.time)
+    return outputs
+
+
 # Defined after the simulation functions so the references resolve at import time.
-_EULER_SIM_FUNCTIONS = {
+_SCAN_SIM_FUNCTIONS = {
     StepperType.SIMPLE_EULER: _simple_euler_simulate,
     StepperType.SIMPLE_EULER_UNIFORM: _simple_euler_simulate_uniform_timestep,
+    StepperType.DISCRETE: _discrete_simulate,
 }
 _DIFFRAX_SOLVERS = {
     StepperType.DIFFRAX_EULER: diffrax.Euler,

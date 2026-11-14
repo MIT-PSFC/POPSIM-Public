@@ -8,7 +8,7 @@ from jaxtyping import Array, ArrayLike, PyTree
 
 from popsim import TimeDepModule, interp
 from popsim.sim_utils import SimInput
-from popsim.simulate import StepperType, _diffrax_simulate, _simple_euler_simulate
+from popsim.simulate import StepperType, _diffrax_simulate, _discrete_simulate, _simple_euler_simulate
 
 """
 Base classes for defining environments for training and evaluating modules.
@@ -57,8 +57,12 @@ def call_module_eval_env(env: "ModuleEvalEnv", env_input: ModuleEvalEnvInput, ma
         inputs=inputs_interped,
     )
 
-    if env.stepper == StepperType.SIMPLE_EULER:
-        sol = _simple_euler_simulate(env.module, sim_input, record_state=True)
+    if env.stepper in (StepperType.SIMPLE_EULER, StepperType.DISCRETE):
+        if env.stepper == StepperType.SIMPLE_EULER:
+            sol = _simple_euler_simulate(env.module, sim_input, record_state=True)
+        else:
+            # The state of a discrete module can hold what cannot be stacked over time, so it is not recorded.
+            sol = _discrete_simulate(env.module, sim_input, record_state=False)
         # Wrap in a diffrax.Solution for consistency with other steppers.
         sol = diffrax.Solution(
             t0=time[0],
