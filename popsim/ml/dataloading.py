@@ -787,7 +787,9 @@ def make_time_dep_dataloader(
 
     # Squeeze the sample_ds to get rid of extraneous dimensions.
     # For example, when "segment_length=1", we get rid of the "time" dimension.
-    sample_ds = sample_ds.squeeze()
+    # The sample dimension stays, a dataset can hold a single sample.
+    extraneous_dims = [dim for dim, size in sample_ds.sizes.items() if size == 1 and dim != DEFAULT_SAMPLE_DIM]
+    sample_ds = sample_ds.squeeze(extraneous_dims)
 
     # Forward fill the end of each sample along the time dimension to handle segments with unequal lengths.
     # This is distinct from forward-filling the whole dataset because this set of nans are artificially created via the segmenting process.
