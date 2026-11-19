@@ -177,12 +177,14 @@ def build_train_run(training_config: TrainConfig) -> tuple[Trainer, DataLoader, 
     optimizer = train_run_builder.get_optimizer(optimizer_config)
     loguru.logger.info("Building the trainer...")
     trainable_getter = train_run_builder.get_trainable_getter(training_config.model_init_config)
+    grad_clip = train_run_builder.get_grad_clip(optimizer_config)
     trainer = Trainer(
         model=model,
         loss_fn=loss_fn,
         optimizer=optimizer,
         checkpoint_dir=training_config.checkpoint_dir,
         trainable_getter=trainable_getter,
+        grad_clip=grad_clip,
         resume=training_config.resume,
         checkpoint_max_to_keep=training_config.checkpoint_max_to_keep,
         ema_horizon_epochs=training_config.ema_horizon_epochs,

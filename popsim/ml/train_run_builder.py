@@ -56,3 +56,13 @@ class TrainRunBuilder(ABC):
     def get_trainable_getter(config: dict) -> Callable[[TrainableModel], PyTree] | None:
         """Optionally return a function that takes in the trainable parameters of your model and returns the trainable parameters."""
         return None
+
+    @staticmethod
+    def get_grad_clip(config: dict) -> optax.GradientTransformation | None:
+        """Optionally return the gradient transformation the Trainer applies before the optimizer, given the optimizer config.
+
+        None keeps the Trainer's default, optax.clip_by_global_norm(0.5).
+        Return optax.identity() for no clipping, which a line-search optimizer such as optax.lbfgs needs:
+        its line search evaluates the loss itself, so the gradients it is given must be those of that loss.
+        """
+        return None
